@@ -1,0 +1,2 @@
+{"train_lr": "0.000", "train_loss": "0.852"}
+{"train_lr": "0.000", "train_loss": "0.564"}

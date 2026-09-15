@@ -1,0 +1,245 @@
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: libtorch_cuda_cu.so: cannot open shared object file: No such file or directory
+  warn(f"Failed to load image Python extension: {e}")
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/accelerate/utils/torch_xla.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+2026-09-13 08:28:03,055 [INFO] Building datasets...
+2026-09-13 08:28:03,230 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 08:28:03,261 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 08:28:03,303 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 08:28:03,537 [INFO] 
+=====  Running Parameters    =====
+2026-09-13 08:28:03,537 [INFO] {
+    "amp": true,
+    "batch_size_eval": 2,
+    "batch_size_train": 1,
+    "device": "cuda",
+    "dist_url": "env://",
+    "distributed": false,
+    "evaluate": false,
+    "init_lr": 0.0001,
+    "iters_per_epoch": 1000,
+    "lr_sched": "linear_warmup_cosine_lr",
+    "max_epoch": 8,
+    "min_lr": 5e-05,
+    "mode": "v2",
+    "num_workers": 0,
+    "output_dir": "/home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_idlist",
+    "resume_ckpt_path": null,
+    "save_checkpoint_every_n_epochs": 0,
+    "seed": 42,
+    "task": "rec_pretrain",
+    "test_splits": [
+        "test"
+    ],
+    "train_splits": [
+        "train"
+    ],
+    "valid_splits": [
+        "valid"
+    ],
+    "warmup_lr": 1e-05,
+    "warmup_steps": 200,
+    "weight_decay": 0.001,
+    "world_size": 1
+}
+2026-09-13 08:28:03,537 [INFO] 
+======  Dataset Attributes  ======
+2026-09-13 08:28:03,537 [INFO] 
+======== amazon_ood =======
+2026-09-13 08:28:03,538 [INFO] {
+    "build_info": {
+        "storage": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/"
+    },
+    "data_type": "default",
+    "path": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/",
+    "test_file": "test_ood2.pkl",
+    "train_file": "train_ood2.pkl",
+    "val_file": "valid_ood2.pkl"
+}
+2026-09-13 08:28:03,538 [INFO] 
+======  Model Attributes  ======
+2026-09-13 08:28:03,538 [INFO] {
+    "ans_type": "v2",
+    "arch": "mini_gpt4rec_v2",
+    "ckpt": null,
+    "dataset": "movie",
+    "end_sym": "###",
+    "freeze_lora": false,
+    "freeze_proj": false,
+    "freeze_rec": false,
+    "gcn_layer": 31,
+    "gnn_scale": 0.1,
+    "item_num": -100,
+    "lambda_gnn_to_llm": 0.0,
+    "lambda_llm_to_gnn": 0.0,
+    "llama_model": "/home/bbx/user_lx/models/vicuna-7b-v0",
+    "lora_config": {
+        "alpha": 16,
+        "dropout": 0.05,
+        "r": 8,
+        "target_modules": [
+            "q_proj",
+            "v_proj"
+        ],
+        "use_lora": true
+    },
+    "lora_gnn": "ngcf",
+    "lora_scale": 1.0,
+    "max_txt_len": 1024,
+    "model_type": "pretrain_vicuna",
+    "mutual_layer": 8,
+    "mutual_mode": "b3",
+    "mutual_rank_loss": true,
+    "mutual_warmup_iters": 0,
+    "proj_drop": 0,
+    "proj_mid_times": 10,
+    "proj_token_num": 1,
+    "prompt_path": "prompts/collm_movie_idlist.txt",
+    "prompt_template": "{}",
+    "rank_margin": 0.02,
+    "rank_weight_ref": 0.05,
+    "rec_config": {
+        "embedding_size": 256,
+        "item_num": 3256,
+        "pretrained_path": "/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth",
+        "user_num": 839
+    },
+    "rec_model": "MF",
+    "rel_temp_gnn": 0.05,
+    "rel_temp_llm": 0.05,
+    "semantic_feedback": false,
+    "user_num": -100
+}
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+Not using distributed mode
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+data dir: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+running MiniGPT4Rec_v2 ...... 
+Loading Rec_model
+### rec_encoder: MF
+creat MF model, user num: 839 item num: 3256
+successfully load the pretrained model......
+Loading Rec_model Done
+Loading LLAMA
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:04<00:04,  4.46s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:06<00:00,  2.79s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:06<00:00,  3.04s/it]
+2026-09-13 08:28:17,827 [INFO] Start training
+2026-09-13 08:28:17,840 [INFO] dataset_ratios not specified, datasets will be concatenated (map-style datasets) or chained (webdataset.DataPipeline).
+2026-09-13 08:28:17,840 [INFO] Loaded 33891 records for train split from the dataset.
+2026-09-13 08:28:17,840 [INFO] Loaded 5200 records for valid split from the dataset.
+2026-09-13 08:28:17,840 [INFO] Loaded 7331 records for test split from the dataset.
+Loading LLAMA Done
+Setting LoRA
+Preparing to inject GCN into: model.layers.31 with gnn_scale: 0.1
+Setting LoRA, GCN, and MyLinear for layer 31 Done. Replaced 2 modules.
+Mutual learning ON: mode=b3, mutual_layer=8, lambda_l2g=0.0, lambda_g2l=0.0
+Load 4 training prompts
+Prompt List: 
+['#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:']
+answer token ids: pos: 3869 neg ids: 1939
+Prompt Pos Example 
+#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user's preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \n#Answer: Yes or No
+gnn_conf_kappa
+rec_encoder.user_embedding.weight
+rec_encoder.item_embedding.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_B.default.weight
+2026-09-13 08:28:17,848 [INFO] number of trainable parameters: 16665873
+/home/bbx/user_lx/GraphLoRA/minigpt4/runners/runner_base.py:134: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  self._scaler = torch.cuda.amp.GradScaler()
+2026-09-13 08:28:17,858 [INFO] Start training epoch 0, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1033: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):

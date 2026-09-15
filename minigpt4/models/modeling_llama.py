@@ -475,6 +475,7 @@ class LlamaModel(LlamaPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
+        exit_layer: Optional[int] = None,
     ) -> Union[Tuple, BaseModelOutputWithPast]:
         output_attentions = output_attentions if output_attentions is not None else self.config.output_attentions
         output_hidden_states = (
@@ -539,7 +540,11 @@ class LlamaModel(LlamaPreTrainedModel):
         all_self_attns = () if output_attentions else None
         next_decoder_cache = () if use_cache else None
 
-        for idx, decoder_layer in enumerate(self.layers):
+        # BiLoop semantic feedback: run only the first `exit_layer` layers when set.
+        # RoPE / causal mask above are computed from the full seq_length, so a
+        # truncated stack is identical to the first exit_layer layers of a full run.
+        layers_to_run = self.layers if exit_layer is None else self.layers[:exit_layer]
+        for idx, decoder_layer in enumerate(layers_to_run):
             if output_hidden_states:
                 all_hidden_states += (hidden_states,)
 
@@ -579,7 +584,8 @@ class LlamaModel(LlamaPreTrainedModel):
             if output_attentions:
                 all_self_attns += (layer_outputs[1],)
 
-        hidden_states = self.norm(hidden_states)
+        if exit_layer is None:
+            hidden_states = self.norm(hidden_states)
 
         # add hidden states from the last decoder layer
         if output_hidden_states:
@@ -639,7 +645,7 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
         output_attentions: Optional[bool] = None,
         output_hidden_states: Optional[bool] = None,
         return_dict: Optional[bool] = None,
-        
+        exit_layer: Optional[int] = None,
     ) -> Union[Tuple, CausalLMOutputWithPast]:
         r"""
         Args:
@@ -685,7 +691,12 @@ class LlamaForCausalLM(LlamaPreTrainedModel):
             output_attentions=output_attentions,
             output_hidden_states=output_hidden_states,
             return_dict=return_dict,
+            exit_layer=exit_layer,
         )
+
+        if exit_layer is not None:
+            # BiLoop early exit: return decoder hidden states without lm_head / loss
+            return outputs
 
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)

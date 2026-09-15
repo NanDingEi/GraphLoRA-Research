@@ -495,6 +495,14 @@ class RunnerBase:
                                 #     break
                         # torch.cuda.empty_cache()
 
+                    # debug: lightweight per-epoch snapshots for later comparison
+                    save_every = self.config.run_cfg.get(
+                        "save_checkpoint_every_n_epochs", 0)
+                    if (not self.evaluate_only and is_main_process()
+                            and save_every and (cur_epoch + 1) % save_every == 0):
+                        self._save_checkpoint(cur_epoch, is_best=False,
+                                              trainable_only=True)
+
                 else:
                     # if no validation split is provided, we just save the checkpoint at the end of each epoch.
                     if not self.evaluate_only:
@@ -714,7 +722,7 @@ class RunnerBase:
         return loaders
 
     @main_process
-    def _save_checkpoint(self, cur_epoch, is_best=False):
+    def _save_checkpoint(self, cur_epoch, is_best=False, trainable_only=False):
         """
         Save the checkpoint at the current epoch.
         """
@@ -724,8 +732,13 @@ class RunnerBase:
         }
         state_dict = model_no_ddp.state_dict()
         for k in list(state_dict.keys()):
-            if k in param_grad_dic.keys() and not param_grad_dic[k]:
-                # delete parameters that do not require gradient
+            if k in param_grad_dic.keys():
+                if not param_grad_dic[k]:
+                    # delete parameters that do not require gradient
+                    del state_dict[k]
+            elif trainable_only:
+                # shared-module duplicates and buffers (e.g. the frozen LLaMA
+                # re-registered under the peft path) -- only kept in full saves
                 del state_dict[k]
         save_obj = {
             "model": state_dict,

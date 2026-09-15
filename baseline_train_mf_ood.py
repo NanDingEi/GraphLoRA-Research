@@ -119,7 +119,7 @@ def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_
     # load dataset
     # data_dir = "/home/zyang/LLM/MiniGPT-4/dataset/ml-100k/"
     # data_dir = "/home/sist/zyang/LLM/datasets/ml-1m/"
-    data_dir = "/data/zyang/datasets/ml-1m/"
+    data_dir = "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/"
     train_data = pd.read_pickle(data_dir+"train_ood2.pkl")[['uid','iid','label']].values
     valid_data = pd.read_pickle(data_dir+"valid_ood2.pkl")[['uid','iid','label']].values
     test_data = pd.read_pickle(data_dir+"test_ood2.pkl")[['uid','iid','label']].values
@@ -305,49 +305,14 @@ def run_a_trail(train_config,log_file=None, save_mode=False,save_file=None,need_
 # {'lr': 0.001, 'wd': 0.0001, 'embedding_size': 256, 'epoch': 5000, 'eval_epoch': 1, 'patience': 100, 'batch_size': 2048},
 #  {'valid_auc': 0.6760080227104877, 'valid_uauc': 0.6191863368703151, 'test_auc': 0.6482002627476354, 'test_uauc': 0.636100123360848, 'epoch': 465}
 # save version....
-# if __name__=='__main__':
-#     # lr_ = [1e-1,1e-2,1e-3]
-#     lr_=[1e-3] #1e-2
-#     dw_ = [1e-4]
-#     # embedding_size_ = [32, 64, 128, 156, 512]
-#     embedding_size_ = [256]
-#     save_path = "/data/zyang/LLM/PretrainedModels/mf/"
-#     # save_path = "/home/sist/zyang/LLM/PretrainedModels/mf/"
-#     # try:
-#     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'rw+')
-#     # except:
-#     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'w+')
-#     f=None
-#     for lr in lr_:
-#         for wd in dw_:
-#             for embedding_size in embedding_size_:
-#                 train_config={
-#                     'lr': lr,
-#                     'wd': wd,
-#                     'embedding_size': embedding_size,
-#                     "epoch": 5000,
-#                     "eval_epoch":1,
-#                     "patience":100,
-#                     "batch_size":2048
-#                 }
-#                 print(train_config)
-#                 save_path += "0912_ml1m_oodv2_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"
-#                 print("save path: ", save_path)
-#                 run_a_trail(train_config=train_config, log_file=f, save_mode=True,save_file=save_path)
-#     f.close()
-
-
-
-
-#### /data/zyang/LLM/PretrainedModels/mf/best_model_d128.pth
-# with prtrain version:
 if __name__=='__main__':
     # lr_ = [1e-1,1e-2,1e-3]
     lr_=[1e-3] #1e-2
     dw_ = [1e-4]
     # embedding_size_ = [32, 64, 128, 156, 512]
     embedding_size_ = [256]
-    save_path = "/data/zyang/LLM/PretrainedModels/mf/"
+    save_path = "/home/bbx/user_lx/GraphLoRA/checkpoints/"
+    # save_path = "/home/sist/zyang/LLM/PretrainedModels/mf/"
     # try:
     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'rw+')
     # except:
@@ -362,21 +327,57 @@ if __name__=='__main__':
                     'embedding_size': embedding_size,
                     "epoch": 5000,
                     "eval_epoch":1,
-                    "patience":50,
-                    "batch_size":1024
+                    "patience":100,
+                    "batch_size":2048
                 }
                 print(train_config)
-                # save_path = "/data/zyang/LLM/PretrainedModels/mf/0912_ml100k_oodv2_best_model_d64lr-0.001wd0.0001.pth"
-                save_path = "/data/zyang/LLM/PretrainedModels/mf/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth"
-                # if os.path.exists(save_path + "0912_ml100k_oodv2_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"):
-                #     save_path += "0912_ml100k_oodv2_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"
-                #     print(save_path)
-                # else:
-                #     save_path += "best_model_d" + str(embedding_size) + ".pth"
-                
-                run_a_trail(train_config=train_config, log_file=f, save_mode=False,save_file=save_path,need_train=False,warm_or_cold='warm')
+                save_path += "0912_ml1m_oodv2_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"
+                print("save path: ", save_path)
+                run_a_trail(train_config=train_config, log_file=f, save_mode=True,save_file=save_path)
     if f is not None:
         f.close()
+
+
+
+
+# #### /data/zyang/LLM/PretrainedModels/mf/best_model_d128.pth
+# # with prtrain version:
+# if __name__=='__main__':
+#     # lr_ = [1e-1,1e-2,1e-3]
+#     lr_=[1e-3] #1e-2
+#     dw_ = [1e-4]
+#     # embedding_size_ = [32, 64, 128, 156, 512]
+#     embedding_size_ = [256]
+#     save_path = "/home/bbx/user_lx/GraphLoRA/checkpoints/"
+#     # try:
+#     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'rw+')
+#     # except:
+#     #     f = open("rec_mf_search_lr"+str(lr_[0])+".log",'w+')
+#     f=None
+#     for lr in lr_:
+#         for wd in dw_:
+#             for embedding_size in embedding_size_:
+#                 train_config={
+#                     'lr': lr,
+#                     'wd': wd,
+#                     'embedding_size': embedding_size,
+#                     "epoch": 5000,
+#                     "eval_epoch":1,
+#                     "patience":50,
+#                     "batch_size":1024
+#                 }
+#                 print(train_config)
+#                 # save_path = "/data/zyang/LLM/PretrainedModels/mf/0912_ml100k_oodv2_best_model_d64lr-0.001wd0.0001.pth"
+#                 save_path = "/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth"
+#                 # if os.path.exists(save_path + "0912_ml100k_oodv2_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"):
+#                 #     save_path += "0912_ml100k_oodv2_best_model_d" + str(embedding_size)+ 'lr-'+ str(lr) + "wd"+str(wd) + ".pth"
+#                 #     print(save_path)
+#                 # else:
+#                 #     save_path += "best_model_d" + str(embedding_size) + ".pth"
+                
+#                 run_a_trail(train_config=train_config, log_file=f, save_mode=False,save_file=save_path,need_train=False,warm_or_cold='warm')
+#     if f is not None:
+#         f.close()
         
 
 

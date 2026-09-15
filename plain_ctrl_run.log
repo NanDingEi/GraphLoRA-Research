@@ -1,0 +1,16 @@
+=== fix_plain attempt 1 start 07:35 ===
+attempt 1: 0/8 evals
+=== fix_plain attempt 2 start 08:28 ===
+attempt 2: 8/8 evals
+rank_0 auc: 0.7017206870626027
+rank_0 auc: 0.7061289569733901
+rank_0 auc: 0.7209534989472535
+rank_0 auc: 0.7161450917107026
+rank_0 auc: 0.7161579418605739
+rank_0 auc: 0.715155333057315
+rank_0 auc: 0.6946726398322856
+rank_0 auc: 0.6924818006967011
+plain best ckpt: output/graphlora_ml1m_scratch_idlist/20260913082/checkpoint_best.pth
+plain test:
+rank_0 auc: 0.7237134543869594
+PLAIN_DONE

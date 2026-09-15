@@ -1,0 +1,184 @@
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: libtorch_cuda_cu.so: cannot open shared object file: No such file or directory
+  warn(f"Failed to load image Python extension: {e}")
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/accelerate/utils/torch_xla.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+2026-09-13 13:55:52,364 [INFO] Building datasets...
+2026-09-13 13:55:52,535 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 13:55:52,565 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 13:55:52,605 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 13:55:52,739 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 13:55:52,775 [INFO] Amazon OOD datasets, max history length:10
+2026-09-13 13:55:53,043 [INFO] 
+=====  Running Parameters    =====
+2026-09-13 13:55:53,043 [INFO] {
+    "amp": true,
+    "batch_size_eval": 1,
+    "batch_size_train": 2,
+    "device": "cuda",
+    "dist_url": "env://",
+    "distributed": false,
+    "evaluate": true,
+    "init_lr": 0.0001,
+    "iters_per_epoch": 1000,
+    "lr_sched": "linear_warmup_cosine_lr",
+    "max_epoch": 500,
+    "min_lr": 5e-05,
+    "mode": "v2",
+    "num_workers": 0,
+    "output_dir": "/home/bbx/user_lx/GraphLoRA/output/eval_cflora_cflora_v2",
+    "pref_candidates": 2,
+    "resume_ckpt_path": null,
+    "save_checkpoint_every_n_epochs": 1,
+    "seed": 42,
+    "task": "rec_pretrain",
+    "test_splits": [
+        "test"
+    ],
+    "train_splits": [
+        "train"
+    ],
+    "valid_splits": [
+        "valid"
+    ],
+    "warmup_lr": 1e-05,
+    "warmup_steps": 200,
+    "weight_decay": 0.001,
+    "world_size": 1
+}
+2026-09-13 13:55:53,043 [INFO] 
+======  Dataset Attributes  ======
+2026-09-13 13:55:53,043 [INFO] 
+======== amazon_ood =======
+2026-09-13 13:55:53,044 [INFO] {
+    "build_info": {
+        "storage": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/"
+    },
+    "data_type": "default",
+    "path": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/",
+    "test_file": "test_ood2.pkl",
+    "train_file": "train_ood2.pkl",
+    "val_file": "valid_ood2.pkl"
+}
+2026-09-13 13:55:53,044 [INFO] 
+======  Model Attributes  ======
+2026-09-13 13:55:53,044 [INFO] {
+    "ans_type": "v2",
+    "arch": "mini_gpt4rec_v2",
+    "ckpt": "output/graphlora_ml1m_scratch_cflora_mutual/20260913125/checkpoint_best.pth",
+    "dataset": "movie",
+    "end_sym": "###",
+    "eval_fuse_beta": 0.0,
+    "freeze_lora": false,
+    "freeze_proj": false,
+    "freeze_rec": false,
+    "gcn_layer": 31,
+    "gnn_conf_loss_weight": 0.1,
+    "gnn_scale": 0.1,
+    "injection_mode": "cflora",
+    "item_num": -100,
+    "lambda_gnn_to_llm": 0.0,
+    "lambda_llm_to_gnn": 1.0,
+    "llama_model": "/home/bbx/user_lx/models/vicuna-7b-v0",
+    "lora_config": {
+        "alpha": 16,
+        "dropout": 0.05,
+        "r": 8,
+        "target_modules": [
+            "q_proj",
+            "v_proj"
+        ],
+        "use_lora": true
+    },
+    "lora_gnn": "ngcf",
+    "lora_scale": 1.0,
+    "max_txt_len": 1024,
+    "model_type": "pretrain_vicuna",
+    "mutual_layer": 8,
+    "mutual_mode": "rel",
+    "mutual_rank_loss": true,
+    "mutual_warmup_iters": 0,
+    "pref_distill_weight": 0.5,
+    "pref_tau_g": 1.0,
+    "pref_tau_l": 1.0,
+    "proj_drop": 0,
+    "proj_mid_times": 10,
+    "proj_token_num": 1,
+    "prompt_path": "prompts/collm_movie_idlist.txt",
+    "prompt_template": "{}",
+    "rank_margin": 0.02,
+    "rank_weight_ref": 0.05,
+    "rec_config": {
+        "embedding_size": 256,
+        "item_num": 3256,
+        "pretrained_path": "/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth",
+        "user_num": 839
+    },
+    "rec_model": "MF",
+    "rel_temp_gnn": 0.05,
+    "rel_temp_llm": 0.05,
+    "semantic_feedback": false,
+    "user_num": -100
+}
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+Not using distributed mode
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (4153, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (3178, 7)
+Amazon OOD datasets, max history length: 10
+data dir: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+[pref] wrapping amazon_ood/train with 2 candidates/group
+running MiniGPT4Rec_v2 ...... 
+Loading Rec_model
+### rec_encoder: MF
+creat MF model, user num: 839 item num: 3256
+successfully load the pretrained model......
+Loading Rec_model Done
+Loading LLAMA
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:04<00:04,  4.61s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:06<00:00,  2.87s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:06<00:00,  3.14s/it]
+Loading LLAMA Done
+Setting LoRA
+Graph-conditioned CFLoRA ON: projector 768->4d->64, zero-init (warm-start safe), replaces 8-d hidden injection
+Preparing to inject GCN into: model.layers.31 with gnn_scale: 0.1
+Setting LoRA, GCN, and MyLinear for layer 31 Done. Replaced 2 modules.
+Mutual learning ON: mode=rel, mutual_layer=8, lambda_l2g=1.0, lambda_g2l=0.0
+Load 4 training prompts
+Prompt List: 
+['#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:']
+Load MiniGPT4Rec Checkpoint: output/graphlora_ml1m_scratch_cflora_mutual/20260913125/checkpoint_best.pth
+loading message, msg....  _IncompatibleKeys(missing_keys=['llama_model.model.embed_tokens.weight', 'llama_model.model.layers.0.self_attn.q_proj.weight', 'llama_model.model.layers.0.self_attn.k_proj.weight', 'llama_model.model.layers.0.self_attn.v_proj.weight', 'llama_model.model.layers.0.self_attn.o_proj.weight', 'llama_model.model.layers.0.mlp.gate_proj.weight', 'llama_model.model.layers.0.mlp.down_proj.weight', 'llama_model.model.layers.0.mlp.up_proj.weight', 'llama_model.model.layers.0.input_layernorm.weight', 'llama_model.model.layers.0.post_attention_layernorm.weight', 'llama_model.model.layers.1.self_attn.q_proj.weight', 'llama_model.model.layers.1.self_attn.k_proj.weight', 'llama_model.model.layers.1.self_attn.v_proj.weight', 'llama_model.model.layers.1.self_attn.o_proj.weight', 'llama_model.model.layers.1.mlp.gate_proj.weight', 'llama_model.model.layers.1.mlp.down_proj.weight', 'llama_model.model.layers.1.mlp.up_proj.weight', 'llama_model.model.layers.1.input_layernorm.weight', 'llama_model.model.layers.1.post_attention_layernorm.weight', 'llama_model.model.layers.2.self_attn.q_proj.weight', 'llama_model.model.layers.2.self_attn.k_proj.weight', 'llama_model.model.layers.2.self_attn.v_proj.weight', 'llama_model.model.layers.2.self_attn.o_proj.weight', 'llama_model.model.layers.2.mlp.gate_proj.weight', 'llama_model.model.layers.2.mlp.down_proj.weight', 'llama_model.model.layers.2.mlp.up_proj.weight', 'llama_model.model.layers.2.input_layernorm.weight', 'llama_model.model.layers.2.post_attention_layernorm.weight', 'llama_model.model.layers.3.self_attn.q_proj.weight', 'llama_model.model.layers.3.self_attn.k_proj.weight', 'llama_model.model.layers.3.self_attn.v_proj.weight', 'llama_model.model.layers.3.self_attn.o_proj.weight', 'llama_model.model.layers.3.mlp.gate_proj.weight', 'llama_model.model.layers.3.mlp.down_proj.weight', 'llama_model.model.layers.3.mlp.up_proj.weight', 'llama_model.model.layers.3.input_layernorm.weight', 'llama_model.model.layers.3.post_attention_layernorm.weight', 'llama_model.model.layers.4.self_attn.q_proj.weight', 'llama_model.model.layers.4.self_attn.k_proj.weight', 'llama_model.model.layers.4.self_attn.v_proj.weight', 'llama_model.model.layers.4.self_attn.o_proj.weight', 'llama_model.model.layers.4.mlp.gate_proj.weight', 'llama_model.model.layers.4.mlp.down_proj.weight', 'llama_model.model.layers.4.mlp.up_proj.weight', 'llama_model.model.layers.4.input_layernorm.weight', 'llama_model.model.layers.4.post_attention_layernorm.weight', 'llama_model.model.layers.5.self_attn.q_proj.weight', 'llama_model.model.layers.5.self_attn.k_proj.weight', 'llama_model.model.layers.5.self_attn.v_proj.weight', 'llama_model.model.layers.5.self_attn.o_proj.weight', 'llama_model.model.layers.5.mlp.gate_proj.weight', 'llama_model.model.layers.5.mlp.down_proj.weight', 'llama_model.model.layers.5.mlp.up_proj.weight', 'llama_model.model.layers.5.input_layernorm.weight', 'llama_model.model.layers.5.post_attention_layernorm.weight', 'llama_model.model.layers.6.self_attn.q_proj.weight', 'llama_model.model.layers.6.self_attn.k_proj.weight', 'llama_model.model.layers.6.self_attn.v_proj.weight', 'llama_model.model.layers.6.self_attn.o_proj.weight', 'llama_model.model.layers.6.mlp.gate_proj.weight', 'llama_model.model.layers.6.mlp.down_proj.weight', 'llama_model.model.layers.6.mlp.up_proj.weight', 'llama_model.model.layers.6.input_layernorm.weight', 'llama_model.model.layers.6.post_attention_layernorm.weight', 'llama_model.model.layers.7.self_attn.q_proj.weight', 'llama_model.model.layers.7.self_attn.k_proj.weight', 'llama_model.model.layers.7.self_attn.v_proj.weight', 'llama_model.model.layers.7.self_attn.o_proj.weight', 'llama_model.model.layers.7.mlp.gate_proj.weight', 'llama_model.model.layers.7.mlp.down_proj.weight', 'llama_model.model.layers.7.mlp.up_proj.weight', 'llama_model.model.layers.7.input_layernorm.weight', 'llama_model.model.layers.7.post_attention_layernorm.weight', 'llama_model.model.layers.8.self_attn.q_proj.weight', 'llama_model.model.layers.8.self_attn.k_proj.weight', 'llama_model.model.layers.8.self_attn.v_proj.weight', 'llama_model.model.layers.8.self_attn.o_proj.weight', 'llama_model.model.layers.8.mlp.gate_proj.weight', 'llama_model.model.layers.8.mlp.down_proj.weight', 'llama_model.model.layers.8.mlp.up_proj.weight', 'llama_model.model.layers.8.input_layernorm.weight', 'llama_model.model.layers.8.post_attention_layernorm.weight', 'llama_model.model.layers.9.self_attn.q_proj.weight', 'llama_model.model.layers.9.self_attn.k_proj.weight', 'llama_model.model.layers.9.self_attn.v_proj.weight', 'llama_model.model.layers.9.self_attn.o_proj.weight', 'llama_model.model.layers.9.mlp.gate_proj.weight', 'llama_model.model.layers.9.mlp.down_proj.weight', 'llama_model.model.layers.9.mlp.up_proj.weight', 'llama_model.model.layers.9.input_layernorm.weight', 'llama_model.model.layers.9.post_attention_layernorm.weight', 'llama_model.model.layers.10.self_attn.q_proj.weight', 'llama_model.model.layers.10.self_attn.k_proj.weight', 'llama_model.model.layers.10.self_attn.v_proj.weight', 'llama_model.model.layers.10.self_attn.o_proj.weight', 'llama_model.model.layers.10.mlp.gate_proj.weight', 'llama_model.model.layers.10.mlp.down_proj.weight', 'llama_model.model.layers.10.mlp.up_proj.weight', 'llama_model.model.layers.10.input_layernorm.weight', 'llama_model.model.layers.10.post_attention_layernorm.weight', 'llama_model.model.layers.11.self_attn.q_proj.weight', 'llama_model.model.layers.11.self_attn.k_proj.weight', 'llama_model.model.layers.11.self_attn.v_proj.weight', 'llama_model.model.layers.11.self_attn.o_proj.weight', 'llama_model.model.layers.11.mlp.gate_proj.weight', 'llama_model.model.layers.11.mlp.down_proj.weight', 'llama_model.model.layers.11.mlp.up_proj.weight', 'llama_model.model.layers.11.input_layernorm.weight', 'llama_model.model.layers.11.post_attention_layernorm.weight', 'llama_model.model.layers.12.self_attn.q_proj.weight', 'llama_model.model.layers.12.self_attn.k_proj.weight', 'llama_model.model.layers.12.self_attn.v_proj.weight', 'llama_model.model.layers.12.self_attn.o_proj.weight', 'llama_model.model.layers.12.mlp.gate_proj.weight', 'llama_model.model.layers.12.mlp.down_proj.weight', 'llama_model.model.layers.12.mlp.up_proj.weight', 'llama_model.model.layers.12.input_layernorm.weight', 'llama_model.model.layers.12.post_attention_layernorm.weight', 'llama_model.model.layers.13.self_attn.q_proj.weight', 'llama_model.model.layers.13.self_attn.k_proj.weight', 'llama_model.model.layers.13.self_attn.v_proj.weight', 'llama_model.model.layers.13.self_attn.o_proj.weight', 'llama_model.model.layers.13.mlp.gate_proj.weight', 'llama_model.model.layers.13.mlp.down_proj.weight', 'llama_model.model.layers.13.mlp.up_proj.weight', 'llama_model.model.layers.13.input_layernorm.weight', 'llama_model.model.layers.13.post_attention_layernorm.weight', 'llama_model.model.layers.14.self_attn.q_proj.weight', 'llama_model.model.layers.14.self_attn.k_proj.weight', 'llama_model.model.layers.14.self_attn.v_proj.weight', 'llama_model.model.layers.14.self_attn.o_proj.weight', 'llama_model.model.layers.14.mlp.gate_proj.weight', 'llama_model.model.layers.14.mlp.down_proj.weight', 'llama_model.model.layers.14.mlp.up_proj.weight', 'llama_model.model.layers.14.input_layernorm.weight', 'llama_model.model.layers.14.post_attention_layernorm.weight', 'llama_model.model.layers.15.self_attn.q_proj.weight', 'llama_model.model.layers.15.self_attn.k_proj.weight', 'llama_model.model.layers.15.self_attn.v_proj.weight', 'llama_model.model.layers.15.self_attn.o_proj.weight', 'llama_model.model.layers.15.mlp.gate_proj.weight', 'llama_model.model.layers.15.mlp.down_proj.weight', 'llama_model.model.layers.15.mlp.up_proj.weight', 'llama_model.model.layers.15.input_layernorm.weight', 'llama_model.model.layers.15.post_attention_layernorm.weight', 'llama_model.model.layers.16.self_attn.q_proj.weight', 'llama_model.model.layers.16.self_attn.k_proj.weight', 'llama_model.model.layers.16.self_attn.v_proj.weight', 'llama_model.model.layers.16.self_attn.o_proj.weight', 'llama_model.model.layers.16.mlp.gate_proj.weight', 'llama_model.model.layers.16.mlp.down_proj.weight', 'llama_model.model.layers.16.mlp.up_proj.weight', 'llama_model.model.layers.16.input_layernorm.weight', 'llama_model.model.layers.16.post_attention_layernorm.weight', 'llama_model.model.layers.17.self_attn.q_proj.weight', 'llama_model.model.layers.17.self_attn.k_proj.weight', 'llama_model.model.layers.17.self_attn.v_proj.weight', 'llama_model.model.layers.17.self_attn.o_proj.weight', 'llama_model.model.layers.17.mlp.gate_proj.weight', 'llama_model.model.layers.17.mlp.down_proj.weight', 'llama_model.model.layers.17.mlp.up_proj.weight', 'llama_model.model.layers.17.input_layernorm.weight', 'llama_model.model.layers.17.post_attention_layernorm.weight', 'llama_model.model.layers.18.self_attn.q_proj.weight', 'llama_model.model.layers.18.self_attn.k_proj.weight', 'llama_model.model.layers.18.self_attn.v_proj.weight', 'llama_model.model.layers.18.self_attn.o_proj.weight', 'llama_model.model.layers.18.mlp.gate_proj.weight', 'llama_model.model.layers.18.mlp.down_proj.weight', 'llama_model.model.layers.18.mlp.up_proj.weight', 'llama_model.model.layers.18.input_layernorm.weight', 'llama_model.model.layers.18.post_attention_layernorm.weight', 'llama_model.model.layers.19.self_attn.q_proj.weight', 'llama_model.model.layers.19.self_attn.k_proj.weight', 'llama_model.model.layers.19.self_attn.v_proj.weight', 'llama_model.model.layers.19.self_attn.o_proj.weight', 'llama_model.model.layers.19.mlp.gate_proj.weight', 'llama_model.model.layers.19.mlp.down_proj.weight', 'llama_model.model.layers.19.mlp.up_proj.weight', 'llama_model.model.layers.19.input_layernorm.weight', 'llama_model.model.layers.19.post_attention_layernorm.weight', 'llama_model.model.layers.20.self_attn.q_proj.weight', 'llama_model.model.layers.20.self_attn.k_proj.weight', 'llama_model.model.layers.20.self_attn.v_proj.weight', 'llama_model.model.layers.20.self_attn.o_proj.weight', 'llama_model.model.layers.20.mlp.gate_proj.weight', 'llama_model.model.layers.20.mlp.down_proj.weight', 'llama_model.model.layers.20.mlp.up_proj.weight', 'llama_model.model.layers.20.input_layernorm.weight', 'llama_model.model.layers.20.post_attention_layernorm.weight', 'llama_model.model.layers.21.self_attn.q_proj.weight', 'llama_model.model.layers.21.self_attn.k_proj.weight', 'llama_model.model.layers.21.self_attn.v_proj.weight', 'llama_model.model.layers.21.self_attn.o_proj.weight', 'llama_model.model.layers.21.mlp.gate_proj.weight', 'llama_model.model.layers.21.mlp.down_proj.weight', 'llama_model.model.layers.21.mlp.up_proj.weight', 'llama_model.model.layers.21.input_layernorm.weight', 'llama_model.model.layers.21.post_attention_layernorm.weight', 'llama_model.model.layers.22.self_attn.q_proj.weight', 'llama_model.model.layers.22.self_attn.k_proj.weight', 'llama_model.model.layers.22.self_attn.v_proj.weight', 'llama_model.model.layers.22.self_attn.o_proj.weight', 'llama_model.model.layers.22.mlp.gate_proj.weight', 'llama_model.model.layers.22.mlp.down_proj.weight', 'llama_model.model.layers.22.mlp.up_proj.weight', 'llama_model.model.layers.22.input_layernorm.weight', 'llama_model.model.layers.22.post_attention_layernorm.weight', 'llama_model.model.layers.23.self_attn.q_proj.weight', 'llama_model.model.layers.23.self_attn.k_proj.weight', 'llama_model.model.layers.23.self_attn.v_proj.weight', 'llama_model.model.layers.23.self_attn.o_proj.weight', 'llama_model.model.layers.23.mlp.gate_proj.weight', 'llama_model.model.layers.23.mlp.down_proj.weight', 'llama_model.model.layers.23.mlp.up_proj.weight', 'llama_model.model.layers.23.input_layernorm.weight', 'llama_model.model.layers.23.post_attention_layernorm.weight', 'llama_model.model.layers.24.self_attn.q_proj.weight', 'llama_model.model.layers.24.self_attn.k_proj.weight', 'llama_model.model.layers.24.self_attn.v_proj.weight', 'llama_model.model.layers.24.self_attn.o_proj.weight', 'llama_model.model.layers.24.mlp.gate_proj.weight', 'llama_model.model.layers.24.mlp.down_proj.weight', 'llama_model.model.layers.24.mlp.up_proj.weight', 'llama_model.model.layers.24.input_layernorm.weight', 'llama_model.model.layers.24.post_attention_layernorm.weight', 'llama_model.model.layers.25.self_attn.q_proj.weight', 'llama_model.model.layers.25.self_attn.k_proj.weight', 'llama_model.model.layers.25.self_attn.v_proj.weight', 'llama_model.model.layers.25.self_attn.o_proj.weight', 'llama_model.model.layers.25.mlp.gate_proj.weight', 'llama_model.model.layers.25.mlp.down_proj.weight', 'llama_model.model.layers.25.mlp.up_proj.weight', 'llama_model.model.layers.25.input_layernorm.weight', 'llama_model.model.layers.25.post_attention_layernorm.weight', 'llama_model.model.layers.26.self_attn.q_proj.weight', 'llama_model.model.layers.26.self_attn.k_proj.weight', 'llama_model.model.layers.26.self_attn.v_proj.weight', 'llama_model.model.layers.26.self_attn.o_proj.weight', 'llama_model.model.layers.26.mlp.gate_proj.weight', 'llama_model.model.layers.26.mlp.down_proj.weight', 'llama_model.model.layers.26.mlp.up_proj.weight', 'llama_model.model.layers.26.input_layernorm.weight', 'llama_model.model.layers.26.post_attention_layernorm.weight', 'llama_model.model.layers.27.self_attn.q_proj.weight', 'llama_model.model.layers.27.self_attn.k_proj.weight', 'llama_model.model.layers.27.self_attn.v_proj.weight', 'llama_model.model.layers.27.self_attn.o_proj.weight', 'llama_model.model.layers.27.mlp.gate_proj.weight', 'llama_model.model.layers.27.mlp.down_proj.weight', 'llama_model.model.layers.27.mlp.up_proj.weight', 'llama_model.model.layers.27.input_layernorm.weight', 'llama_model.model.layers.27.post_attention_layernorm.weight', 'llama_model.model.layers.28.self_attn.q_proj.weight', 'llama_model.model.layers.28.self_attn.k_proj.weight', 'llama_model.model.layers.28.self_attn.v_proj.weight', 'llama_model.model.layers.28.self_attn.o_proj.weight', 'llama_model.model.layers.28.mlp.gate_proj.weight', 'llama_model.model.layers.28.mlp.down_proj.weight', 'llama_model.model.layers.28.mlp.up_proj.weight', 'llama_model.model.layers.28.input_layernorm.weight', 'llama_model.model.layers.28.post_attention_layernorm.weight', 'llama_model.model.layers.29.self_attn.q_proj.weight', 'llama_model.model.layers.29.self_attn.k_proj.weight', 'llama_model.model.layers.29.self_attn.v_proj.weight', 'llama_model.model.layers.29.self_attn.o_proj.weight', 'llama_model.model.layers.29.mlp.gate_proj.weight', 'llama_model.model.layers.29.mlp.down_proj.weight', 'llama_model.model.layers.29.mlp.up_proj.weight', 'llama_model.model.layers.29.input_layernorm.weight', 'llama_model.model.layers.29.post_attention_layernorm.weight', 'llama_model.model.layers.30.self_attn.q_proj.weight', 'llama_model.model.layers.30.self_attn.k_proj.weight', 'llama_model.model.layers.30.self_attn.v_proj.weight', 'llama_model.model.layers.30.self_attn.o_proj.weight', 'llama_model.model.layers.30.mlp.gate_proj.weight', 'llama_model.model.layers.30.mlp.down_proj.weight', 'llama_model.model.layers.30.mlp.up_proj.weight', 'llama_model.model.layers.30.input_layernorm.weight', 'llama_model.model.layers.30.post_attention_layernorm.weight', 'llama_model.model.layers.31.self_attn.q_proj.weight', 'llama_model.model.layers.31.self_attn.k_proj.weight', 'llama_model.model.layers.31.self_attn.v_proj.weight', 'llama_model.model.layers.31.self_attn.o_proj.weight', 'llama_model.model.layers.31.mlp.gate_proj.weight', 'llama_model.model.layers.31.mlp.down_proj.weight', 'llama_model.model.layers.31.mlp.up_proj.weight', 'llama_model.model.layers.31.input_layernorm.weight', 'llama_model.model.layers.31.post_attention_layernorm.weight', 'llama_model.model.norm.weight', 'llama_model.lm_head.weight'], unexpected_keys=[])2026-09-13 13:56:10,341 [INFO] Evaluating on test.
+2026-09-13 13:56:10,341 [INFO] dataset_ratios not specified, datasets will be concatenated (map-style datasets) or chained (webdataset.DataPipeline).
+2026-09-13 13:56:10,342 [INFO] Loaded 33891 records for train split from the dataset.
+2026-09-13 13:56:10,342 [INFO] Loaded 5200 records for valid split from the dataset.
+2026-09-13 13:56:10,342 [INFO] Loaded 7331 records for test split from the dataset.
+2026-09-13 13:56:10,342 [INFO] Loaded 4153 records for test_warm split from the dataset.
+2026-09-13 13:56:10,342 [INFO] Loaded 3178 records for test_cold split from the dataset.
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1061: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+2026-09-13 14:02:25,734 [INFO] Averaged stats: loss: 0.704763  acc: 0.052517 ***auc: 0.6968928508658769 ***uauc:(0.6748565075947355, [4, 6, 16, 26, 30, 33, 37, 40, 41, 47, 48, 50, 51, 61, 67, 72, 73, 80, 82, 83, 92, 93, 95, 104, 110, 117, 118, 121, 126, 132, 142, 143, 145, 147, 155, 164, 165, 167, 169, 170, 171, 173, 177, 178, 182, 183, 184, 185, 192, 193, 199, 205, 207, 208, 215, 220, 226, 227, 228, 230, 231, 237, 242, 246, 247, 250, 254, 255, 256, 260, 261, 273, 275, 277, 279, 282, 286, 288, 291, 296, 300, 301, 302, 304, 308, 313, 314, 319, 322, 325, 327, 338, 343, 344, 345, 349, 353, 354, 358, 362, 366, 370, 371, 379, 395, 403, 404, 409, 413, 418, 426, 427, 433, 434, 436, 437, 444, 449, 454, 456, 461, 464, 466, 468, 469, 471, 474, 490, 500, 501, 504, 507, 515, 517, 521, 530, 533, 538, 544, 550, 552, 553, 559, 562, 563, 564, 566, 582, 583, 585, 588, 594, 598, 603, 607, 614, 617, 618, 623, 624, 627, 629, 631, 632, 635, 641, 645, 646, 648, 651, 653, 655, 658, 662, 664, 665, 672, 679, 680, 681, 690, 695, 697, 699, 703, 705, 707, 709, 710, 714, 717, 720, 721, 725, 728, 731, 732, 735, 736, 739, 747, 748, 758, 761, 762, 763, 766, 768, 773, 782, 784, 785, 788, 796, 797, 800, 802, 803, 805, 809, 812, 816, 821, 833], [0.5909090909090908, 0.664021164021164, 0.6006493506493507, 0.7166666666666667, 0.875, 0.0, 0.703030303030303, 0.5504761904761906, 0.6266666666666667, 0.6218045112781955, 1.0, 1.0, 0.7, 0.8333333333333333, 1.0, 0.638996138996139, 0.9017857142857143, 0.7878787878787878, 0.5833333333333333, 0.7491749174917491, 0.8902439024390244, 0.55, 0.4444444444444444, 0.4555555555555556, 0.0, 0.33333333333333337, 0.6933333333333334, 0.7575757575757576, 1.0, 1.0, 0.5220588235294118, 1.0, 0.5347222222222222, 0.7777777777777778, 0.5277777777777777, 0.7758969365590593, 0.7555555555555556, 0.41935483870967744, 0.8147058823529411, 0.7291666666666666, 0.5757575757575758, 1.0, 1.0, 0.7727272727272727, 0.0, 0.726237905520774, 0.7, 0.7983193277310925, 0.75, 0.75, 0.3923076923076923, 0.0, 0.6351351351351351, 0.7333333333333334, 0.5826086956521739, 0.7752525252525253, 0.7333333333333333, 0.0, 0.8818181818181818, 1.0, 0.9224137931034482, 0.9, 0.75, 0.75, 1.0, 0.984375, 0.7875000000000001, 0.0, 0.6000000000000001, 0.9649122807017545, 0.8444444444444444, 0.815668202764977, 0.6428571428571429, 0.5814814814814815, 0.5, 0.5696969696969697, 0.33333333333333337, 0.7307692307692308, 0.9772727272727273, 0.638888888888889, 0.8947368421052632, 0.6666666666666667, 0.8186274509803921, 0.8666666666666667, 1.0, 0.8252032520325204, 0.8857142857142857, 0.5975232198142415, 0.5555555555555556, 0.5, 0.3125, 0.9, 0.6176470588235294, 1.0, 0.625, 0.6944444444444444, 0.5555555555555556, 0.8666666666666667, 0.425, 0.32352941176470584, 0.0, 0.5928571428571429, 0.6041666666666666, 0.8180952380952381, 1.0, 0.5754576942107867, 0.5416666666666667, 1.0, 0.875, 0.5714285714285714, 0.5, 0.6029411764705882, 0.888888888888889, 0.8445945945945945, 1.0, 0.8333333333333333, 0.8311688311688312, 0.5, 0.610144927536232, 0.5520833333333334, 0.7115942028985508, 0.75, 1.0, 0.7041587901701323, 0.5, 1.0, 0.7217473884140551, 0.41666666666666663, 1.0, 1.0, 1.0, 0.22448979591836735, 0.9714285714285715, 0.8333333333333333, 0.8181818181818182, 0.6428571428571428, 0.7407407407407408, 0.5618448637316562, 0.7160714285714286, 0.8826530612244898, 0.625, 1.0, 0.7692307692307693, 0.6500000000000001, 0.7447916666666666, 0.6666666666666666, 0.41666666666666663, 0.0, 0.7777777777777778, 0.5308641975308642, 0.5888888888888889, 0.6454545454545454, 1.0, 0.37962962962962965, 1.0, 0.5, 0.7777777777777779, 1.0, 0.6875, 0.0, 0.75, 0.0, 0.825, 0.6862745098039216, 0.7214209401709402, 0.5, 1.0, 0.6060606060606061, 0.6622875816993463, 0.6428571428571429, 1.0, 0.6372549019607843, 0.7101449275362319, 0.6493506493506493, 0.5625, 0.71875, 0.5555555555555556, 0.6446855509355509, 0.5222222222222221, 0.9074074074074074, 0.75, 0.4833333333333333, 1.0, 0.6875, 0.625, 0.5800000000000001, 0.14285714285714285, 0.6166666666666667, 0.42028985507246375, 0.5625, 0.2285714285714286, 0.8258003766478342, 0.6571428571428571, 0.30000000000000004, 0.38888888888888895, 0.73421926910299, 0.7423768939393939, 0.5333333333333333, 0.6537267080745341, 0.8303571428571428, 0.5833333333333333, 0.7690140845070423, 0.6666666666666666, 0.6, 0.5490196078431372, 0.6828571428571428, 0.7142857142857143, 0.5, 0.25, 1.0, 1.0, 0.3, 1.0, 0.0, 0.7222222222222221, 0.6221590909090909, 0.780952380952381, 0.5, 0.5, 0.5258814703675919, 1.0, 1.0, 0.591423541247485, 1.0])
+2026-09-13 14:02:25,734 [INFO] Training time 0:06:17
+
+answer token ids: pos: 3869 neg ids: 1939
+Prompt Pos Example 
+#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user's preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \n#Answer: Yes or No
+training finish or just evaluation...
+prompt example: <s>#Question: A user has given high ratings to the following movies: "When We Were Kings (1996)", "Celluloid Closet, The (1995)", "U2: Rattle and Hum (1988)", "War Room, The (1993)", "Madonna: Truth or Dare (1991)", "Breaking Away (1979)", "Tombstone (1993)", "High Noon (1952)", "Space Cowboys (2000)", "Better Than Chocolate (1999)". Additionally, we have information about the user's preferences encoded in the feature <unk> together with the interacted item IDs <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>. Using all available information, make a prediction about whether the user would enjoy the movie titled "Indecent Proposal (1993)" with the feature <unk>? Answer with "Yes" or "No". \n#Answer:
+#######prompt decoded example: <s> # Question : A user has given high ratings to the following mov ies : " When We W ere Kings ( 1 9 9 6 )", " Cell ul oid Cl os et , The ( 1 9 9 5 )", " U 2 : R attle and Hum ( 1 9 8 8 )", " W ar Room , The ( 1 9 9 3 )", " Mad onna : Tr uth or D are ( 1 9 9 1 )", " Bre aking A way ( 1 9 7 9 )", " T omb stone ( 1 9 9 3 )", " High No on ( 1 9 5 2 )", " Space Cow bo ys ( 2 0 0 0 )", " B etter Th an Ch oc olate ( 1 9 9 9 ) ". Additionally , we have information about the user ' s prefer ences encoded in the feature  <unk>  together with the interact ed item IDs  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> . Using all available information , make a prediction about whether the user would enjoy the movie titled " Ind ec ent Pro pos al ( 1 9 9 3 )" with the feature  <unk> ? Answer with " Yes " or " No ". \ n # Answer :
+Evaluation  [   0/7331]  eta: 1:04:51  loss: 1.0322  acc: 0.0000  time: 0.5308  data: 0.0226  max mem: 13196
+Evaluation  [1466/7331]  eta: 0:05:04  loss: 0.4423  acc: 0.0000  time: 0.0552  data: 0.0004  max mem: 13260
+Evaluation  [2932/7331]  eta: 0:03:47  loss: 0.1601  acc: 0.0000  time: 0.0509  data: 0.0004  max mem: 13261
+Evaluation  [4398/7331]  eta: 0:02:30  loss: 1.0294  acc: 0.0000  time: 0.0489  data: 0.0004  max mem: 13274
+Evaluation  [5864/7331]  eta: 0:01:15  loss: 1.7860  acc: 0.0000  time: 0.0488  data: 0.0004  max mem: 13274
+Evaluation  [7330/7331]  eta: 0:00:00  loss: 0.5247  acc: 0.0000  time: 0.0519  data: 0.0008  max mem: 13274
+Evaluation Total time: 0:06:15 (0.0512 s / it)
+rank_0 auc: 0.6968928508658769

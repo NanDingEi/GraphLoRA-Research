@@ -1,0 +1,463 @@
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: libtorch_cuda_cu.so: cannot open shared object file: No such file or directory
+  warn(f"Failed to load image Python extension: {e}")
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/accelerate/utils/torch_xla.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+2026-09-06 21:22:14,785 [INFO] Building datasets...
+2026-09-06 21:22:14,954 [INFO] Amazon OOD datasets, max history length:10
+2026-09-06 21:22:14,982 [INFO] Amazon OOD datasets, max history length:10
+2026-09-06 21:22:15,022 [INFO] Amazon OOD datasets, max history length:10
+2026-09-06 21:22:15,244 [INFO] 
+=====  Running Parameters    =====
+2026-09-06 21:22:15,244 [INFO] {
+    "amp": true,
+    "batch_size_eval": 2,
+    "batch_size_train": 1,
+    "device": "cuda",
+    "dist_url": "env://",
+    "distributed": false,
+    "evaluate": false,
+    "init_lr": 0.0001,
+    "iters_per_epoch": 1000,
+    "lr_sched": "linear_warmup_cosine_lr",
+    "max_epoch": 3,
+    "min_lr": 5e-05,
+    "mode": "v2",
+    "num_workers": 0,
+    "output_dir": "/home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_idlist",
+    "resume_ckpt_path": null,
+    "save_checkpoint_every_n_epochs": 0,
+    "seed": 42,
+    "task": "rec_pretrain",
+    "test_splits": [
+        "test"
+    ],
+    "train_splits": [
+        "train"
+    ],
+    "valid_splits": [
+        "valid"
+    ],
+    "warmup_lr": 1e-05,
+    "warmup_steps": 200,
+    "weight_decay": 0.001,
+    "world_size": 1
+}
+2026-09-06 21:22:15,244 [INFO] 
+======  Dataset Attributes  ======
+2026-09-06 21:22:15,245 [INFO] 
+======== amazon_ood =======
+2026-09-06 21:22:15,245 [INFO] {
+    "build_info": {
+        "storage": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/"
+    },
+    "data_type": "default",
+    "path": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/",
+    "test_file": "test_ood2.pkl",
+    "train_file": "train_ood2.pkl",
+    "val_file": "valid_ood2.pkl"
+}
+2026-09-06 21:22:15,245 [INFO] 
+======  Model Attributes  ======
+2026-09-06 21:22:15,245 [INFO] {
+    "ans_type": "v2",
+    "arch": "mini_gpt4rec_v2",
+    "ckpt": null,
+    "dataset": "movie",
+    "end_sym": "###",
+    "freeze_lora": false,
+    "freeze_proj": false,
+    "freeze_rec": false,
+    "gcn_layer": 31,
+    "gnn_scale": 0.1,
+    "item_num": -100,
+    "lambda_gnn_to_llm": 2.0,
+    "lambda_llm_to_gnn": 0.5,
+    "llama_model": "/home/bbx/user_lx/models/vicuna-7b-v0",
+    "lora_config": {
+        "alpha": 16,
+        "dropout": 0.05,
+        "r": 8,
+        "target_modules": [
+            "q_proj",
+            "v_proj"
+        ],
+        "use_lora": true
+    },
+    "lora_gnn": "ngcf",
+    "lora_scale": 1.0,
+    "max_txt_len": 1024,
+    "model_type": "pretrain_vicuna",
+    "mutual_layer": 8,
+    "mutual_mode": "b3",
+    "mutual_rank_loss": true,
+    "mutual_warmup_iters": 0,
+    "proj_drop": 0,
+    "proj_mid_times": 10,
+    "proj_token_num": 1,
+    "prompt_path": "prompts/collm_movie_idlist.txt",
+    "prompt_template": "{}",
+    "rank_margin": 0.02,
+    "rank_weight_ref": 0.05,
+    "rec_config": {
+        "embedding_size": 256,
+        "item_num": 3256,
+        "pretrained_path": "/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth",
+        "user_num": 839
+    },
+    "rec_model": "MF",
+    "rel_temp_gnn": 0.05,
+    "rel_temp_llm": 0.05,
+    "semantic_feedback": false,
+    "user_num": -100
+}
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+Not using distributed mode
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+data dir: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+running MiniGPT4Rec_v2 ...... 
+Loading Rec_model
+### rec_encoder: MF
+creat MF model, user num: 839 item num: 3256
+successfully load the pretrained model......
+Loading Rec_model Done
+Loading LLAMA
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:03<00:03,  3.82s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:05<00:00,  2.79s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:05<00:00,  2.94s/it]
+2026-09-06 21:22:29,241 [INFO] Start training
+2026-09-06 21:22:29,253 [INFO] dataset_ratios not specified, datasets will be concatenated (map-style datasets) or chained (webdataset.DataPipeline).
+2026-09-06 21:22:29,253 [INFO] Loaded 33891 records for train split from the dataset.
+2026-09-06 21:22:29,253 [INFO] Loaded 5200 records for valid split from the dataset.
+2026-09-06 21:22:29,253 [INFO] Loaded 7331 records for test split from the dataset.
+Loading LLAMA Done
+Setting LoRA
+Preparing to inject GCN into: model.layers.31 with gnn_scale: 0.1
+Setting LoRA, GCN, and MyLinear for layer 31 Done. Replaced 2 modules.
+Mutual learning ON: mode=b3, mutual_layer=8, lambda_l2g=0.5, lambda_g2l=2.0
+Load 4 training prompts
+Prompt List: 
+['#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:']
+answer token ids: pos: 3869 neg ids: 1939
+Prompt Pos Example 
+#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user's preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \n#Answer: Yes or No
+rec_encoder.user_embedding.weight
+rec_encoder.item_embedding.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_B.default.weight
+2026-09-06 21:22:29,261 [INFO] number of trainable parameters: 16665872
+/home/bbx/user_lx/GraphLoRA/minigpt4/runners/runner_base.py:134: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  self._scaler = torch.cuda.amp.GradScaler()
+2026-09-06 21:22:29,262 [INFO] Start training epoch 0, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:954: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1058: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+llama_model.model.layers.21.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.21.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.21.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.21.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.22.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.22.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.22.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.22.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.23.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.23.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.23.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.23.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.24.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.24.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.24.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.24.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.25.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.25.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.25.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.25.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.26.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.26.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.26.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.26.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.27.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.27.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.27.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.27.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.28.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.28.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.28.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.28.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.29.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.29.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.29.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.29.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.30.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.30.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.30.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.30.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.31.self_attn.q_proj.bias
+llama_model.model.layers.31.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.31.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.31.self_attn.v_proj.bias
+llama_model.model.layers.31.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.31.self_attn.v_proj.lora_B.default.weight
+gcn.layers.0.W1.weight
+gcn.layers.0.W1.bias
+gcn.layers.0.W2.weight
+gcn.layers.0.W2.bias
+gcn.layers.1.W1.weight
+gcn.layers.1.W1.bias
+gcn.layers.1.W2.weight
+gcn.layers.1.W2.bias
+gcn.layers.2.W1.weight
+gcn.layers.2.W1.bias
+gcn.layers.2.W2.weight
+gcn.layers.2.W2.bias
+llama_proj.0.weight
+llama_proj.0.bias
+llama_proj.2.weight
+llama_proj.2.bias
+prompt example: <s>#Question: A user has given high ratings to the following movies: "One Flew Over the Cuckoo's Nest (1975)", "When Harry Met Sally... (1989)", "Star Wars: Episode V - The Empire Strikes Back (1980)", "Terminator 2: Judgment Day (1991)", "Close Encounters of the Third Kind (1977)", "Star Wars: Episode VI - Return of the Jedi (1983)", "Alien (1979)", "E.T. the Extra-Terrestrial (1982)", "Terminator, The (1984)", "Contact (1997)". Additionally, we have information about the user's preferences encoded in the feature <unk> together with the interacted item IDs <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>. Using all available information, make a prediction about whether the user would enjoy the movie titled "2001: A Space Odyssey (1968)" with the feature <unk>? Answer with "Yes" or "No". \n#Answer:
+#######prompt decoded example: <s> # Question : A user has given high ratings to the following mov ies : " One Fle w Over the C uck oo ' s N est ( 1 9 7 5 )", " When Harry Met S ally ... ( 1 9 8 9 )", " Star Wars : E pisode V - The Empire St rik es Back ( 1 9 8 0 )", " Term in ator  2 : Jud gment Day ( 1 9 9 1 )", " Close Enc oun ters of the Third Kind ( 1 9 7 7 )", " Star Wars : E pisode VI - Return of the J edi ( 1 9 8 3 )", " A li en ( 1 9 7 9 )", " E . T . the Ext ra - T err est rial ( 1 9 8 2 )", " Term in ator , The ( 1 9 8 4 )", " Contact ( 1 9 9 7 ) ". Additionally , we have information about the user ' s prefer ences encoded in the feature  <unk>  together with the interact ed item IDs  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> . Using all available information , make a prediction about whether the user would enjoy the movie titled " 2 0 0 1 : A Space Od ys sey ( 1 9 6 8 )" with the feature  <unk> ? Answer with " Yes " or " No ". \ n # Answer :
+Train: data epoch: [0]  [   0/1000]  eta: 0:09:35  lr: 0.000010  loss: 0.0401  time: 0.5755  data: 0.0000  max mem: 15618
+Train: data epoch: [0]  [  50/1000]  eta: 0:02:20  lr: 0.000033  loss: 2.2210  time: 0.1443  data: 0.0000  max mem: 15814
+[mutual:b3] iters=100 L_L->G=0.0164 L_G->L=0.0218
+Train: data epoch: [0]  [ 100/1000]  eta: 0:02:08  lr: 0.000055  loss: 0.7893  time: 0.1414  data: 0.0000  max mem: 15814
+Train: data epoch: [0]  [ 150/1000]  eta: 0:02:01  lr: 0.000078  loss: 0.8417  time: 0.1436  data: 0.0000  max mem: 15861
+[mutual:b3] iters=200 L_L->G=0.0082 L_G->L=0.0183
+Train: data epoch: [0]  [ 200/1000]  eta: 0:01:54  lr: 0.000099  loss: 0.1413  time: 0.1409  data: 0.0000  max mem: 15861
+Train: data epoch: [0]  [ 250/1000]  eta: 0:01:46  lr: 0.000099  loss: 0.1264  time: 0.1459  data: 0.0000  max mem: 15861
+[mutual:b3] iters=300 L_L->G=0.0055 L_G->L=0.0171
+Train: data epoch: [0]  [ 300/1000]  eta: 0:01:40  lr: 0.000099  loss: 1.4211  time: 0.1472  data: 0.0000  max mem: 15861
+Train: data epoch: [0]  [ 350/1000]  eta: 0:01:32  lr: 0.000098  loss: 0.9226  time: 0.1438  data: 0.0000  max mem: 15873
+[mutual:b3] iters=400 L_L->G=0.0041 L_G->L=0.0165
+Train: data epoch: [0]  [ 400/1000]  eta: 0:01:25  lr: 0.000098  loss: 0.4104  time: 0.1376  data: 0.0000  max mem: 15873
+Train: data epoch: [0]  [ 450/1000]  eta: 0:01:18  lr: 0.000097  loss: 0.5324  time: 0.1460  data: 0.0000  max mem: 15873
+[mutual:b3] iters=500 L_L->G=0.0033 L_G->L=0.0162
+Train: data epoch: [0]  [ 500/1000]  eta: 0:01:11  lr: 0.000097  loss: 0.1294  time: 0.1418  data: 0.0000  max mem: 15971
+Train: data epoch: [0]  [ 550/1000]  eta: 0:01:04  lr: 0.000096  loss: 0.9216  time: 0.1415  data: 0.0000  max mem: 15971
+[mutual:b3] iters=600 L_L->G=0.0027 L_G->L=0.0160
+Train: data epoch: [0]  [ 600/1000]  eta: 0:00:57  lr: 0.000095  loss: 0.3515  time: 0.1378  data: 0.0000  max mem: 15971
+Train: data epoch: [0]  [ 650/1000]  eta: 0:00:49  lr: 0.000094  loss: 0.1009  time: 0.1513  data: 0.0000  max mem: 15971
+[mutual:b3] iters=700 L_L->G=0.0031 L_G->L=0.0158
+Train: data epoch: [0]  [ 700/1000]  eta: 0:00:42  lr: 0.000094  loss: 2.2629  time: 0.1389  data: 0.0000  max mem: 15971
+Train: data epoch: [0]  [ 750/1000]  eta: 0:00:35  lr: 0.000093  loss: 0.1733  time: 0.1452  data: 0.0000  max mem: 15971
+[mutual:b3] iters=800 L_L->G=0.0036 L_G->L=0.0158
+Train: data epoch: [0]  [ 800/1000]  eta: 0:00:28  lr: 0.000092  loss: 0.2954  time: 0.1335  data: 0.0000  max mem: 15971
+Train: data epoch: [0]  [ 850/1000]  eta: 0:00:21  lr: 0.000091  loss: 1.5991  time: 0.1354  data: 0.0000  max mem: 15971
+[mutual:b3] iters=900 L_L->G=0.0036 L_G->L=0.0152
+Train: data epoch: [0]  [ 900/1000]  eta: 0:00:14  lr: 0.000090  loss: 0.5362  time: 0.1499  data: 0.0000  max mem: 15971
+Train: data epoch: [0]  [ 950/1000]  eta: 0:00:07  lr: 0.000089  loss: 0.6874  time: 0.1429  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1000 L_L->G=0.0035 L_G->L=0.0145
+2026-09-06 21:24:52,027 [INFO] Averaged stats: lr: 0.000087  loss: 1.032895
+2026-09-06 21:24:52,029 [INFO] Evaluating on valid.
+2026-09-06 21:28:21,873 [INFO] Averaged stats: loss: 0.680094  acc: 0.021923 ***auc: 0.6088406208538768 ***uauc:(0.5762209235553644, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [0.5, 0.44999999999999996, 1.0, 0.5485714285714286, 0.6666666666666666, 0.0, 0.326530612244898, 0.4260869565217391, 0.44047619047619047, 0.5555555555555556, 0.625, 0.4453781512605042, 0.6984126984126984, 0.686578810473383, 0.5, 0.551948051948052, 0.0, 0.5, 0.8222222222222223, 0.9052631578947369, 0.6171428571428572, 1.0, 0.2, 1.0, 0.5, 0.6767676767676767, 0.6666666666666667, 0.5333333333333333, 0.8125, 0.6666666666666666, 0.625, 0.5, 0.28125, 0.25, 0.5849297573435505, 0.424812030075188, 0.7868217054263565, 0.5555555555555556, 0.5, 0.25, 0.3333333333333333, 0.5442307692307693, 0.0, 0.0, 0.75, 0.6666666666666666, 0.6787878787878788, 0.2, 1.0, 0.0, 1.0, 0.5818181818181818, 0.8333333333333333, 0.6358024691358024, 0.7777777777777778, 1.0, 0.888888888888889, 0.4285714285714286, 0.625, 0.5364583333333333, 0.5357142857142857, 0.7, 0.44416873449131516, 0.48787878787878786, 0.44159544159544156, 0.0, 0.0, 0.3333333333333333, 0.5, 0.4628099173553719, 0.5909090909090908, 0.3333333333333333, 0.125, 0.6044444444444445, 0.6190476190476191, 0.5625, 0.6706349206349207, 0.5, 0.5670807453416149, 0.16666666666666663, 0.3888888888888889, 0.337037037037037, 0.3846153846153846, 0.6300705467372134, 0.673611111111111, 0.47418300653594775, 0.6192307692307693, 0.6114285714285714, 0.6929824561403509, 0.6588235294117646, 0.7899159663865546, 0.5238095238095237, 0.7142857142857143, 1.0, 1.0, 0.47916666666666663, 1.0, 0.6, 0.0, 0.375, 0.7384615384615385, 0.5, 1.0, 1.0, 0.41721132897603486, 0.6190476190476191, 0.6666666666666666, 0.5499999999999999, 1.0, 0.5185185185185185, 0.7129629629629629, 0.6666666666666666, 0.6182266009852216, 1.0, 0.27499999999999997, 0.6666666666666666, 1.0, 0.8666666666666667, 0.7276041666666667, 0.5625, 0.6392156862745098, 1.0, 0.5277777777777778, 0.6428571428571428, 0.5, 0.33333333333333337, 0.5039424860853432, 0.5543478260869564, 1.0, 0.3846153846153847, 1.0, 0.6, 0.6083916083916084, 0.5, 0.0, 1.0, 0.575, 1.0, 0.3125, 1.0, 0.75, 0.6445378151260505, 1.0, 0.5, 0.3333333333333333, 0.5333333333333333, 0.5133689839572192, 0.5, 0.625, 0.0, 0.75, 0.23809523809523808, 1.0, 0.5470085470085471, 0.5605065666041276, 0.5, 0.6666666666666666, 1.0, 0.5, 0.6666666666666667, 0.75, 1.0, 0.6588235294117648, 0.5836065573770491, 0.6428571428571428, 0.5238095238095237, 0.0, 0.9166666666666666, 0.42000000000000004, 0.606060606060606, 0.6111111111111112, 0.5641171273507509, 0.41025641025641035, 0.3703703703703704, 0.75, 0.6068332483426824, 0.5, 0.25, 0.0, 0.8333333333333334, 0.0, 0.5512820512820513, 0.43181818181818177, 0.16666666666666666, 0.6517857142857143, 0.25, 0.16666666666666666, 0.7, 0.3333333333333333, 0.0, 0.2727272727272727, 0.0, 0.5341880341880342, 0.6666666666666667, 1.0, 0.0, 1.0, 0.5691244239631336, 0.8400000000000001, 0.6029411764705883, 0.5322061191626409, 0.40476190476190477, 0.7058823529411764, 0.47272727272727266, 0.19444444444444442, 0.6666666666666667, 0.33333333333333337, 0.4230769230769231, 0.4545454545454546, 0.0, 0.6666666666666666, 0.7333333333333334, 0.71875, 0.0, 0.0, 0.6, 1.0, 0.0, 1.0, 0.5205128205128204, 0.4489795918367347, 0.45454545454545453, 0.7111111111111111, 1.0, 0.7777777777777778, 0.5, 0.7142857142857143, 1.0, 0.4230769230769231, 0.5451388888888888, 0.8333333333333334, 0.642646577137242, 0.0, 0.6590909090909091, 0.5666666666666667, 0.9243697478991597, 0.5625, 0.7205882352941178])
+2026-09-06 21:28:21,882 [INFO] Saving checkpoint at epoch 0 to /home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_idlist/20260906212/checkpoint_best.pth.
+2026-09-06 21:28:32,383 [INFO] Start training
+2026-09-06 21:28:32,396 [INFO] Start training epoch 1, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:954: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1058: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [0]  [ 999/1000]  eta: 0:00:00  lr: 0.000088  loss: 0.7598  time: 0.1457  data: 0.0000  max mem: 16159
+Train: data epoch: [0] Total time: 0:02:22 (0.1428 s / it)
+Evaluation  [   0/2600]  eta: 0:03:49  loss: 0.6483  acc: 0.0000  time: 0.0882  data: 0.0023  max mem: 16159
+Evaluation  [ 520/2600]  eta: 0:02:47  loss: 0.5627  acc: 0.0000  time: 0.0775  data: 0.0005  max mem: 16159
+Evaluation  [1040/2600]  eta: 0:02:05  loss: 0.5767  acc: 0.0000  time: 0.0806  data: 0.0005  max mem: 16159
+Evaluation  [1560/2600]  eta: 0:01:23  loss: 0.6575  acc: 0.0000  time: 0.0791  data: 0.0005  max mem: 16159
+Evaluation  [2080/2600]  eta: 0:00:41  loss: 0.6056  acc: 0.0000  time: 0.0794  data: 0.0005  max mem: 16159
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.5439  acc: 0.0000  time: 0.0802  data: 0.0005  max mem: 16159
+Evaluation Total time: 0:03:29 (0.0807 s / it)
+rank_0 auc: 0.6088406208538768
+Train: data epoch: [1]  [   0/1000]  eta: 0:02:33  lr: 0.000088  loss: 0.8398  time: 0.1535  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [  50/1000]  eta: 0:02:13  lr: 0.000086  loss: 0.0595  time: 0.1413  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1100 L_L->G=0.0034 L_G->L=0.0139
+Train: data epoch: [1]  [ 100/1000]  eta: 0:02:08  lr: 0.000085  loss: 0.3071  time: 0.1474  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 150/1000]  eta: 0:02:00  lr: 0.000084  loss: 0.8238  time: 0.1457  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1200 L_L->G=0.0035 L_G->L=0.0135
+Train: data epoch: [1]  [ 200/1000]  eta: 0:01:53  lr: 0.000083  loss: 0.6521  time: 0.1437  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 250/1000]  eta: 0:01:46  lr: 0.000081  loss: 0.5510  time: 0.1420  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1300 L_L->G=0.0034 L_G->L=0.0130
+Train: data epoch: [1]  [ 300/1000]  eta: 0:01:39  lr: 0.000080  loss: 1.4578  time: 0.1465  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 350/1000]  eta: 0:01:32  lr: 0.000079  loss: 0.5804  time: 0.1368  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1400 L_L->G=0.0033 L_G->L=0.0125
+Train: data epoch: [1]  [ 400/1000]  eta: 0:01:25  lr: 0.000078  loss: 0.2974  time: 0.1509  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 450/1000]  eta: 0:01:18  lr: 0.000076  loss: 0.5901  time: 0.1443  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1500 L_L->G=0.0033 L_G->L=0.0121
+Train: data epoch: [1]  [ 500/1000]  eta: 0:01:11  lr: 0.000075  loss: 0.3330  time: 0.1412  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 550/1000]  eta: 0:01:04  lr: 0.000074  loss: 0.4235  time: 0.1395  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1600 L_L->G=0.0032 L_G->L=0.0118
+Train: data epoch: [1]  [ 600/1000]  eta: 0:00:56  lr: 0.000072  loss: 0.8210  time: 0.1453  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 650/1000]  eta: 0:00:49  lr: 0.000071  loss: 0.3712  time: 0.1350  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1700 L_L->G=0.0031 L_G->L=0.0114
+Train: data epoch: [1]  [ 700/1000]  eta: 0:00:42  lr: 0.000070  loss: 0.5913  time: 0.1384  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 750/1000]  eta: 0:00:35  lr: 0.000069  loss: 0.3921  time: 0.1434  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1800 L_L->G=0.0030 L_G->L=0.0111
+Train: data epoch: [1]  [ 800/1000]  eta: 0:00:28  lr: 0.000067  loss: 0.1341  time: 0.1397  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 850/1000]  eta: 0:00:21  lr: 0.000066  loss: 0.1990  time: 0.1426  data: 0.0000  max mem: 16159
+[mutual:b3] iters=1900 L_L->G=0.0031 L_G->L=0.0109
+Train: data epoch: [1]  [ 900/1000]  eta: 0:00:14  lr: 0.000065  loss: 2.6547  time: 0.1458  data: 0.0000  max mem: 16159
+Train: data epoch: [1]  [ 950/1000]  eta: 0:00:07  lr: 0.000064  loss: 1.7708  time: 0.1389  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2000 L_L->G=0.0030 L_G->L=0.0106
+2026-09-06 21:30:54,626 [INFO] Averaged stats: lr: 0.000075  loss: 0.655429
+2026-09-06 21:30:54,628 [INFO] Evaluating on valid.
+2026-09-06 21:34:25,332 [INFO] Averaged stats: loss: 0.647389  acc: 0.363654 ***auc: 0.6954814564909524 ***uauc:(0.6633956022798447, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.5, 0.8333333333333333, 0.5542857142857143, 0.5, 1.0, 0.22448979591836735, 0.8, 0.44047619047619047, 0.888888888888889, 0.6875, 0.7668067226890756, 0.7777777777777777, 0.8168024969654933, 0.375, 0.6087662337662338, 0.0, 0.25, 0.8222222222222223, 0.7578947368421053, 0.7914285714285715, 0.6666666666666667, 0.26666666666666666, 1.0, 0.5, 0.7051767676767677, 0.880952380952381, 0.6666666666666667, 0.6875, 0.7333333333333333, 0.8472222222222222, 0.9166666666666667, 0.4375, 1.0, 0.731162196679438, 0.6992481203007519, 0.8313953488372093, 0.6111111111111112, 0.5, 0.5, 0.3333333333333333, 0.48, 0.0, 0.0, 1.0, 1.0, 0.5878787878787879, 1.0, 1.0, 0.0, 1.0, 0.8181818181818181, 0.75, 0.8580246913580247, 0.8666666666666667, 1.0, 0.888888888888889, 0.375, 0.5277777777777779, 0.59375, 0.5, 0.8, 0.7212572373862696, 0.7, 0.7321937321937322, 1.0, 0.5, 0.16666666666666666, 0.0, 0.4628099173553719, 0.8333333333333333, 0.6666666666666666, 0.75, 0.6, 0.474025974025974, 0.6875, 0.7688492063492064, 0.6526315789473685, 0.7515527950310559, 0.2916666666666667, 0.5555555555555556, 0.4666666666666667, 0.5769230769230769, 0.8805114638447973, 0.7152777777777777, 0.5875816993464051, 0.635897435897436, 0.7371428571428571, 0.8596491228070176, 0.788235294117647, 0.8571428571428571, 0.36507936507936506, 0.8095238095238095, 0.875, 1.0, 0.8125, 0.0, 0.8, 0.0, 0.625, 0.7692307692307692, 0.6875, 0.22222222222222224, 0.5, 0.514161220043573, 0.746031746031746, 0.8333333333333333, 0.49999999999999994, 0.0, 0.6851851851851852, 0.8518518518518519, 0.6666666666666666, 0.5541871921182266, 0.7333333333333333, 0.425, 1.0, 1.0, 0.4666666666666667, 0.7260416666666666, 0.9375, 0.6000000000000001, 1.0, 0.6371527777777778, 0.8571428571428571, 0.6666666666666667, 0.33333333333333337, 0.5575139146567718, 0.5652173913043478, 1.0, 0.35897435897435903, 1.0, 1.0, 0.8251748251748252, 0.5, 1.0, 0.875, 0.7, 1.0, 0.28125, 0.0, 0.75, 0.7949579831932773, 1.0, 0.5, 0.41666666666666663, 0.5111111111111111, 0.6925133689839572, 0.33333333333333337, 0.5694444444444444, 0.0, 0.0, 0.8333333333333334, 1.0, 0.5726495726495727, 0.4915572232645403, 0.6875, 0.6666666666666666, 1.0, 1.0, 0.9583333333333334, 0.8125, 0.5, 0.7176470588235294, 0.6032786885245902, 0.75, 0.6309523809523809, 0.2222222222222222, 1.0, 0.5900000000000001, 0.696969696969697, 0.3888888888888889, 0.7369052126719677, 0.641025641025641, 0.5925925925925926, 0.75, 0.5925548189699134, 0.5, 1.0, 0.5, 0.8333333333333334, 1.0, 0.5448717948717949, 0.45454545454545453, 1.0, 0.6607142857142857, 0.75, 0.8333333333333334, 0.72, 1.0, 0.0, 0.9090909090909091, 0.5, 0.5384615384615384, 1.0, 1.0, 0.0, 0.4444444444444444, 0.6889400921658985, 0.4, 0.6558823529411765, 0.5189210950080515, 0.47619047619047616, 0.6470588235294117, 0.509090909090909, 0.4722222222222222, 0.5, 0.6666666666666667, 0.6153846153846154, 0.6363636363636364, 0.5, 1.0, 0.5333333333333334, 0.84375, 1.0, 0.0, 0.5714285714285714, 1.0, 0.0, 1.0, 0.5794871794871794, 0.8010204081632653, 0.787878787878788, 0.9333333333333333, 1.0, 0.8333333333333334, 0.5, 0.1428571428571429, 0.0, 0.782051282051282, 0.7256944444444444, 1.0, 0.6585325908942025, 0.0, 0.8333333333333333, 0.6000000000000001, 0.8235294117647058, 0.9375, 0.6819852941176471])
+2026-09-06 21:34:25,341 [INFO] Saving checkpoint at epoch 1 to /home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_idlist/20260906212/checkpoint_best.pth.
+2026-09-06 21:34:37,550 [INFO] Start training
+2026-09-06 21:34:37,563 [INFO] Start training epoch 2, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:954: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1058: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [1]  [ 999/1000]  eta: 0:00:00  lr: 0.000063  loss: 0.1978  time: 0.1428  data: 0.0000  max mem: 16159
+Train: data epoch: [1] Total time: 0:02:22 (0.1422 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.5518  acc: 0.5000  time: 0.0893  data: 0.0026  max mem: 16159
+Evaluation  [ 520/2600]  eta: 0:02:47  loss: 0.7155  acc: 0.0000  time: 0.0778  data: 0.0005  max mem: 16159
+Evaluation  [1040/2600]  eta: 0:02:06  loss: 0.5026  acc: 0.5000  time: 0.0822  data: 0.0006  max mem: 16159
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.8704  acc: 0.5000  time: 0.0791  data: 0.0005  max mem: 16159
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.9307  acc: 0.5000  time: 0.0794  data: 0.0005  max mem: 16159
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.5775  acc: 0.0000  time: 0.0805  data: 0.0005  max mem: 16159
+Evaluation Total time: 0:03:30 (0.0810 s / it)
+rank_0 auc: 0.6954814564909524
+Train: data epoch: [2]  [   0/1000]  eta: 0:02:54  lr: 0.000063  loss: 0.2118  time: 0.1744  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [  50/1000]  eta: 0:02:15  lr: 0.000061  loss: 0.3631  time: 0.1435  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2100 L_L->G=0.0029 L_G->L=0.0104
+Train: data epoch: [2]  [ 100/1000]  eta: 0:02:07  lr: 0.000060  loss: 0.4822  time: 0.1404  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 150/1000]  eta: 0:01:59  lr: 0.000059  loss: 2.0308  time: 0.1405  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2200 L_L->G=0.0029 L_G->L=0.0101
+Train: data epoch: [2]  [ 200/1000]  eta: 0:01:52  lr: 0.000058  loss: 0.3760  time: 0.1447  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 250/1000]  eta: 0:01:46  lr: 0.000057  loss: 0.3109  time: 0.1504  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2300 L_L->G=0.0029 L_G->L=0.0099
+Train: data epoch: [2]  [ 300/1000]  eta: 0:01:39  lr: 0.000056  loss: 0.7463  time: 0.1402  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 350/1000]  eta: 0:01:31  lr: 0.000056  loss: 0.0633  time: 0.1391  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2400 L_L->G=0.0029 L_G->L=0.0097
+Train: data epoch: [2]  [ 400/1000]  eta: 0:01:24  lr: 0.000055  loss: 0.1214  time: 0.1418  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 450/1000]  eta: 0:01:17  lr: 0.000054  loss: 0.4580  time: 0.1441  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2500 L_L->G=0.0029 L_G->L=0.0095
+Train: data epoch: [2]  [ 500/1000]  eta: 0:01:10  lr: 0.000053  loss: 0.4726  time: 0.1372  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 550/1000]  eta: 0:01:03  lr: 0.000053  loss: 1.4653  time: 0.1379  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2600 L_L->G=0.0028 L_G->L=0.0093
+Train: data epoch: [2]  [ 600/1000]  eta: 0:00:56  lr: 0.000052  loss: 0.3485  time: 0.1350  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 650/1000]  eta: 0:00:49  lr: 0.000052  loss: 1.1024  time: 0.1390  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2700 L_L->G=0.0028 L_G->L=0.0091
+Train: data epoch: [2]  [ 700/1000]  eta: 0:00:42  lr: 0.000051  loss: 0.3181  time: 0.1460  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 750/1000]  eta: 0:00:35  lr: 0.000051  loss: 0.9573  time: 0.1457  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2800 L_L->G=0.0027 L_G->L=0.0090
+Train: data epoch: [2]  [ 800/1000]  eta: 0:00:28  lr: 0.000051  loss: 1.4357  time: 0.1358  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 850/1000]  eta: 0:00:21  lr: 0.000050  loss: 0.4183  time: 0.1384  data: 0.0000  max mem: 16159
+[mutual:b3] iters=2900 L_L->G=0.0027 L_G->L=0.0088
+Train: data epoch: [2]  [ 900/1000]  eta: 0:00:14  lr: 0.000050  loss: 0.5735  time: 0.1449  data: 0.0000  max mem: 16159
+Train: data epoch: [2]  [ 950/1000]  eta: 0:00:07  lr: 0.000050  loss: 0.3740  time: 0.1447  data: 0.0000  max mem: 16159
+[mutual:b3] iters=3000 L_L->G=0.0026 L_G->L=0.0087
+2026-09-06 21:36:58,983 [INFO] Averaged stats: lr: 0.000054  loss: 0.591346
+2026-09-06 21:36:58,986 [INFO] Evaluating on valid.
+2026-09-06 21:40:29,217 [INFO] Averaged stats: loss: 0.646621  acc: 0.281731 ***auc: 0.7100143817688906 ***uauc:(0.6655587561708287, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [0.5, 0.5208333333333333, 0.8333333333333333, 0.6171428571428572, 0.6666666666666666, 1.0, 0.24489795918367346, 0.8608695652173913, 0.6309523809523809, 1.0, 0.75, 0.777310924369748, 0.7936507936507937, 0.8330154326339517, 0.5, 0.6428571428571428, 0.6666666666666667, 0.33333333333333337, 0.7222222222222222, 0.7789473684210526, 0.7657142857142857, 0.33333333333333337, 0.0, 1.0, 0.5, 0.7070707070707071, 0.8571428571428572, 0.6666666666666667, 0.625, 0.7333333333333333, 0.8472222222222223, 0.9166666666666667, 0.453125, 1.0, 0.7490421455938697, 0.6729323308270676, 0.750968992248062, 0.6944444444444444, 0.5, 0.375, 1.0, 0.47769230769230775, 1.0, 0.30000000000000004, 1.0, 1.0, 0.5333333333333333, 1.0, 1.0, 0.0, 1.0, 0.8181818181818181, 0.8333333333333334, 0.8703703703703705, 0.7777777777777778, 1.0, 0.5555555555555556, 0.5178571428571428, 0.5277777777777778, 0.5885416666666666, 0.42857142857142855, 1.0, 0.750206782464847, 0.6636363636363636, 0.6951566951566952, 1.0, 0.5, 0.5, 0.0, 0.44008264462809915, 0.8181818181818182, 0.6666666666666666, 0.625, 0.5886111111111111, 0.525974025974026, 0.625, 0.8134920634920635, 0.6263157894736843, 0.7944099378881988, 0.5416666666666667, 0.6111111111111112, 0.5777777777777777, 0.6538461538461539, 0.9400352733686067, 0.5833333333333333, 0.6104575163398693, 0.5730769230769232, 0.68, 0.8421052631578948, 0.8705882352941177, 0.8739495798319328, 0.4603174603174603, 0.9047619047619048, 0.5, 1.0, 0.7291666666666667, 0.0, 0.8, 0.3333333333333333, 0.625, 0.7384615384615385, 0.6875, 0.33333333333333337, 0.5, 0.45315904139433555, 0.8333333333333334, 0.8333333333333333, 0.5, 0.0, 0.5740740740740742, 0.8055555555555556, 0.5, 0.5139573070607554, 0.7333333333333333, 0.47500000000000003, 1.0, 0.0, 0.33333333333333337, 0.7015624999999999, 0.9375, 0.6235294117647059, 1.0, 0.6527777777777778, 0.8571428571428571, 0.8333333333333334, 0.6666666666666667, 0.5405844155844157, 0.7282608695652173, 1.0, 0.2820512820512821, 1.0, 1.0, 0.7972027972027972, 1.0, 0.0, 0.25, 0.6375, 0.0, 0.3125, 0.0, 0.5, 0.7747899159663865, 1.0, 0.5625, 0.5, 0.5777777777777777, 0.6844919786096256, 0.33333333333333337, 0.6527777777777778, 1.0, 0.0, 0.857142857142857, 1.0, 0.5811965811965811, 0.4774859287054409, 0.75, 0.5833333333333334, 1.0, 1.0, 0.875, 0.9375, 0.0, 0.7666666666666667, 0.6180327868852459, 0.6785714285714286, 0.5238095238095238, 0.4444444444444444, 1.0, 0.51, 0.6969696969696969, 0.4444444444444445, 0.7523665278303673, 0.7435897435897436, 0.5925925925925926, 0.75, 0.5645079041305456, 0.75, 1.0, 0.5, 1.0, 1.0, 0.6057692307692308, 0.5681818181818181, 1.0, 0.6339285714285714, 0.75, 0.8333333333333334, 0.62, 1.0, 0.0, 0.9090909090909091, 0.5, 0.6239316239316239, 1.0, 1.0, 0.33333333333333337, 0.4444444444444444, 0.6798771121351767, 0.4, 0.5941176470588235, 0.5169082125603864, 0.5476190476190477, 0.4411764705882353, 0.5818181818181819, 0.5, 0.5, 0.33333333333333337, 0.6730769230769231, 0.6363636363636364, 0.0, 0.8333333333333333, 0.5333333333333334, 0.84375, 0.75, 0.0, 0.5857142857142856, 1.0, 0.0, 1.0, 0.6512820512820513, 0.8061224489795918, 0.8181818181818182, 0.8, 1.0, 0.8333333333333334, 0.5, 0.1428571428571429, 1.0, 0.8076923076923077, 0.8958333333333334, 1.0, 0.6600065509335081, 0.0, 0.7424242424242424, 0.8, 0.7815126050420168, 0.875, 0.6930147058823529])
+2026-09-06 21:40:29,226 [INFO] Saving checkpoint at epoch 2 to /home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_idlist/20260906212/checkpoint_best.pth.
+2026-09-06 21:40:41,453 [INFO] Training time 0:18:13
+Train: data epoch: [2]  [ 999/1000]  eta: 0:00:00  lr: 0.000050  loss: 0.2147  time: 0.1404  data: 0.0000  max mem: 16159
+Train: data epoch: [2] Total time: 0:02:21 (0.1414 s / it)
+Evaluation  [   0/2600]  eta: 0:03:59  loss: 0.3396  acc: 0.5000  time: 0.0922  data: 0.0027  max mem: 16159
+Evaluation  [ 520/2600]  eta: 0:02:48  loss: 0.4100  acc: 0.0000  time: 0.0775  data: 0.0005  max mem: 16159
+Evaluation  [1040/2600]  eta: 0:02:06  loss: 0.4211  acc: 0.5000  time: 0.0807  data: 0.0005  max mem: 16159
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.8769  acc: 0.5000  time: 0.0794  data: 0.0005  max mem: 16159
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.5665  acc: 0.5000  time: 0.0794  data: 0.0005  max mem: 16159
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.7617  acc: 0.0000  time: 0.0803  data: 0.0005  max mem: 16159
+Evaluation Total time: 0:03:30 (0.0808 s / it)
+rank_0 auc: 0.7100143817688906

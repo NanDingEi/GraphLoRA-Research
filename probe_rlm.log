@@ -1,0 +1,18 @@
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+Traceback (most recent call last):
+  File "/home/bbx/user_lx/GraphLoRA/probe_rlm.py", line 19, in <module>
+    model = task.build_model(cfg); model.set_mode('v2'); model.to('cuda')
+  File "/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py", line 33, in build_model
+    return model_cls.from_config(model_config)
+  File "/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py", line 2600, in from_config
+    rlm_bridge_dim=rlm_bridge_dim,
+NameError: name 'rlm_bridge_dim' is not defined

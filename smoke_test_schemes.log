@@ -1,0 +1,53 @@
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: libtorch_cuda_cu.so: cannot open shared object file: No such file or directory
+  warn(f"Failed to load image Python extension: {e}")
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/accelerate/utils/torch_xla.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+[0/6] REL losses standalone OK (identical->0, grad directions, weighting, degenerate K=1=0.00e+00)
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+building model ...
+running MiniGPT4Rec_v2 ...... 
+Loading Rec_model
+### rec_encoder: MF
+creat MF model, user num: 839 item num: 3256
+successfully load the pretrained model......
+Loading Rec_model Done
+Loading LLAMA
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:04<00:04,  4.21s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:05<00:00,  2.71s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:05<00:00,  2.94s/it]
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:973: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1027: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1087: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Loading LLAMA Done
+Setting LoRA
+B9/B10 expert injection ON at layers [7, 15, 23, 31] (relative-norm experts scale=0.02, learned rho/alpha routers)
+Mutual learning ON: mode=b3, mutual_layer=8, lambda_l2g=0.5, lambda_g2l=2.0
+Load 4 training prompts
+Prompt List: 
+['#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:']
+answer token ids: pos: 3869 neg ids: 1939
+Prompt Pos Example 
+#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user's preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \n#Answer: Yes or No
+[cfg] injection_mode=expert, layers=[7, 15, 23, 31], gate=threshold, entropy_w=0.0
+prompt example: <s>#Question: A user has given high ratings to the following movies: "Shawshank Redemption, The (1994)". Additionally, we have information about the user's preferences encoded in the feature <unk> together with the interacted item IDs <unk>. Using all available information, make a prediction about whether the user would enjoy the movie titled "Sting, The (1973)" with the feature <unk>? Answer with "Yes" or "No". \n#Answer:
+#######prompt decoded example: </s> </s> </s> </s> </s> </s> </s> </s> </s> </s> </s> <s> # Question : A user has given high ratings to the following mov ies : un kow . Additionally , we have information about the user ' s prefer ences encoded in the feature  <unk>  together with the interact ed item IDs . Using all available information , make a prediction about whether the user would enjoy the movie titled " Sh aw sh ank Red em ption , The ( 1 9 9 4 )" with the feature  <unk> ? Answer with " Yes " or " No ". \ n # Answer :
+[1/6] hooks fire exactly once per layer [7, 15, 23, 31] (pass-1 guarded) OK
+[2/6] expert_scale=0 equivalence OK (loss diff=0.00e+00)
+[3/6] expert/router/alpha grads OK (forced-open loss diff=3.91e-02, alpha[0]=[0.22593946754932404, 0.26139143109321594, 0.24569882452487946, 0.2669702470302582])
+[4/6] B11 gating OK (confident LLM -> only L->G; clueless LLM -> only G->L; kappa grads)
+[5/6] eval expert injection OK (zero-init logit diff=0.00e+00)
+[6/6] full backward OK
+
+ALL SMOKE TESTS PASSED

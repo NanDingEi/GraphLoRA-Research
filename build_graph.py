@@ -67,7 +67,7 @@ def parse_args():
     )
     parser.add_argument(
         '--data_dir', type=str,
-        default='/data2/guoji_wang/datasets/ml-1m/',
+        default='./datasets/ml-1m/',
         help='含 train_ood2.pkl/valid_ood2.pkl/test_ood2.pkl 的目录（默认: ml-1m）'
     )
     parser.add_argument(

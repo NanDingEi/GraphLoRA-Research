@@ -109,6 +109,18 @@ def main():
 
     cfg.model_cfg.rec_config.user_num = int(user_num) #int(datasets[data_name]['train'].user_num)  #cfg.model_cfg.get("user_num",)
     cfg.model_cfg.rec_config.item_num = int(item_num) #int(datasets[data_name]['train'].item_num) #cfg.model_cfg.get("item_num", datasets[data_name]['train'].item_num)
+
+    # preference-level distillation: expand train samples into candidate groups
+    # (real target + sampled negatives) sharing one user/history prompt
+    if int(cfg.run_cfg.get("pref_candidates", 0)) > 0:
+        from minigpt4.datasets.datasets.pref_candidates import PrefCandidateDataset
+        k = int(cfg.run_cfg.pref_candidates)
+        for name in datasets:
+            if 'train' in datasets[name]:
+                print(f"[pref] wrapping {name}/train with {k} candidates/group")
+                datasets[name]['train'] = PrefCandidateDataset(
+                    datasets[name]['train'], num_candidates=k,
+                    seed=int(cfg.run_cfg.get('seed', 42)))
     cfg.pretty_print()
 
     model = task.build_model(cfg)

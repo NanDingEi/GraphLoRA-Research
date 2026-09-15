@@ -1,0 +1,971 @@
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: libtorch_cuda_cu.so: cannot open shared object file: No such file or directory
+  warn(f"Failed to load image Python extension: {e}")
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/accelerate/utils/torch_xla.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+2026-09-12 20:51:15,905 [INFO] Building datasets...
+2026-09-12 20:51:16,072 [INFO] Amazon OOD datasets, max history length:10
+2026-09-12 20:51:16,100 [INFO] Amazon OOD datasets, max history length:10
+2026-09-12 20:51:16,141 [INFO] Amazon OOD datasets, max history length:10
+2026-09-12 20:51:16,380 [INFO] 
+=====  Running Parameters    =====
+2026-09-12 20:51:16,380 [INFO] {
+    "amp": true,
+    "batch_size_eval": 2,
+    "batch_size_train": 1,
+    "device": "cuda",
+    "dist_url": "env://",
+    "distributed": false,
+    "evaluate": false,
+    "init_lr": 0.0001,
+    "iters_per_epoch": 1000,
+    "lr_sched": "linear_warmup_cosine_lr",
+    "max_epoch": 12,
+    "min_lr": 5e-05,
+    "mode": "v2",
+    "num_workers": 0,
+    "output_dir": "/home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_rel_pref_12ep",
+    "pref_candidates": 2,
+    "resume_ckpt_path": null,
+    "save_checkpoint_every_n_epochs": 0,
+    "seed": 42,
+    "task": "rec_pretrain",
+    "test_splits": [
+        "test"
+    ],
+    "train_splits": [
+        "train"
+    ],
+    "valid_splits": [
+        "valid"
+    ],
+    "warmup_lr": 1e-05,
+    "warmup_steps": 200,
+    "weight_decay": 0.001,
+    "world_size": 1
+}
+2026-09-12 20:51:16,380 [INFO] 
+======  Dataset Attributes  ======
+2026-09-12 20:51:16,380 [INFO] 
+======== amazon_ood =======
+2026-09-12 20:51:16,380 [INFO] {
+    "build_info": {
+        "storage": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/"
+    },
+    "data_type": "default",
+    "path": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/",
+    "test_file": "test_ood2.pkl",
+    "train_file": "train_ood2.pkl",
+    "val_file": "valid_ood2.pkl"
+}
+2026-09-12 20:51:16,380 [INFO] 
+======  Model Attributes  ======
+2026-09-12 20:51:16,381 [INFO] {
+    "ans_type": "v2",
+    "arch": "mini_gpt4rec_v2",
+    "ckpt": null,
+    "dataset": "movie",
+    "end_sym": "###",
+    "eval_fuse_beta": 0.0,
+    "freeze_lora": false,
+    "freeze_proj": false,
+    "freeze_rec": false,
+    "gcn_layer": 31,
+    "gnn_conf_loss_weight": 0.1,
+    "gnn_scale": 0.1,
+    "item_num": -100,
+    "lambda_gnn_to_llm": 0.0,
+    "lambda_llm_to_gnn": 1.0,
+    "llama_model": "/home/bbx/user_lx/models/vicuna-7b-v0",
+    "lora_config": {
+        "alpha": 16,
+        "dropout": 0.05,
+        "r": 8,
+        "target_modules": [
+            "q_proj",
+            "v_proj"
+        ],
+        "use_lora": true
+    },
+    "lora_gnn": "ngcf",
+    "lora_scale": 1.0,
+    "max_txt_len": 1024,
+    "model_type": "pretrain_vicuna",
+    "mutual_layer": 8,
+    "mutual_mode": "rel",
+    "mutual_rank_loss": true,
+    "mutual_warmup_iters": 0,
+    "pref_distill_weight": 0.5,
+    "pref_tau_g": 1.0,
+    "pref_tau_l": 1.0,
+    "proj_drop": 0,
+    "proj_mid_times": 10,
+    "proj_token_num": 1,
+    "prompt_path": "prompts/collm_movie_idlist.txt",
+    "prompt_template": "{}",
+    "rank_margin": 0.02,
+    "rank_weight_ref": 0.05,
+    "rec_config": {
+        "embedding_size": 256,
+        "item_num": 3256,
+        "pretrained_path": "/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth",
+        "user_num": 839
+    },
+    "rec_model": "MF",
+    "rel_temp_gnn": 0.05,
+    "rel_temp_llm": 0.05,
+    "semantic_feedback": false,
+    "user_num": -100
+}
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+Not using distributed mode
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+data dir: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+[pref] wrapping amazon_ood/train with 2 candidates/group
+running MiniGPT4Rec_v2 ...... 
+Loading Rec_model
+### rec_encoder: MF
+creat MF model, user num: 839 item num: 3256
+successfully load the pretrained model......
+Loading Rec_model Done
+Loading LLAMA
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:03<00:03,  3.46s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:04<00:00,  2.13s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:04<00:00,  2.33s/it]
+2026-09-12 20:51:28,954 [INFO] Start training
+2026-09-12 20:51:28,967 [INFO] dataset_ratios not specified, datasets will be concatenated (map-style datasets) or chained (webdataset.DataPipeline).
+2026-09-12 20:51:28,967 [INFO] Loaded 33891 records for train split from the dataset.
+2026-09-12 20:51:28,967 [INFO] Loaded 5200 records for valid split from the dataset.
+2026-09-12 20:51:28,967 [INFO] Loaded 7331 records for test split from the dataset.
+Loading LLAMA Done
+Setting LoRA
+Preparing to inject GCN into: model.layers.31 with gnn_scale: 0.1
+Setting LoRA, GCN, and MyLinear for layer 31 Done. Replaced 2 modules.
+Mutual learning ON: mode=rel, mutual_layer=8, lambda_l2g=1.0, lambda_g2l=0.0
+Load 4 training prompts
+Prompt List: 
+['#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:']
+answer token ids: pos: 3869 neg ids: 1939
+Prompt Pos Example 
+#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user's preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \n#Answer: Yes or No
+gnn_conf_kappa
+rec_encoder.user_embedding.weight
+rec_encoder.item_embedding.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_B.default.weight
+2026-09-12 20:51:28,975 [INFO] number of trainable parameters: 16665873
+/home/bbx/user_lx/GraphLoRA/minigpt4/runners/runner_base.py:134: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  self._scaler = torch.cuda.amp.GradScaler()
+2026-09-12 20:51:28,984 [INFO] Start training epoch 0, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+llama_model.model.layers.21.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.21.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.21.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.21.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.22.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.22.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.22.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.22.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.23.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.23.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.23.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.23.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.24.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.24.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.24.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.24.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.25.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.25.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.25.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.25.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.26.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.26.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.26.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.26.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.27.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.27.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.27.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.27.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.28.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.28.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.28.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.28.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.29.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.29.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.29.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.29.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.30.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.30.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.30.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.30.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.31.self_attn.q_proj.bias
+llama_model.model.layers.31.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.31.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.31.self_attn.v_proj.bias
+llama_model.model.layers.31.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.31.self_attn.v_proj.lora_B.default.weight
+gcn.layers.0.W1.weight
+gcn.layers.0.W1.bias
+gcn.layers.0.W2.weight
+gcn.layers.0.W2.bias
+gcn.layers.1.W1.weight
+gcn.layers.1.W1.bias
+gcn.layers.1.W2.weight
+gcn.layers.1.W2.bias
+gcn.layers.2.W1.weight
+gcn.layers.2.W1.bias
+gcn.layers.2.W2.weight
+gcn.layers.2.W2.bias
+llama_proj.0.weight
+llama_proj.0.bias
+llama_proj.2.weight
+llama_proj.2.bias
+prompt example: <s>#Question: A user has given high ratings to the following movies: "One Flew Over the Cuckoo's Nest (1975)", "When Harry Met Sally... (1989)", "Star Wars: Episode V - The Empire Strikes Back (1980)", "Terminator 2: Judgment Day (1991)", "Close Encounters of the Third Kind (1977)", "Star Wars: Episode VI - Return of the Jedi (1983)", "Alien (1979)", "E.T. the Extra-Terrestrial (1982)", "Terminator, The (1984)", "Contact (1997)". Additionally, we have information about the user's preferences encoded in the feature <unk> together with the interacted item IDs <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>. Using all available information, make a prediction about whether the user would enjoy the movie titled "2001: A Space Odyssey (1968)" with the feature <unk>? Answer with "Yes" or "No". \n#Answer:
+#######prompt decoded example: </s> </s> </s> </s> </s> </s> </s> <s> # Question : A user has given high ratings to the following mov ies : " One Fle w Over the C uck oo ' s N est ( 1 9 7 5 )", " When Harry Met S ally ... ( 1 9 8 9 )", " Star Wars : E pisode V - The Empire St rik es Back ( 1 9 8 0 )", " Term in ator  2 : Jud gment Day ( 1 9 9 1 )", " Close Enc oun ters of the Third Kind ( 1 9 7 7 )", " Star Wars : E pisode VI - Return of the J edi ( 1 9 8 3 )", " A li en ( 1 9 7 9 )", " E . T . the Ext ra - T err est rial ( 1 9 8 2 )", " Term in ator , The ( 1 9 8 4 )", " Contact ( 1 9 9 7 ) ". Additionally , we have information about the user ' s prefer ences encoded in the feature  <unk>  together with the interact ed item IDs  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> . Using all available information , make a prediction about whether the user would enjoy the movie titled " 2 0 0 1 : A Space Od ys sey ( 1 9 6 8 )" with the feature  <unk> ? Answer with " Yes " or " No ". \ n # Answer :
+Train: data epoch: [0]  [   0/1000]  eta: 0:11:01  lr: 0.000010  loss: 6.2031  time: 0.6612  data: 0.0000  max mem: 18694
+Train: data epoch: [0]  [  50/1000]  eta: 0:03:34  lr: 0.000033  loss: 0.9576  time: 0.2309  data: 0.0000  max mem: 18779
+[mutual:rel] iters=100 L_L->G=0.0509 L_G->L=0.0505 qL=0.189 qG=0.794
+Train: data epoch: [0]  [ 100/1000]  eta: 0:03:20  lr: 0.000055  loss: 0.7051  time: 0.2246  data: 0.0000  max mem: 18779
+Train: data epoch: [0]  [ 150/1000]  eta: 0:03:10  lr: 0.000078  loss: 0.6393  time: 0.2268  data: 0.0000  max mem: 18879
+[mutual:rel] iters=200 L_L->G=0.0608 L_G->L=0.0602 qL=0.302 qG=0.973
+Train: data epoch: [0]  [ 200/1000]  eta: 0:02:59  lr: 0.000100  loss: 0.4644  time: 0.2243  data: 0.0000  max mem: 18879
+Train: data epoch: [0]  [ 250/1000]  eta: 0:02:47  lr: 0.000100  loss: 1.6128  time: 0.2315  data: 0.0000  max mem: 18879
+[mutual:rel] iters=300 L_L->G=0.0638 L_G->L=0.0632 qL=0.114 qG=0.912
+Train: data epoch: [0]  [ 300/1000]  eta: 0:02:37  lr: 0.000100  loss: 0.4882  time: 0.2357  data: 0.0000  max mem: 18879
+Train: data epoch: [0]  [ 350/1000]  eta: 0:02:25  lr: 0.000100  loss: 0.6753  time: 0.2253  data: 0.0000  max mem: 18905
+[mutual:rel] iters=400 L_L->G=0.0632 L_G->L=0.0624 qL=0.016 qG=0.851
+Train: data epoch: [0]  [ 400/1000]  eta: 0:02:14  lr: 0.000100  loss: 0.1413  time: 0.2096  data: 0.0000  max mem: 18905
+Train: data epoch: [0]  [ 450/1000]  eta: 0:02:03  lr: 0.000100  loss: 0.0927  time: 0.2349  data: 0.0000  max mem: 18905
+[mutual:rel] iters=500 L_L->G=0.0592 L_G->L=0.0584 qL=0.230 qG=0.893
+Train: data epoch: [0]  [ 500/1000]  eta: 0:01:52  lr: 0.000100  loss: 0.0159  time: 0.2209  data: 0.0000  max mem: 19110
+Train: data epoch: [0]  [ 550/1000]  eta: 0:01:41  lr: 0.000100  loss: 0.1936  time: 0.2225  data: 0.0000  max mem: 19110
+[mutual:rel] iters=600 L_L->G=0.0567 L_G->L=0.0559 qL=0.036 qG=0.852
+Train: data epoch: [0]  [ 600/1000]  eta: 0:01:29  lr: 0.000100  loss: 0.0623  time: 0.2136  data: 0.0000  max mem: 19110
+Train: data epoch: [0]  [ 650/1000]  eta: 0:01:18  lr: 0.000100  loss: 1.7636  time: 0.2455  data: 0.0000  max mem: 19110
+[mutual:rel] iters=700 L_L->G=0.0536 L_G->L=0.0529 qL=0.301 qG=0.909
+Train: data epoch: [0]  [ 700/1000]  eta: 0:01:07  lr: 0.000100  loss: 0.2566  time: 0.2189  data: 0.0000  max mem: 19110
+Train: data epoch: [0]  [ 750/1000]  eta: 0:00:56  lr: 0.000100  loss: 0.4814  time: 0.2368  data: 0.0000  max mem: 19110
+[mutual:rel] iters=800 L_L->G=0.0511 L_G->L=0.0505 qL=0.220 qG=0.943
+Train: data epoch: [0]  [ 800/1000]  eta: 0:00:45  lr: 0.000099  loss: 0.1175  time: 0.2035  data: 0.0000  max mem: 19110
+Train: data epoch: [0]  [ 850/1000]  eta: 0:00:33  lr: 0.000099  loss: 0.1106  time: 0.2051  data: 0.0000  max mem: 19110
+[mutual:rel] iters=900 L_L->G=0.0496 L_G->L=0.0491 qL=0.170 qG=0.945
+Train: data epoch: [0]  [ 900/1000]  eta: 0:00:22  lr: 0.000099  loss: 0.0622  time: 0.2407  data: 0.0000  max mem: 19110
+Train: data epoch: [0]  [ 950/1000]  eta: 0:00:11  lr: 0.000099  loss: 0.1096  time: 0.2274  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1000 L_L->G=0.0487 L_G->L=0.0481 qL=0.044 qG=0.791
+2026-09-12 20:55:14,387 [INFO] Averaged stats: lr: 0.000091  loss: 0.556822
+2026-09-12 20:55:14,389 [INFO] Evaluating on valid.
+2026-09-12 20:58:46,385 [INFO] Averaged stats: loss: 0.721591  acc: 0.039615 ***auc: 0.705876262118694 ***uauc:(0.6613512184812842, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [0.5, 0.5583333333333333, 0.6666666666666666, 0.7314285714285713, 0.3333333333333333, 1.0, 0.46938775510204084, 0.8608695652173912, 0.5119047619047619, 0.7777777777777778, 0.6666666666666666, 0.8613445378151261, 0.746031746031746, 0.8290272238598925, 0.5, 0.6412337662337662, 0.0, 0.5, 0.7222222222222222, 0.7052631578947368, 0.7257142857142858, 0.33333333333333337, 0.4666666666666667, 1.0, 0.0, 0.6833964646464646, 0.9047619047619049, 0.8666666666666667, 0.75, 0.6, 0.8194444444444444, 0.9166666666666667, 0.28125, 1.0, 0.7879948914431674, 0.6729323308270677, 0.7868217054263567, 0.7916666666666667, 1.0, 0.5, 0.0, 0.5226923076923077, 0.5, 0.1, 1.0, 1.0, 0.5636363636363636, 0.6, 1.0, 0.0, 1.0, 0.7212121212121212, 0.75, 0.8179012345679012, 0.8444444444444444, 1.0, 0.7777777777777778, 0.4642857142857143, 0.6527777777777778, 0.38020833333333337, 0.4285714285714286, 1.0, 0.8134822167080231, 0.6060606060606061, 0.829059829059829, 1.0, 0.75, 0.6666666666666666, 0.0, 0.384297520661157, 0.8939393939393939, 0.6666666666666666, 0.125, 0.623611111111111, 0.5108225108225108, 0.75, 0.8472222222222221, 0.5894736842105264, 0.8012422360248448, 0.7083333333333333, 0.7777777777777778, 0.6555555555555556, 0.6153846153846154, 0.8412698412698413, 0.45833333333333337, 0.5594771241830065, 0.582051282051282, 0.6114285714285714, 0.8508771929824562, 0.8235294117647058, 0.8487394957983193, 0.41269841269841273, 0.761904761904762, 1.0, 1.0, 0.8541666666666667, 0.0, 0.8, 0.6666666666666666, 0.75, 0.7692307692307693, 0.5, 0.4444444444444445, 0.5, 0.5163398692810457, 0.6984126984126984, 0.5, 0.65, 0.0, 0.5555555555555556, 0.7685185185185185, 0.5, 0.5665024630541873, 0.8, 0.475, 0.6666666666666666, 1.0, 0.33333333333333337, 0.6595486111111111, 0.875, 0.6705882352941177, 1.0, 0.732638888888889, 0.8928571428571428, 0.6666666666666667, 0.6666666666666667, 0.6038961038961039, 0.7717391304347827, 1.0, 0.33333333333333337, 1.0, 0.6, 0.7762237762237763, 1.0, 0.5, 0.5, 0.575, 0.0, 0.484375, 0.0, 0.75, 0.7865546218487394, 1.0, 0.5, 0.41666666666666663, 0.4666666666666667, 0.7540106951871658, 0.33333333333333337, 0.638888888888889, 1.0, 0.25, 0.9047619047619048, 1.0, 0.5213675213675214, 0.5318949343339587, 1.0, 0.6666666666666666, 1.0, 1.0, 0.875, 0.9375, 1.0, 0.7843137254901961, 0.6546448087431693, 0.7857142857142857, 0.6428571428571428, 0.6666666666666667, 0.75, 0.6399999999999999, 0.6868686868686869, 0.4444444444444444, 0.7101476713366149, 0.4102564102564103, 0.4814814814814815, 0.5, 0.5545639979602244, 0.375, 1.0, 0.5, 0.6666666666666666, 1.0, 0.47435897435897434, 0.40909090909090906, 1.0, 0.5982142857142857, 0.5, 1.0, 0.72, 1.0, 0.0, 0.9090909090909091, 1.0, 0.5, 1.0, 1.0, 0.33333333333333337, 0.4444444444444444, 0.6571428571428571, 0.19999999999999998, 0.5235294117647059, 0.5024154589371981, 0.4761904761904762, 0.29411764705882354, 0.5636363636363637, 0.5833333333333334, 0.5, 0.6666666666666667, 0.5192307692307693, 1.0, 0.0, 0.6666666666666666, 0.4666666666666667, 0.625, 0.75, 0.5, 0.7142857142857143, 1.0, 1.0, 0.0, 0.6461538461538462, 0.9183673469387755, 0.8787878787878788, 0.8444444444444444, 1.0, 0.7222222222222223, 0.5, 0.4285714285714286, 1.0, 0.7948717948717948, 0.78125, 1.0, 0.6379790370127744, 0.6666666666666666, 0.7121212121212122, 0.8333333333333334, 0.676470588235294, 1.0, 0.6930147058823529])
+2026-09-12 20:58:46,395 [INFO] Saving checkpoint at epoch 0 to /home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_rel_pref_12ep/20260912205/checkpoint_best.pth.
+2026-09-12 20:58:56,710 [INFO] Start training
+2026-09-12 20:58:56,722 [INFO] Start training epoch 1, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [0]  [ 999/1000]  eta: 0:00:00  lr: 0.000099  loss: 0.0451  time: 0.2341  data: 0.0000  max mem: 19503
+Train: data epoch: [0] Total time: 0:03:45 (0.2254 s / it)
+Evaluation  [   0/2600]  eta: 0:03:50  loss: 0.5121  acc: 0.0000  time: 0.0886  data: 0.0025  max mem: 19503
+Evaluation  [ 520/2600]  eta: 0:02:48  loss: 0.2621  acc: 0.0000  time: 0.0784  data: 0.0005  max mem: 19503
+Evaluation  [1040/2600]  eta: 0:02:06  loss: 0.4929  acc: 0.0000  time: 0.0816  data: 0.0004  max mem: 19503
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.7509  acc: 0.0000  time: 0.0798  data: 0.0004  max mem: 19503
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.5819  acc: 0.0000  time: 0.0803  data: 0.0004  max mem: 19503
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 1.1095  acc: 0.0000  time: 0.0812  data: 0.0004  max mem: 19503
+Evaluation Total time: 0:03:31 (0.0815 s / it)
+rank_0 auc: 0.705876262118694
+Train: data epoch: [1]  [   0/1000]  eta: 0:04:19  lr: 0.000099  loss: 0.3084  time: 0.2598  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [  50/1000]  eta: 0:03:30  lr: 0.000099  loss: 0.0091  time: 0.2216  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1100 L_L->G=0.0479 L_G->L=0.0473 qL=0.353 qG=0.974
+Train: data epoch: [1]  [ 100/1000]  eta: 0:03:24  lr: 0.000099  loss: 0.0297  time: 0.2386  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 150/1000]  eta: 0:03:12  lr: 0.000099  loss: 1.4697  time: 0.2375  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1200 L_L->G=0.0472 L_G->L=0.0466 qL=0.136 qG=0.842
+Train: data epoch: [1]  [ 200/1000]  eta: 0:03:00  lr: 0.000099  loss: 0.9900  time: 0.2235  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 250/1000]  eta: 0:02:49  lr: 0.000099  loss: 0.1786  time: 0.2232  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1300 L_L->G=0.0467 L_G->L=0.0460 qL=0.428 qG=0.941
+Train: data epoch: [1]  [ 300/1000]  eta: 0:02:39  lr: 0.000099  loss: 0.9487  time: 0.2377  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 350/1000]  eta: 0:02:26  lr: 0.000098  loss: 0.0691  time: 0.2084  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1400 L_L->G=0.0462 L_G->L=0.0455 qL=0.272 qG=0.976
+Train: data epoch: [1]  [ 400/1000]  eta: 0:02:16  lr: 0.000098  loss: 0.0597  time: 0.2462  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 450/1000]  eta: 0:02:05  lr: 0.000098  loss: 0.0157  time: 0.2288  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1500 L_L->G=0.0455 L_G->L=0.0448 qL=0.351 qG=0.973
+Train: data epoch: [1]  [ 500/1000]  eta: 0:01:53  lr: 0.000098  loss: 0.1027  time: 0.2151  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 550/1000]  eta: 0:01:41  lr: 0.000098  loss: 0.3602  time: 0.2240  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1600 L_L->G=0.0448 L_G->L=0.0441 qL=0.036 qG=0.948
+Train: data epoch: [1]  [ 600/1000]  eta: 0:01:30  lr: 0.000098  loss: 0.2785  time: 0.2362  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 650/1000]  eta: 0:01:18  lr: 0.000098  loss: 0.1325  time: 0.2044  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1700 L_L->G=0.0442 L_G->L=0.0436 qL=0.160 qG=0.965
+Train: data epoch: [1]  [ 700/1000]  eta: 0:01:07  lr: 0.000098  loss: 0.1245  time: 0.2183  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 750/1000]  eta: 0:00:56  lr: 0.000097  loss: 0.2427  time: 0.2270  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1800 L_L->G=0.0439 L_G->L=0.0432 qL=0.445 qG=0.950
+Train: data epoch: [1]  [ 800/1000]  eta: 0:00:45  lr: 0.000097  loss: 0.0620  time: 0.2195  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 850/1000]  eta: 0:00:33  lr: 0.000097  loss: 0.0615  time: 0.2214  data: 0.0000  max mem: 19503
+[mutual:rel] iters=1900 L_L->G=0.0434 L_G->L=0.0428 qL=0.158 qG=0.977
+Train: data epoch: [1]  [ 900/1000]  eta: 0:00:22  lr: 0.000097  loss: 1.2538  time: 0.2336  data: 0.0000  max mem: 19503
+Train: data epoch: [1]  [ 950/1000]  eta: 0:00:11  lr: 0.000097  loss: 0.7893  time: 0.2151  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2000 L_L->G=0.0432 L_G->L=0.0425 qL=0.452 qG=0.897
+2026-09-12 21:02:42,189 [INFO] Averaged stats: lr: 0.000098  loss: 0.315815
+2026-09-12 21:02:42,191 [INFO] Evaluating on valid.
+2026-09-12 21:06:14,659 [INFO] Averaged stats: loss: 0.765093  acc: 0.466731 ***auc: 0.7023444021404636 ***uauc:(0.6626594816518531, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.5416666666666666, 0.6666666666666666, 0.6628571428571428, 0.5, 1.0, 0.4285714285714286, 0.8, 0.34523809523809523, 1.0, 0.6041666666666666, 0.865546218487395, 0.7777777777777777, 0.8052713715970176, 0.5, 0.6298701298701298, 0.0, 0.33333333333333337, 0.5777777777777778, 0.6631578947368422, 0.7771428571428571, 0.6666666666666667, 0.5333333333333333, 1.0, 0.25, 0.7026515151515152, 0.8571428571428572, 0.7, 0.6875, 0.5333333333333333, 0.8888888888888888, 1.0, 0.453125, 1.0, 0.7694763729246488, 0.736842105263158, 0.7189922480620154, 0.7083333333333334, 0.5, 0.25, 0.0, 0.4984615384615385, 1.0, 0.1, 1.0, 1.0, 0.5393939393939394, 1.0, 1.0, 0.0, 1.0, 0.7515151515151515, 0.6666666666666666, 0.8024691358024691, 0.8666666666666667, 1.0, 0.6666666666666667, 0.5892857142857143, 0.6388888888888888, 0.4869791666666667, 0.6071428571428571, 1.0, 0.7650951199338296, 0.6181818181818182, 0.8119658119658119, 0.5, 0.5, 0.5, 1.0, 0.37190082644628103, 0.8636363636363636, 0.6666666666666666, 0.5, 0.6638888888888889, 0.47835497835497837, 0.8125, 0.8442460317460316, 0.668421052631579, 0.7975155279503107, 0.5833333333333333, 0.6666666666666667, 0.5222222222222221, 0.7307692307692308, 0.8774250440917107, 0.375, 0.5006535947712418, 0.6128205128205128, 0.7657142857142857, 0.7543859649122807, 0.7294117647058824, 0.9159663865546218, 0.4603174603174603, 0.7857142857142858, 0.625, 1.0, 0.75, 0.0, 0.8, 0.6666666666666666, 0.75, 0.7692307692307693, 0.5625, 0.33333333333333337, 0.5, 0.5626361655773421, 0.7301587301587302, 0.8333333333333333, 0.7000000000000001, 1.0, 0.5185185185185186, 0.7870370370370371, 0.5, 0.5566502463054186, 0.6666666666666666, 0.625, 0.6666666666666666, 1.0, 0.33333333333333337, 0.6951388888888889, 0.875, 0.5686274509803921, 1.0, 0.6666666666666666, 0.8928571428571428, 0.6666666666666667, 0.8333333333333334, 0.5788497217068646, 0.6413043478260869, 1.0, 0.2435897435897436, 1.0, 1.0, 0.8461538461538461, 0.5, 0.5, 0.25, 0.75, 0.0, 0.40625, 0.0, 0.75, 0.7512605042016808, 1.0, 0.5416666666666667, 0.6666666666666666, 0.5333333333333333, 0.7192513368983957, 1.0, 0.6041666666666666, 1.0, 0.25, 0.8571428571428571, 1.0, 0.5470085470085471, 0.5131332082551594, 1.0, 0.75, 1.0, 1.0, 1.0, 0.875, 0.5, 0.7725490196078431, 0.6836065573770491, 0.75, 0.5833333333333334, 0.6666666666666667, 0.875, 0.63, 0.5757575757575757, 0.5555555555555556, 0.7338129496402878, 0.46153846153846156, 0.5555555555555556, 0.75, 0.5662927078021418, 0.75, 1.0, 1.0, 0.75, 1.0, 0.4807692307692308, 0.45454545454545453, 0.8333333333333333, 0.5803571428571428, 0.5, 0.8333333333333334, 0.66, 1.0, 0.0, 0.9090909090909091, 0.5, 0.5192307692307692, 0.6666666666666667, 0.6666666666666666, 0.33333333333333337, 0.4444444444444444, 0.6582181259600615, 0.15999999999999998, 0.5470588235294118, 0.5394524959742351, 0.5476190476190477, 0.5882352941176471, 0.49090909090909096, 0.5555555555555556, 0.33333333333333337, 0.6666666666666667, 0.5576923076923077, 0.8181818181818181, 0.5, 0.6666666666666666, 0.4, 0.84375, 0.75, 0.0, 0.7, 1.0, 1.0, 1.0, 0.6102564102564103, 0.8010204081632654, 0.787878787878788, 0.9111111111111112, 1.0, 0.8333333333333334, 0.6666666666666667, 0.2857142857142857, 0.0, 0.8012820512820512, 0.7534722222222222, 0.9166666666666666, 0.6223386832623649, 0.3333333333333333, 0.7878787878787878, 0.7333333333333333, 0.6722689075630252, 1.0, 0.7352941176470588])
+2026-09-12 21:06:14,671 [INFO] Start training
+2026-09-12 21:06:14,683 [INFO] Start training epoch 2, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [1]  [ 999/1000]  eta: 0:00:00  lr: 0.000097  loss: 0.0530  time: 0.2281  data: 0.0000  max mem: 19503
+Train: data epoch: [1] Total time: 0:03:45 (0.2255 s / it)
+Evaluation  [   0/2600]  eta: 0:03:57  loss: 0.8131  acc: 0.5000  time: 0.0912  data: 0.0025  max mem: 19503
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 1.3138  acc: 0.0000  time: 0.0788  data: 0.0005  max mem: 19503
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.7871  acc: 0.5000  time: 0.0830  data: 0.0005  max mem: 19503
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 1.0712  acc: 0.5000  time: 0.0800  data: 0.0005  max mem: 19503
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 1.4493  acc: 0.5000  time: 0.0805  data: 0.0004  max mem: 19503
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.4631  acc: 0.0000  time: 0.0817  data: 0.0005  max mem: 19503
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.7023444021404636
+Train: data epoch: [2]  [   0/1000]  eta: 0:04:24  lr: 0.000097  loss: 0.0234  time: 0.2642  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [  50/1000]  eta: 0:03:37  lr: 0.000096  loss: 0.1445  time: 0.2304  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2100 L_L->G=0.0428 L_G->L=0.0422 qL=0.213 qG=0.967
+Train: data epoch: [2]  [ 100/1000]  eta: 0:03:24  lr: 0.000096  loss: 0.8339  time: 0.2244  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 150/1000]  eta: 0:03:10  lr: 0.000096  loss: 0.5177  time: 0.2259  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2200 L_L->G=0.0427 L_G->L=0.0421 qL=0.233 qG=0.977
+Train: data epoch: [2]  [ 200/1000]  eta: 0:02:58  lr: 0.000096  loss: 0.0989  time: 0.2318  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 250/1000]  eta: 0:02:47  lr: 0.000096  loss: 0.1404  time: 0.2285  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2300 L_L->G=0.0425 L_G->L=0.0420 qL=0.058 qG=0.828
+Train: data epoch: [2]  [ 300/1000]  eta: 0:02:36  lr: 0.000096  loss: 0.0894  time: 0.2174  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 350/1000]  eta: 0:02:25  lr: 0.000095  loss: 0.0342  time: 0.2116  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2400 L_L->G=0.0426 L_G->L=0.0419 qL=0.197 qG=0.676
+Train: data epoch: [2]  [ 400/1000]  eta: 0:02:14  lr: 0.000095  loss: 0.0339  time: 0.2231  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 450/1000]  eta: 0:02:03  lr: 0.000095  loss: 0.0912  time: 0.2316  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2500 L_L->G=0.0426 L_G->L=0.0420 qL=0.187 qG=0.984
+Train: data epoch: [2]  [ 500/1000]  eta: 0:01:51  lr: 0.000095  loss: 0.3485  time: 0.2161  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 550/1000]  eta: 0:01:40  lr: 0.000095  loss: 0.7624  time: 0.2211  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2600 L_L->G=0.0427 L_G->L=0.0421 qL=0.401 qG=0.969
+Train: data epoch: [2]  [ 600/1000]  eta: 0:01:29  lr: 0.000094  loss: 0.2140  time: 0.2098  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 650/1000]  eta: 0:01:18  lr: 0.000094  loss: 0.5041  time: 0.2180  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2700 L_L->G=0.0424 L_G->L=0.0418 qL=0.139 qG=0.963
+Train: data epoch: [2]  [ 700/1000]  eta: 0:01:06  lr: 0.000094  loss: 0.1026  time: 0.2340  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 750/1000]  eta: 0:00:55  lr: 0.000094  loss: 0.1123  time: 0.2302  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2800 L_L->G=0.0422 L_G->L=0.0415 qL=0.256 qG=0.952
+Train: data epoch: [2]  [ 800/1000]  eta: 0:00:44  lr: 0.000094  loss: 0.6836  time: 0.2094  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 850/1000]  eta: 0:00:33  lr: 0.000093  loss: 0.1625  time: 0.2170  data: 0.0000  max mem: 19503
+[mutual:rel] iters=2900 L_L->G=0.0421 L_G->L=0.0414 qL=0.062 qG=0.934
+Train: data epoch: [2]  [ 900/1000]  eta: 0:00:22  lr: 0.000093  loss: 1.1070  time: 0.2291  data: 0.0000  max mem: 19503
+Train: data epoch: [2]  [ 950/1000]  eta: 0:00:11  lr: 0.000093  loss: 0.2925  time: 0.2311  data: 0.0000  max mem: 19503
+[mutual:rel] iters=3000 L_L->G=0.0420 L_G->L=0.0413 qL=0.441 qG=0.887
+2026-09-12 21:09:58,605 [INFO] Averaged stats: lr: 0.000095  loss: 0.304526
+2026-09-12 21:09:58,607 [INFO] Evaluating on valid.
+2026-09-12 21:13:30,985 [INFO] Averaged stats: loss: 0.663140  acc: 0.289423 ***auc: 0.7201557497587069 ***uauc:(0.6796780758508133, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.55, 0.8333333333333333, 0.7371428571428571, 0.8333333333333333, 0.8, 0.3469387755102041, 0.8956521739130435, 0.5119047619047619, 1.0, 0.5625, 0.7983193277310924, 0.8095238095238095, 0.8269464192821224, 0.375, 0.7012987012987013, 0.0, 0.5, 0.7111111111111111, 0.7263157894736842, 0.7342857142857142, 0.6666666666666667, 0.4, 1.0, 0.5, 0.7272727272727273, 0.8333333333333335, 0.8666666666666667, 0.6875, 0.5333333333333333, 0.8611111111111112, 0.8333333333333334, 0.40625, 1.0, 0.7809706257982121, 0.7105263157894737, 0.7645348837209301, 0.6527777777777778, 0.5, 0.375, 1.0, 0.48307692307692307, 1.0, 0.30000000000000004, 1.0, 1.0, 0.5636363636363637, 0.8, 1.0, 0.0, 1.0, 0.7757575757575759, 0.9166666666666666, 0.8209876543209876, 0.7111111111111111, 1.0, 0.6666666666666667, 0.5714285714285715, 0.625, 0.5104166666666667, 0.4642857142857143, 1.0, 0.8126550868486353, 0.6515151515151515, 0.7492877492877492, 1.0, 0.5, 0.5, 1.0, 0.4421487603305785, 0.8484848484848484, 0.6666666666666666, 0.5, 0.6627777777777778, 0.4545454545454546, 0.6875, 0.8511904761904762, 0.6473684210526316, 0.7962732919254658, 0.6666666666666667, 0.6666666666666667, 0.6185185185185185, 0.846153846153846, 0.9215167548500882, 0.5625, 0.6222222222222222, 0.6166666666666667, 0.7542857142857142, 0.8333333333333335, 0.8705882352941177, 0.8991596638655461, 0.4444444444444445, 0.7380952380952381, 0.75, 1.0, 0.8125, 0.0, 0.8, 0.6666666666666666, 0.75, 0.676923076923077, 0.875, 0.22222222222222224, 0.5, 0.4934640522875817, 0.761904761904762, 0.8333333333333333, 0.49999999999999994, 1.0, 0.5185185185185186, 0.7592592592592593, 0.5, 0.5139573070607553, 0.8, 0.55, 1.0, 1.0, 0.7333333333333334, 0.6968749999999999, 0.875, 0.6303921568627452, 1.0, 0.7534722222222222, 0.8928571428571428, 1.0, 0.8333333333333334, 0.5507884972170687, 0.8043478260869565, 1.0, 0.33333333333333337, 1.0, 1.0, 0.8531468531468531, 1.0, 0.0, 0.25, 0.6874999999999999, 0.0, 0.375, 0.0, 0.625, 0.8134453781512605, 1.0, 0.5, 0.5, 0.5333333333333333, 0.6951871657754012, 0.6666666666666667, 0.6111111111111112, 1.0, 0.0, 0.8571428571428572, 1.0, 0.5555555555555556, 0.5150093808630394, 1.0, 0.5833333333333334, 1.0, 1.0, 0.875, 1.0, 0.0, 0.8431372549019608, 0.6404371584699454, 0.42857142857142855, 0.5238095238095237, 0.7777777777777778, 0.875, 0.6300000000000001, 0.6161616161616161, 0.5, 0.7417644831503218, 0.6923076923076924, 0.6296296296296297, 0.75, 0.5558388577256501, 0.75, 1.0, 0.5, 0.9166666666666667, 1.0, 0.6025641025641025, 0.7727272727272727, 1.0, 0.625, 0.75, 1.0, 0.7, 1.0, 0.0, 0.9090909090909091, 0.5, 0.6452991452991453, 0.6666666666666667, 1.0, 0.33333333333333337, 0.5555555555555556, 0.6502304147465438, 0.39999999999999997, 0.5735294117647058, 0.4758454106280193, 0.5238095238095237, 0.5588235294117647, 0.6545454545454545, 0.5555555555555556, 0.33333333333333337, 0.6666666666666667, 0.6538461538461539, 1.0, 0.5, 0.6666666666666666, 0.5333333333333334, 0.875, 0.5, 0.0, 0.7285714285714285, 1.0, 1.0, 1.0, 0.6615384615384615, 0.8979591836734694, 0.8181818181818182, 0.8666666666666667, 1.0, 0.8333333333333334, 0.5, 0.1428571428571429, 1.0, 0.8333333333333333, 0.8645833333333334, 0.9166666666666666, 0.6701604978709466, 0.0, 0.7878787878787878, 0.9, 0.6806722689075629, 0.9375, 0.7279411764705883])
+2026-09-12 21:13:30,995 [INFO] Saving checkpoint at epoch 2 to /home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_scratch_rel_pref_12ep/20260912205/checkpoint_best.pth.
+2026-09-12 21:13:43,157 [INFO] Start training
+2026-09-12 21:13:43,170 [INFO] Start training epoch 3, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [2]  [ 999/1000]  eta: 0:00:00  lr: 0.000093  loss: 0.0657  time: 0.2225  data: 0.0000  max mem: 19503
+Train: data epoch: [2] Total time: 0:03:43 (0.2239 s / it)
+Evaluation  [   0/2600]  eta: 0:03:50  loss: 0.2364  acc: 0.5000  time: 0.0886  data: 0.0024  max mem: 19503
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.3742  acc: 0.0000  time: 0.0784  data: 0.0004  max mem: 19503
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.5221  acc: 0.5000  time: 0.0816  data: 0.0004  max mem: 19503
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.8793  acc: 0.5000  time: 0.0800  data: 0.0005  max mem: 19503
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.2808  acc: 0.5000  time: 0.0805  data: 0.0005  max mem: 19503
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 1.3000  acc: 0.0000  time: 0.0812  data: 0.0004  max mem: 19503
+Evaluation Total time: 0:03:32 (0.0816 s / it)
+rank_0 auc: 0.7201557497587069
+Train: data epoch: [3]  [   0/1000]  eta: 0:04:04  lr: 0.000093  loss: 0.1508  time: 0.2442  data: 0.0000  max mem: 19503
+Train: data epoch: [3]  [  50/1000]  eta: 0:03:34  lr: 0.000092  loss: 0.0795  time: 0.2288  data: 0.0000  max mem: 19503
+[mutual:rel] iters=3100 L_L->G=0.0420 L_G->L=0.0414 qL=0.467 qG=0.893
+Train: data epoch: [3]  [ 100/1000]  eta: 0:03:21  lr: 0.000092  loss: 0.0557  time: 0.2193  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 150/1000]  eta: 0:03:09  lr: 0.000092  loss: 0.2054  time: 0.2153  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3200 L_L->G=0.0420 L_G->L=0.0413 qL=0.135 qG=0.900
+Train: data epoch: [3]  [ 200/1000]  eta: 0:03:00  lr: 0.000092  loss: 0.0460  time: 0.2380  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 250/1000]  eta: 0:02:49  lr: 0.000091  loss: 0.0094  time: 0.2200  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3300 L_L->G=0.0417 L_G->L=0.0411 qL=0.069 qG=0.979
+Train: data epoch: [3]  [ 300/1000]  eta: 0:02:38  lr: 0.000091  loss: 0.0598  time: 0.2265  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 350/1000]  eta: 0:02:28  lr: 0.000091  loss: 0.3359  time: 0.2390  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3400 L_L->G=0.0417 L_G->L=0.0410 qL=0.044 qG=0.847
+Train: data epoch: [3]  [ 400/1000]  eta: 0:02:16  lr: 0.000091  loss: 0.8556  time: 0.2379  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 450/1000]  eta: 0:02:05  lr: 0.000090  loss: 0.0175  time: 0.2315  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3500 L_L->G=0.0416 L_G->L=0.0409 qL=0.401 qG=0.989
+Train: data epoch: [3]  [ 500/1000]  eta: 0:01:54  lr: 0.000090  loss: 0.9225  time: 0.2141  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 550/1000]  eta: 0:01:42  lr: 0.000090  loss: 0.2870  time: 0.2158  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3600 L_L->G=0.0414 L_G->L=0.0407 qL=0.183 qG=0.908
+Train: data epoch: [3]  [ 600/1000]  eta: 0:01:31  lr: 0.000090  loss: 0.0902  time: 0.2261  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 650/1000]  eta: 0:01:19  lr: 0.000089  loss: 0.0578  time: 0.2237  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3700 L_L->G=0.0414 L_G->L=0.0407 qL=0.217 qG=0.830
+Train: data epoch: [3]  [ 700/1000]  eta: 0:01:08  lr: 0.000089  loss: 0.1347  time: 0.2245  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 750/1000]  eta: 0:00:56  lr: 0.000089  loss: 0.1004  time: 0.2208  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3800 L_L->G=0.0412 L_G->L=0.0405 qL=0.046 qG=0.922
+Train: data epoch: [3]  [ 800/1000]  eta: 0:00:45  lr: 0.000089  loss: 0.2991  time: 0.2302  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 850/1000]  eta: 0:00:33  lr: 0.000088  loss: 0.0162  time: 0.2301  data: 0.0000  max mem: 19556
+[mutual:rel] iters=3900 L_L->G=0.0410 L_G->L=0.0403 qL=0.036 qG=0.984
+Train: data epoch: [3]  [ 900/1000]  eta: 0:00:22  lr: 0.000088  loss: 0.0084  time: 0.2262  data: 0.0000  max mem: 19556
+Train: data epoch: [3]  [ 950/1000]  eta: 0:00:11  lr: 0.000088  loss: 0.3221  time: 0.2251  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4000 L_L->G=0.0409 L_G->L=0.0402 qL=0.161 qG=0.959
+2026-09-12 21:17:29,413 [INFO] Averaged stats: lr: 0.000090  loss: 0.298997
+2026-09-12 21:17:29,415 [INFO] Evaluating on valid.
+2026-09-12 21:21:02,065 [INFO] Averaged stats: loss: 0.670341  acc: 0.070385 ***auc: 0.7165389153790148 ***uauc:(0.6751798177784262, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.41666666666666663, 0.8333333333333333, 0.68, 0.8333333333333333, 0.8, 0.489795918367347, 0.8608695652173913, 0.47619047619047616, 1.0, 0.6041666666666666, 0.7815126050420168, 0.7142857142857143, 0.8124674874284724, 0.375, 0.7662337662337663, 0.0, 0.5, 0.7333333333333333, 0.7684210526315789, 0.7857142857142857, 0.6666666666666667, 0.3333333333333333, 1.0, 0.5, 0.7102272727272727, 0.8333333333333334, 0.8, 0.8125, 0.6666666666666666, 0.9027777777777777, 0.6666666666666666, 0.390625, 1.0, 0.7349936143039592, 0.6917293233082706, 0.7461240310077518, 0.7222222222222223, 0.5, 0.25, 1.0, 0.46730769230769226, 1.0, 0.30000000000000004, 1.0, 1.0, 0.5454545454545454, 1.0, 1.0, 0.0, 1.0, 0.7212121212121212, 0.9166666666666666, 0.8333333333333334, 0.6888888888888889, 0.75, 0.6666666666666667, 0.5357142857142858, 0.625, 0.5104166666666666, 0.3928571428571428, 1.0, 0.8221670802315963, 0.5651515151515152, 0.7806267806267806, 1.0, 0.5, 0.5, 0.5, 0.4628099173553719, 0.7878787878787878, 0.6666666666666666, 0.5, 0.6516666666666666, 0.49783549783549785, 0.5625, 0.8154761904761905, 0.7157894736842105, 0.7698757763975156, 0.6666666666666667, 0.6666666666666667, 0.6777777777777778, 0.6153846153846154, 0.8774250440917108, 0.5555555555555556, 0.5656862745098039, 0.5615384615384615, 0.76, 0.824561403508772, 0.8705882352941177, 0.9075630252100839, 0.5238095238095238, 0.761904761904762, 0.625, 1.0, 0.75, 0.0, 0.8, 0.6666666666666666, 0.75, 0.7538461538461539, 0.8125, 0.11111111111111112, 0.5, 0.5315904139433552, 0.8253968253968254, 0.6666666666666666, 0.6000000000000001, 0.0, 0.5370370370370371, 0.7962962962962963, 0.6666666666666666, 0.5008210180623973, 0.8, 0.6, 1.0, 1.0, 0.33333333333333337, 0.7274305555555556, 0.875, 0.6176470588235294, 1.0, 0.7430555555555556, 0.9642857142857143, 1.0, 0.6666666666666667, 0.5709647495361782, 0.8369565217391304, 1.0, 0.46153846153846156, 1.0, 1.0, 0.7972027972027972, 1.0, 0.0, 0.5, 0.625, 1.0, 0.625, 0.5, 0.625, 0.8033613445378152, 1.0, 0.5208333333333333, 0.5833333333333334, 0.6222222222222222, 0.588235294117647, 0.33333333333333337, 0.5694444444444444, 0.0, 0.25, 0.8214285714285714, 1.0, 0.49572649572649574, 0.4934333958724203, 0.8125, 0.5833333333333334, 1.0, 1.0, 0.9583333333333334, 0.875, 0.0, 0.8235294117647058, 0.6721311475409836, 0.5178571428571428, 0.5714285714285714, 0.5555555555555556, 0.9166666666666667, 0.69, 0.7272727272727273, 0.2777777777777778, 0.7409440868357945, 0.7307692307692308, 0.5925925925925926, 1.0, 0.5874553799082102, 0.75, 1.0, 1.0, 1.0, 1.0, 0.6217948717948718, 0.6818181818181818, 1.0, 0.5535714285714286, 0.75, 0.8333333333333334, 0.6200000000000001, 1.0, 0.5, 0.9090909090909091, 1.0, 0.5769230769230769, 1.0, 0.6666666666666666, 0.33333333333333337, 0.5555555555555556, 0.6482334869431643, 0.4, 0.5294117647058825, 0.47342995169082125, 0.5714285714285714, 0.6176470588235294, 0.5454545454545455, 0.5833333333333334, 0.33333333333333337, 0.6666666666666667, 0.5, 0.8181818181818181, 0.5, 0.5, 0.46666666666666673, 0.875, 1.0, 0.0, 0.7142857142857142, 1.0, 1.0, 0.0, 0.6282051282051283, 0.846938775510204, 0.9393939393939394, 0.9333333333333333, 1.0, 0.8333333333333334, 0.5, 0.1428571428571429, 1.0, 0.8461538461538461, 0.8645833333333334, 0.75, 0.6548476907959384, 0.0, 0.7272727272727273, 0.8333333333333334, 0.6974789915966387, 0.9375, 0.7352941176470588])
+2026-09-12 21:21:02,076 [INFO] Start training
+2026-09-12 21:21:02,088 [INFO] Start training epoch 4, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [3]  [ 999/1000]  eta: 0:00:00  lr: 0.000088  loss: 0.1943  time: 0.2297  data: 0.0000  max mem: 19556
+Train: data epoch: [3] Total time: 0:03:46 (0.2262 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.4549  acc: 0.0000  time: 0.0893  data: 0.0023  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.2363  acc: 0.0000  time: 0.0786  data: 0.0005  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.4852  acc: 0.5000  time: 0.0817  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.6530  acc: 0.0000  time: 0.0804  data: 0.0005  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.4664  acc: 0.5000  time: 0.0809  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.8832  acc: 0.0000  time: 0.0812  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.7165389153790148
+Train: data epoch: [4]  [   0/1000]  eta: 0:02:54  lr: 0.000088  loss: 0.0487  time: 0.1749  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [  50/1000]  eta: 0:03:31  lr: 0.000087  loss: 0.4601  time: 0.2300  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4100 L_L->G=0.0408 L_G->L=0.0401 qL=0.355 qG=0.989
+Train: data epoch: [4]  [ 100/1000]  eta: 0:03:18  lr: 0.000087  loss: 0.2990  time: 0.2210  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 150/1000]  eta: 0:03:09  lr: 0.000087  loss: 0.1837  time: 0.2283  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4200 L_L->G=0.0406 L_G->L=0.0399 qL=0.414 qG=0.980
+Train: data epoch: [4]  [ 200/1000]  eta: 0:02:57  lr: 0.000086  loss: 0.4433  time: 0.2093  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 250/1000]  eta: 0:02:48  lr: 0.000086  loss: 0.7390  time: 0.2293  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4300 L_L->G=0.0406 L_G->L=0.0399 qL=0.404 qG=0.986
+Train: data epoch: [4]  [ 300/1000]  eta: 0:02:36  lr: 0.000086  loss: 0.2661  time: 0.2081  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 350/1000]  eta: 0:02:25  lr: 0.000085  loss: 0.2264  time: 0.2277  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4400 L_L->G=0.0406 L_G->L=0.0399 qL=0.357 qG=0.979
+Train: data epoch: [4]  [ 400/1000]  eta: 0:02:14  lr: 0.000085  loss: 0.2506  time: 0.2281  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 450/1000]  eta: 0:02:03  lr: 0.000085  loss: 0.4691  time: 0.2454  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4500 L_L->G=0.0405 L_G->L=0.0398 qL=0.155 qG=0.981
+Train: data epoch: [4]  [ 500/1000]  eta: 0:01:51  lr: 0.000085  loss: 0.1872  time: 0.2163  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 550/1000]  eta: 0:01:40  lr: 0.000084  loss: 0.1160  time: 0.2285  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4600 L_L->G=0.0404 L_G->L=0.0397 qL=0.121 qG=0.726
+Train: data epoch: [4]  [ 600/1000]  eta: 0:01:29  lr: 0.000084  loss: 0.1446  time: 0.2244  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 650/1000]  eta: 0:01:18  lr: 0.000084  loss: 0.0348  time: 0.2194  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4700 L_L->G=0.0404 L_G->L=0.0397 qL=0.230 qG=0.985
+Train: data epoch: [4]  [ 700/1000]  eta: 0:01:07  lr: 0.000083  loss: 0.0236  time: 0.2214  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 750/1000]  eta: 0:00:55  lr: 0.000083  loss: 0.0308  time: 0.2051  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4800 L_L->G=0.0403 L_G->L=0.0396 qL=0.129 qG=0.938
+Train: data epoch: [4]  [ 800/1000]  eta: 0:00:44  lr: 0.000083  loss: 0.2401  time: 0.2267  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 850/1000]  eta: 0:00:33  lr: 0.000082  loss: 0.1035  time: 0.2306  data: 0.0000  max mem: 19556
+[mutual:rel] iters=4900 L_L->G=0.0403 L_G->L=0.0396 qL=0.153 qG=0.970
+Train: data epoch: [4]  [ 900/1000]  eta: 0:00:22  lr: 0.000082  loss: 0.2013  time: 0.2250  data: 0.0000  max mem: 19556
+Train: data epoch: [4]  [ 950/1000]  eta: 0:00:11  lr: 0.000082  loss: 0.1515  time: 0.2317  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5000 L_L->G=0.0402 L_G->L=0.0395 qL=0.112 qG=0.985
+2026-09-12 21:24:47,670 [INFO] Averaged stats: lr: 0.000085  loss: 0.295254
+2026-09-12 21:24:47,672 [INFO] Evaluating on valid.
+2026-09-12 21:28:20,504 [INFO] Averaged stats: loss: 0.630876  acc: 0.304231 ***auc: 0.7171744407102255 ***uauc:(0.6711224394779727, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.7, 0.6666666666666666, 0.6685714285714286, 0.8333333333333333, 0.8, 0.42857142857142855, 0.9130434782608696, 0.40476190476190477, 0.7777777777777778, 0.6666666666666666, 0.8235294117647058, 0.7936507936507937, 0.789058435928559, 0.375, 0.650974025974026, 0.0, 0.5833333333333333, 0.7444444444444445, 0.6947368421052631, 0.6428571428571428, 0.6666666666666667, 0.26666666666666666, 1.0, 0.5, 0.6755050505050505, 0.7142857142857144, 0.7333333333333334, 0.9375, 0.4666666666666667, 0.8611111111111112, 0.6666666666666666, 0.46875, 1.0, 0.735632183908046, 0.68796992481203, 0.7325581395348837, 0.8333333333333334, 0.5, 0.75, 0.3333333333333333, 0.4969230769230769, 1.0, 0.4, 1.0, 1.0, 0.4848484848484849, 1.0, 1.0, 0.0, 1.0, 0.7272727272727273, 0.8333333333333333, 0.8209876543209876, 0.7777777777777778, 1.0, 0.5555555555555556, 0.625, 0.5694444444444444, 0.4270833333333333, 0.3571428571428571, 1.0, 0.8312655086848635, 0.6318181818181818, 0.7635327635327636, 1.0, 0.75, 0.6666666666666666, 0.5, 0.4462809917355372, 0.8333333333333333, 0.3333333333333333, 0.5, 0.6699999999999999, 0.5, 0.6875, 0.8234126984126984, 0.6210526315789474, 0.8149068322981367, 0.7916666666666666, 0.8333333333333334, 0.6537037037037036, 0.9230769230769231, 0.9047619047619048, 0.6875, 0.5986928104575163, 0.5769230769230769, 0.6685714285714286, 0.8333333333333334, 0.8588235294117648, 0.8907563025210083, 0.4126984126984127, 0.7857142857142858, 0.875, 1.0, 0.7708333333333334, 0.0, 0.8, 0.3333333333333333, 0.875, 0.676923076923077, 0.6875, 0.22222222222222224, 0.5, 0.5326797385620915, 0.8095238095238095, 0.6666666666666666, 0.65, 1.0, 0.42592592592592593, 0.7037037037037037, 0.5, 0.4909688013136289, 0.8, 0.675, 0.6666666666666666, 1.0, 0.5333333333333334, 0.6843750000000001, 0.875, 0.6372549019607844, 1.0, 0.6701388888888888, 1.0, 1.0, 0.8333333333333334, 0.5004638218923934, 0.717391304347826, 1.0, 0.35897435897435903, 1.0, 1.0, 0.7727272727272727, 1.0, 0.5, 0.625, 0.725, 0.0, 0.375, 0.5, 0.625, 0.7899159663865547, 1.0, 0.5208333333333333, 0.6666666666666666, 0.37777777777777777, 0.45989304812834225, 0.6666666666666667, 0.6527777777777778, 1.0, 0.25, 0.8333333333333334, 1.0, 0.5042735042735043, 0.6416510318949343, 0.6875, 0.6666666666666666, 1.0, 1.0, 0.9583333333333334, 1.0, 0.0, 0.8509803921568628, 0.5989071038251366, 0.5803571428571428, 0.36904761904761907, 0.7777777777777778, 0.9166666666666667, 0.62, 0.5757575757575757, 0.5, 0.7227060456897639, 0.8205128205128205, 0.6296296296296297, 0.75, 0.5517593064762876, 0.625, 1.0, 0.5, 0.9166666666666667, 1.0, 0.5512820512820513, 0.8863636363636362, 1.0, 0.5982142857142857, 0.75, 0.6666666666666666, 0.7, 1.0, 0.0, 0.9090909090909091, 1.0, 0.6025641025641026, 1.0, 0.6666666666666666, 0.33333333333333337, 0.6666666666666666, 0.6887864823348695, 0.31999999999999995, 0.6147058823529412, 0.5152979066022544, 0.5714285714285714, 0.588235294117647, 0.6545454545454545, 0.6388888888888888, 0.33333333333333337, 0.6666666666666667, 0.5576923076923077, 1.0, 0.0, 0.5, 0.33333333333333337, 0.78125, 0.75, 0.0, 0.7285714285714284, 1.0, 1.0, 1.0, 0.5871794871794871, 0.9183673469387754, 1.0, 0.8, 1.0, 0.888888888888889, 0.8333333333333334, 0.1428571428571429, 1.0, 0.8205128205128205, 0.9375, 0.5, 0.6862921716344579, 0.0, 0.8787878787878788, 0.8333333333333334, 0.5630252100840336, 0.6875, 0.71875])
+2026-09-12 21:28:20,515 [INFO] Start training
+2026-09-12 21:28:20,527 [INFO] Start training epoch 5, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [4]  [ 999/1000]  eta: 0:00:00  lr: 0.000081  loss: 0.1266  time: 0.2205  data: 0.0000  max mem: 19556
+Train: data epoch: [4] Total time: 0:03:45 (0.2256 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.1293  acc: 0.5000  time: 0.0894  data: 0.0023  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.3475  acc: 0.0000  time: 0.0787  data: 0.0004  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.3767  acc: 0.5000  time: 0.0818  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:25  loss: 0.8122  acc: 0.5000  time: 0.0801  data: 0.0005  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.3238  acc: 0.5000  time: 0.0807  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.6633  acc: 0.0000  time: 0.0815  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0818 s / it)
+rank_0 auc: 0.7171744407102255
+Train: data epoch: [5]  [   0/1000]  eta: 0:04:00  lr: 0.000081  loss: 0.0682  time: 0.2408  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [  50/1000]  eta: 0:03:35  lr: 0.000081  loss: 0.0151  time: 0.2230  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5100 L_L->G=0.0402 L_G->L=0.0394 qL=0.460 qG=0.984
+Train: data epoch: [5]  [ 100/1000]  eta: 0:03:28  lr: 0.000081  loss: 0.0697  time: 0.2309  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 150/1000]  eta: 0:03:15  lr: 0.000081  loss: 0.2325  time: 0.2281  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5200 L_L->G=0.0401 L_G->L=0.0394 qL=0.003 qG=0.877
+Train: data epoch: [5]  [ 200/1000]  eta: 0:03:04  lr: 0.000080  loss: 0.0537  time: 0.2300  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 250/1000]  eta: 0:02:52  lr: 0.000080  loss: 0.0229  time: 0.2345  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5300 L_L->G=0.0400 L_G->L=0.0393 qL=0.278 qG=0.728
+Train: data epoch: [5]  [ 300/1000]  eta: 0:02:39  lr: 0.000080  loss: 0.6317  time: 0.2247  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 350/1000]  eta: 0:02:29  lr: 0.000079  loss: 0.5947  time: 0.2354  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5400 L_L->G=0.0399 L_G->L=0.0392 qL=0.302 qG=0.837
+Train: data epoch: [5]  [ 400/1000]  eta: 0:02:16  lr: 0.000079  loss: 0.0838  time: 0.2037  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 450/1000]  eta: 0:02:04  lr: 0.000079  loss: 0.5529  time: 0.2178  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5500 L_L->G=0.0398 L_G->L=0.0391 qL=0.395 qG=0.882
+Train: data epoch: [5]  [ 500/1000]  eta: 0:01:53  lr: 0.000078  loss: 0.6927  time: 0.2283  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 550/1000]  eta: 0:01:42  lr: 0.000078  loss: 0.0143  time: 0.2350  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5600 L_L->G=0.0397 L_G->L=0.0390 qL=0.413 qG=0.954
+Train: data epoch: [5]  [ 600/1000]  eta: 0:01:31  lr: 0.000078  loss: 0.3247  time: 0.2357  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 650/1000]  eta: 0:01:19  lr: 0.000077  loss: 0.1450  time: 0.2227  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5700 L_L->G=0.0396 L_G->L=0.0389 qL=0.316 qG=0.983
+Train: data epoch: [5]  [ 700/1000]  eta: 0:01:08  lr: 0.000077  loss: 0.0271  time: 0.2147  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 750/1000]  eta: 0:00:56  lr: 0.000077  loss: 0.1426  time: 0.2141  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5800 L_L->G=0.0396 L_G->L=0.0389 qL=0.238 qG=0.788
+Train: data epoch: [5]  [ 800/1000]  eta: 0:00:45  lr: 0.000076  loss: 0.0678  time: 0.2184  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 850/1000]  eta: 0:00:33  lr: 0.000076  loss: 0.2865  time: 0.2155  data: 0.0000  max mem: 19556
+[mutual:rel] iters=5900 L_L->G=0.0395 L_G->L=0.0388 qL=0.331 qG=0.974
+Train: data epoch: [5]  [ 900/1000]  eta: 0:00:22  lr: 0.000076  loss: 0.3313  time: 0.2280  data: 0.0000  max mem: 19556
+Train: data epoch: [5]  [ 950/1000]  eta: 0:00:11  lr: 0.000075  loss: 0.0223  time: 0.2538  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6000 L_L->G=0.0393 L_G->L=0.0387 qL=0.355 qG=0.976
+2026-09-12 21:32:07,057 [INFO] Averaged stats: lr: 0.000078  loss: 0.284204
+2026-09-12 21:32:07,059 [INFO] Evaluating on valid.
+2026-09-12 21:35:39,502 [INFO] Averaged stats: loss: 0.740354  acc: 0.467115 ***auc: 0.7126732486174204 ***uauc:(0.6751816560604567, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.575, 0.8333333333333333, 0.6914285714285715, 0.6666666666666666, 0.6, 0.5510204081632653, 0.8869565217391304, 0.6190476190476191, 0.7777777777777778, 0.6875, 0.8613445378151261, 0.8888888888888888, 0.8076122767470089, 0.5, 0.7922077922077922, 0.6666666666666667, 0.4166666666666667, 0.7888888888888889, 0.6842105263157895, 0.7742857142857144, 0.6666666666666667, 0.3333333333333333, 1.0, 0.75, 0.6859217171717171, 0.7857142857142858, 0.8, 0.6875, 0.8, 0.8611111111111112, 0.75, 0.4453125, 1.0, 0.7381864623243934, 0.7142857142857143, 0.7596899224806202, 0.8055555555555556, 0.5, 0.375, 0.0, 0.4811538461538462, 1.0, 0.4, 1.0, 1.0, 0.4606060606060607, 1.0, 1.0, 0.0, 1.0, 0.8, 0.8333333333333334, 0.8271604938271605, 0.7333333333333333, 1.0, 0.7777777777777779, 0.7142857142857142, 0.45833333333333337, 0.47395833333333337, 0.42857142857142855, 1.0, 0.8320926385442513, 0.5818181818181818, 0.7749287749287749, 0.5, 0.5, 0.6666666666666666, 1.0, 0.40909090909090906, 0.8030303030303031, 0.3333333333333333, 0.5, 0.6647222222222222, 0.5822510822510822, 0.6875, 0.7936507936507937, 0.6, 0.773913043478261, 0.7916666666666666, 0.7777777777777779, 0.6333333333333333, 0.7307692307692307, 0.8606701940035273, 0.5347222222222222, 0.5836601307189543, 0.6173076923076923, 0.6628571428571428, 0.7982456140350878, 0.8941176470588235, 0.9159663865546219, 0.5079365079365079, 0.8095238095238095, 0.875, 1.0, 0.7708333333333333, 0.0, 0.8, 0.3333333333333333, 0.875, 0.5692307692307692, 0.625, 0.4444444444444444, 0.5, 0.4945533769063181, 0.8095238095238095, 0.6666666666666666, 0.6, 1.0, 0.5185185185185186, 0.7222222222222222, 0.8333333333333333, 0.5377668308702791, 0.8, 0.625, 1.0, 1.0, 0.4, 0.6982638888888889, 0.625, 0.6137254901960785, 1.0, 0.7048611111111112, 0.9285714285714286, 0.8333333333333334, 0.6666666666666667, 0.5106679035250464, 0.8260869565217391, 1.0, 0.38461538461538464, 1.0, 1.0, 0.7622377622377623, 1.0, 0.5, 0.25, 0.725, 1.0, 0.65625, 0.5, 0.75, 0.792436974789916, 1.0, 0.5416666666666667, 0.41666666666666663, 0.5111111111111111, 0.5935828877005347, 0.5, 0.5138888888888888, 0.0, 0.0, 0.8214285714285715, 1.0, 0.5384615384615385, 0.45966228893058164, 0.75, 0.5, 1.0, 1.0, 0.9583333333333334, 1.0, 0.0, 0.7960784313725491, 0.5896174863387978, 0.4107142857142857, 0.4642857142857143, 0.8888888888888888, 0.9166666666666667, 0.59, 0.6969696969696969, 0.5, 0.7261138457654928, 0.7435897435897436, 0.6666666666666667, 0.75, 0.6302906680265171, 0.625, 1.0, 1.0, 0.8333333333333334, 1.0, 0.5576923076923077, 0.8409090909090908, 1.0, 0.6160714285714286, 1.0, 1.0, 0.7, 1.0, 0.0, 0.9090909090909091, 1.0, 0.47863247863247865, 0.8333333333333334, 0.6666666666666666, 0.33333333333333337, 0.6666666666666666, 0.7029185867895545, 0.36, 0.5176470588235295, 0.49235104669887275, 0.47619047619047616, 0.6176470588235294, 0.7090909090909091, 0.5833333333333334, 0.33333333333333337, 0.6666666666666667, 0.6153846153846154, 0.9090909090909091, 0.5, 0.6666666666666666, 0.4, 0.8125, 0.5, 0.0, 0.7857142857142857, 1.0, 1.0, 1.0, 0.6538461538461539, 0.9693877551020409, 1.0, 0.8666666666666667, 1.0, 0.8333333333333334, 0.5, 0.1428571428571429, 1.0, 0.858974358974359, 0.8888888888888888, 0.75, 0.6671306911234851, 0.0, 0.7575757575757575, 0.7666666666666666, 0.6470588235294118, 0.8125, 0.71875])
+2026-09-12 21:35:39,513 [INFO] Start training
+2026-09-12 21:35:39,526 [INFO] Start training epoch 6, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [5]  [ 999/1000]  eta: 0:00:00  lr: 0.000075  loss: 0.6174  time: 0.2342  data: 0.0000  max mem: 19556
+Train: data epoch: [5] Total time: 0:03:46 (0.2265 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.4507  acc: 0.5000  time: 0.0895  data: 0.0022  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.9174  acc: 0.0000  time: 0.0787  data: 0.0004  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.5860  acc: 0.5000  time: 0.0832  data: 0.0006  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 1.0049  acc: 0.5000  time: 0.0799  data: 0.0004  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.5359  acc: 0.5000  time: 0.0804  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.6685  acc: 0.0000  time: 0.0813  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.7126732486174204
+Train: data epoch: [6]  [   0/1000]  eta: 0:04:04  lr: 0.000075  loss: 0.0285  time: 0.2449  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [  50/1000]  eta: 0:03:38  lr: 0.000075  loss: 0.3954  time: 0.2249  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6100 L_L->G=0.0393 L_G->L=0.0386 qL=0.151 qG=0.976
+Train: data epoch: [6]  [ 100/1000]  eta: 0:03:28  lr: 0.000074  loss: 0.0947  time: 0.2269  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 150/1000]  eta: 0:03:16  lr: 0.000074  loss: 0.1804  time: 0.2286  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6200 L_L->G=0.0392 L_G->L=0.0385 qL=0.469 qG=0.983
+Train: data epoch: [6]  [ 200/1000]  eta: 0:03:05  lr: 0.000074  loss: 0.2898  time: 0.2352  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 250/1000]  eta: 0:02:52  lr: 0.000073  loss: 0.0649  time: 0.2216  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6300 L_L->G=0.0390 L_G->L=0.0383 qL=0.014 qG=0.853
+Train: data epoch: [6]  [ 300/1000]  eta: 0:02:40  lr: 0.000073  loss: 0.9110  time: 0.2328  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 350/1000]  eta: 0:02:28  lr: 0.000073  loss: 0.0914  time: 0.2227  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6400 L_L->G=0.0388 L_G->L=0.0381 qL=0.052 qG=0.961
+Train: data epoch: [6]  [ 400/1000]  eta: 0:02:17  lr: 0.000072  loss: 0.0186  time: 0.2270  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 450/1000]  eta: 0:02:05  lr: 0.000072  loss: 0.3547  time: 0.2262  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6500 L_L->G=0.0387 L_G->L=0.0380 qL=0.226 qG=0.881
+Train: data epoch: [6]  [ 500/1000]  eta: 0:01:54  lr: 0.000072  loss: 0.0822  time: 0.2269  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 550/1000]  eta: 0:01:42  lr: 0.000071  loss: 0.0519  time: 0.2158  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6600 L_L->G=0.0386 L_G->L=0.0379 qL=0.046 qG=0.766
+Train: data epoch: [6]  [ 600/1000]  eta: 0:01:30  lr: 0.000071  loss: 0.7745  time: 0.2202  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 650/1000]  eta: 0:01:19  lr: 0.000071  loss: 0.0784  time: 0.2357  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6700 L_L->G=0.0384 L_G->L=0.0378 qL=0.407 qG=0.965
+Train: data epoch: [6]  [ 700/1000]  eta: 0:01:08  lr: 0.000070  loss: 0.1198  time: 0.2286  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 750/1000]  eta: 0:00:56  lr: 0.000070  loss: 0.0717  time: 0.2125  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6800 L_L->G=0.0384 L_G->L=0.0377 qL=0.211 qG=0.978
+Train: data epoch: [6]  [ 800/1000]  eta: 0:00:45  lr: 0.000070  loss: 0.0815  time: 0.2392  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 850/1000]  eta: 0:00:34  lr: 0.000069  loss: 0.9964  time: 0.2423  data: 0.0000  max mem: 19556
+[mutual:rel] iters=6900 L_L->G=0.0384 L_G->L=0.0377 qL=0.193 qG=0.976
+Train: data epoch: [6]  [ 900/1000]  eta: 0:00:22  lr: 0.000069  loss: 0.0252  time: 0.2287  data: 0.0000  max mem: 19556
+Train: data epoch: [6]  [ 950/1000]  eta: 0:00:11  lr: 0.000069  loss: 0.1650  time: 0.2287  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7000 L_L->G=0.0383 L_G->L=0.0376 qL=0.167 qG=0.977
+2026-09-12 21:39:27,139 [INFO] Averaged stats: lr: 0.000072  loss: 0.255981
+2026-09-12 21:39:27,140 [INFO] Evaluating on valid.
+2026-09-12 21:42:59,847 [INFO] Averaged stats: loss: 0.841223  acc: 0.089615 ***auc: 0.6848482917248452 ***uauc:(0.6380499585214656, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.5833333333333335, 0.8333333333333333, 0.5542857142857143, 1.0, 0.6, 0.3877551020408163, 0.8956521739130435, 0.36904761904761907, 0.888888888888889, 0.39583333333333337, 0.8445378151260504, 0.7936507936507937, 0.7227327900121381, 0.25, 0.7256493506493507, 0.33333333333333337, 0.25, 0.7, 0.5157894736842105, 0.7628571428571428, 0.6666666666666667, 0.6, 1.0, 0.75, 0.6815025252525252, 0.8333333333333333, 0.8, 0.6875, 0.8, 0.8472222222222221, 0.6666666666666667, 0.40625, 1.0, 0.7062579821200511, 0.6992481203007519, 0.571705426356589, 0.7222222222222222, 0.5, 0.5, 0.0, 0.46692307692307694, 0.0, 0.4, 1.0, 1.0, 0.44242424242424244, 1.0, 1.0, 0.0, 1.0, 0.7818181818181819, 0.9166666666666666, 0.6851851851851851, 0.5888888888888888, 1.0, 0.6666666666666666, 0.7142857142857142, 0.4305555555555556, 0.5104166666666667, 0.5, 1.0, 0.7005789909015715, 0.5015151515151515, 0.6666666666666667, 0.5, 0.5, 0.5, 0.5, 0.38636363636363635, 0.7424242424242424, 0.0, 0.625, 0.5955555555555556, 0.5887445887445888, 0.75, 0.697420634920635, 0.6052631578947368, 0.7658385093167702, 0.75, 0.7222222222222222, 0.7777777777777778, 0.6923076923076923, 0.8915343915343916, 0.6944444444444444, 0.6209150326797386, 0.5903846153846154, 0.7485714285714286, 0.7631578947368421, 0.7058823529411765, 0.8571428571428572, 0.33333333333333337, 0.8333333333333334, 1.0, 1.0, 0.7916666666666666, 0.0, 0.8, 0.3333333333333333, 0.875, 0.676923076923077, 0.5625, 0.33333333333333337, 0.0, 0.44989106753812647, 0.8253968253968254, 0.8333333333333333, 0.65, 1.0, 0.4444444444444444, 0.7777777777777778, 0.8333333333333333, 0.5188834154351395, 0.6666666666666666, 0.5, 0.6666666666666666, 1.0, 0.5333333333333334, 0.6899305555555556, 1.0, 0.5941176470588235, 1.0, 0.6388888888888888, 0.8928571428571428, 0.8333333333333334, 0.9166666666666667, 0.48191094619666053, 0.6304347826086956, 1.0, 0.4358974358974359, 1.0, 1.0, 0.7097902097902098, 1.0, 0.5, 0.375, 0.6, 0.0, 0.5, 0.5, 0.625, 0.8411764705882353, 1.0, 0.46875000000000006, 0.5416666666666666, 0.42222222222222217, 0.5294117647058824, 0.33333333333333337, 0.5138888888888888, 1.0, 0.25, 0.8571428571428572, 1.0, 0.5042735042735043, 0.46106941838649157, 0.6875, 0.5, 1.0, 0.5, 0.9583333333333334, 1.0, 0.5, 0.7568627450980392, 0.6306010928961748, 0.5, 0.38095238095238093, 0.6666666666666667, 0.7083333333333334, 0.59, 0.6666666666666666, 0.4444444444444445, 0.6803609743783919, 0.7692307692307693, 0.4444444444444444, 0.75, 0.5752167261601224, 0.75, 1.0, 1.0, 0.8333333333333334, 1.0, 0.48717948717948717, 0.8409090909090908, 1.0, 0.5580357142857143, 0.25, 1.0, 0.7, 0.6666666666666666, 0.0, 0.9090909090909091, 1.0, 0.4273504273504274, 1.0, 1.0, 1.0, 0.3333333333333333, 0.6949308755760368, 0.27999999999999997, 0.5323529411764706, 0.5322061191626408, 0.33333333333333337, 0.6470588235294118, 0.7818181818181819, 0.5277777777777778, 0.5, 0.6666666666666667, 0.5961538461538461, 0.6363636363636364, 0.5, 0.6666666666666666, 0.4, 0.828125, 0.5, 0.0, 0.6714285714285714, 1.0, 1.0, 1.0, 0.7102564102564102, 0.8979591836734694, 0.7878787878787878, 0.8222222222222223, 1.0, 0.8333333333333334, 0.33333333333333337, 0.1428571428571429, 1.0, 0.7948717948717948, 0.9201388888888888, 0.5, 0.6329839502129053, 0.0, 0.7727272727272727, 0.8, 0.4957983193277311, 0.75, 0.6268382352941176])
+2026-09-12 21:42:59,859 [INFO] Start training
+2026-09-12 21:42:59,871 [INFO] Start training epoch 7, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [6]  [ 999/1000]  eta: 0:00:00  lr: 0.000069  loss: 0.5512  time: 0.2359  data: 0.0000  max mem: 19556
+Train: data epoch: [6] Total time: 0:03:47 (0.2276 s / it)
+Evaluation  [   0/2600]  eta: 0:03:50  loss: 0.4691  acc: 0.0000  time: 0.0885  data: 0.0022  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.4632  acc: 0.0000  time: 0.0787  data: 0.0004  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.2249  acc: 0.5000  time: 0.0820  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.7371  acc: 0.0000  time: 0.0800  data: 0.0005  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 1.2131  acc: 0.0000  time: 0.0814  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 1.4153  acc: 0.0000  time: 0.0811  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0818 s / it)
+rank_0 auc: 0.6848482917248452
+Train: data epoch: [7]  [   0/1000]  eta: 0:03:50  lr: 0.000069  loss: 0.8202  time: 0.2308  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [  50/1000]  eta: 0:03:31  lr: 0.000068  loss: 0.7027  time: 0.2199  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7100 L_L->G=0.0383 L_G->L=0.0377 qL=0.463 qG=0.990
+Train: data epoch: [7]  [ 100/1000]  eta: 0:03:21  lr: 0.000068  loss: 0.0928  time: 0.2369  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 150/1000]  eta: 0:03:13  lr: 0.000068  loss: 0.0537  time: 0.2308  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7200 L_L->G=0.0383 L_G->L=0.0377 qL=0.371 qG=0.898
+Train: data epoch: [7]  [ 200/1000]  eta: 0:03:01  lr: 0.000067  loss: 0.3583  time: 0.2272  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 250/1000]  eta: 0:02:50  lr: 0.000067  loss: 0.0531  time: 0.2332  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7300 L_L->G=0.0384 L_G->L=0.0377 qL=0.129 qG=0.932
+Train: data epoch: [7]  [ 300/1000]  eta: 0:02:37  lr: 0.000067  loss: 0.2387  time: 0.2092  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 350/1000]  eta: 0:02:26  lr: 0.000066  loss: 0.0503  time: 0.2325  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7400 L_L->G=0.0384 L_G->L=0.0377 qL=0.289 qG=0.920
+Train: data epoch: [7]  [ 400/1000]  eta: 0:02:15  lr: 0.000066  loss: 0.1429  time: 0.2336  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 450/1000]  eta: 0:02:03  lr: 0.000066  loss: 0.1191  time: 0.2301  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7500 L_L->G=0.0384 L_G->L=0.0377 qL=0.252 qG=0.980
+Train: data epoch: [7]  [ 500/1000]  eta: 0:01:52  lr: 0.000065  loss: 0.0500  time: 0.2156  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 550/1000]  eta: 0:01:41  lr: 0.000065  loss: 0.1583  time: 0.2114  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7600 L_L->G=0.0383 L_G->L=0.0377 qL=0.380 qG=0.986
+Train: data epoch: [7]  [ 600/1000]  eta: 0:01:29  lr: 0.000065  loss: 0.5989  time: 0.2102  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 650/1000]  eta: 0:01:18  lr: 0.000065  loss: 0.0936  time: 0.2139  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7700 L_L->G=0.0383 L_G->L=0.0376 qL=0.446 qG=0.932
+Train: data epoch: [7]  [ 700/1000]  eta: 0:01:07  lr: 0.000064  loss: 0.2061  time: 0.2296  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 750/1000]  eta: 0:00:56  lr: 0.000064  loss: 0.0202  time: 0.2163  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7800 L_L->G=0.0382 L_G->L=0.0376 qL=0.486 qG=0.966
+Train: data epoch: [7]  [ 800/1000]  eta: 0:00:44  lr: 0.000064  loss: 0.0752  time: 0.2219  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 850/1000]  eta: 0:00:33  lr: 0.000063  loss: 0.1955  time: 0.2193  data: 0.0000  max mem: 19556
+[mutual:rel] iters=7900 L_L->G=0.0382 L_G->L=0.0376 qL=0.409 qG=0.987
+Train: data epoch: [7]  [ 900/1000]  eta: 0:00:22  lr: 0.000063  loss: 0.0459  time: 0.2145  data: 0.0000  max mem: 19556
+Train: data epoch: [7]  [ 950/1000]  eta: 0:00:11  lr: 0.000063  loss: 0.1035  time: 0.2227  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8000 L_L->G=0.0382 L_G->L=0.0375 qL=0.077 qG=0.865
+2026-09-12 21:46:43,989 [INFO] Averaged stats: lr: 0.000065  loss: 0.270944
+2026-09-12 21:46:43,990 [INFO] Evaluating on valid.
+2026-09-12 21:50:16,524 [INFO] Averaged stats: loss: 0.652894  acc: 0.334231 ***auc: 0.6990745960856216 ***uauc:(0.6654973213687962, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.6833333333333333, 1.0, 0.6057142857142858, 0.6666666666666666, 1.0, 0.44897959183673475, 0.826086956521739, 0.4642857142857143, 0.7777777777777778, 0.6875, 0.861344537815126, 0.746031746031746, 0.7698976937749263, 0.5, 0.7353896103896104, 0.33333333333333337, 0.16666666666666669, 0.7222222222222222, 0.6105263157894737, 0.8, 0.6666666666666667, 0.4666666666666667, 1.0, 0.5, 0.7127525252525252, 0.880952380952381, 0.9333333333333333, 0.875, 0.8, 0.7916666666666667, 0.8333333333333334, 0.40625, 1.0, 0.753831417624521, 0.8157894736842105, 0.7422480620155039, 0.7916666666666667, 0.5, 0.375, 0.6666666666666666, 0.5015384615384615, 1.0, 0.2, 1.0, 1.0, 0.4303030303030303, 1.0, 1.0, 0.0, 1.0, 0.6727272727272727, 0.75, 0.7654320987654322, 0.8, 1.0, 0.7777777777777778, 0.48214285714285715, 0.5694444444444444, 0.6510416666666667, 0.21428571428571427, 1.0, 0.8304383788254757, 0.5636363636363636, 0.8034188034188035, 1.0, 0.5, 0.6666666666666666, 1.0, 0.3595041322314049, 0.696969696969697, 0.3333333333333333, 0.5, 0.6072222222222222, 0.5129870129870131, 0.6875, 0.8392857142857143, 0.6000000000000001, 0.7987577639751552, 0.6666666666666667, 0.8888888888888888, 0.4444444444444444, 0.7307692307692307, 0.8589065255731924, 0.5763888888888888, 0.6686274509803922, 0.5493589743589744, 0.8057142857142857, 0.7017543859649124, 0.7764705882352942, 0.8403361344537815, 0.2857142857142857, 0.7857142857142858, 0.75, 1.0, 0.8125, 1.0, 0.8, 0.6666666666666666, 0.75, 0.7230769230769231, 0.8125, 0.6666666666666666, 0.0, 0.5773420479302833, 0.6666666666666666, 0.6666666666666666, 0.65, 1.0, 0.38888888888888895, 0.6944444444444444, 0.6666666666666666, 0.5779967159277505, 0.4666666666666666, 0.475, 0.6666666666666666, 1.0, 0.4, 0.7043402777777777, 0.625, 0.5509803921568628, 1.0, 0.6701388888888888, 1.0, 1.0, 0.6666666666666667, 0.5213358070500927, 0.8369565217391304, 1.0, 0.4358974358974359, 1.0, 1.0, 0.7762237762237763, 1.0, 0.0, 0.5, 0.8375, 0.0, 0.375, 0.0, 0.625, 0.7680672268907563, 1.0, 0.5416666666666666, 0.5833333333333334, 0.6, 0.4919786096256685, 0.33333333333333337, 0.5694444444444444, 1.0, 0.25, 0.8928571428571428, 1.0, 0.47863247863247865, 0.5422138836772983, 0.75, 0.5833333333333334, 1.0, 1.0, 1.0, 1.0, 0.5, 0.7725490196078432, 0.6961748633879783, 0.35714285714285715, 0.41666666666666674, 0.8888888888888888, 0.75, 0.73, 0.5858585858585859, 0.6111111111111112, 0.7092010602044679, 0.7948717948717949, 0.5185185185185186, 0.75, 0.6139724630290668, 0.625, 1.0, 1.0, 0.8333333333333334, 1.0, 0.5128205128205128, 0.75, 1.0, 0.5357142857142856, 1.0, 1.0, 0.5800000000000001, 1.0, 0.5, 1.0, 1.0, 0.5427350427350428, 0.6666666666666667, 1.0, 0.33333333333333337, 0.3333333333333333, 0.6967741935483872, 0.24, 0.5852941176470589, 0.4565217391304348, 0.2857142857142857, 0.5, 0.6545454545454545, 0.5833333333333334, 0.33333333333333337, 0.6666666666666667, 0.6730769230769231, 0.9090909090909091, 0.5, 1.0, 0.06666666666666668, 0.78125, 0.75, 0.0, 0.7, 1.0, 1.0, 1.0, 0.6461538461538462, 0.8571428571428571, 0.9090909090909091, 0.8222222222222222, 1.0, 0.7777777777777779, 0.6666666666666667, 0.1428571428571429, 0.0, 0.8205128205128205, 0.8125, 0.8333333333333333, 0.6453488372093024, 0.0, 0.803030303030303, 0.8333333333333334, 0.3949579831932773, 0.875, 0.6470588235294118])
+2026-09-12 21:50:16,536 [INFO] Start training
+2026-09-12 21:50:16,548 [INFO] Start training epoch 8, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [7]  [ 999/1000]  eta: 0:00:00  lr: 0.000063  loss: 0.0838  time: 0.2384  data: 0.0000  max mem: 19556
+Train: data epoch: [7] Total time: 0:03:44 (0.2241 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.2527  acc: 0.5000  time: 0.0895  data: 0.0023  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.4680  acc: 0.0000  time: 0.0789  data: 0.0005  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.2984  acc: 0.5000  time: 0.0817  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.8896  acc: 0.5000  time: 0.0800  data: 0.0004  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.8352  acc: 0.0000  time: 0.0807  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.4678  acc: 0.0000  time: 0.0815  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.6990745960856216
+Train: data epoch: [8]  [   0/1000]  eta: 0:03:52  lr: 0.000063  loss: 0.1058  time: 0.2329  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [  50/1000]  eta: 0:03:33  lr: 0.000062  loss: 0.2119  time: 0.2325  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8100 L_L->G=0.0381 L_G->L=0.0374 qL=0.028 qG=0.844
+Train: data epoch: [8]  [ 100/1000]  eta: 0:03:29  lr: 0.000062  loss: 0.1825  time: 0.2344  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 150/1000]  eta: 0:03:16  lr: 0.000062  loss: 0.1522  time: 0.2229  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8200 L_L->G=0.0382 L_G->L=0.0375 qL=0.135 qG=0.976
+Train: data epoch: [8]  [ 200/1000]  eta: 0:03:03  lr: 0.000061  loss: 0.0699  time: 0.2215  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 250/1000]  eta: 0:02:50  lr: 0.000061  loss: 0.3061  time: 0.2195  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8300 L_L->G=0.0382 L_G->L=0.0375 qL=0.271 qG=0.976
+Train: data epoch: [8]  [ 300/1000]  eta: 0:02:38  lr: 0.000061  loss: 0.2927  time: 0.2219  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 350/1000]  eta: 0:02:28  lr: 0.000061  loss: 0.0824  time: 0.2406  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8400 L_L->G=0.0383 L_G->L=0.0376 qL=0.151 qG=0.975
+Train: data epoch: [8]  [ 400/1000]  eta: 0:02:15  lr: 0.000060  loss: 0.1713  time: 0.2068  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 450/1000]  eta: 0:02:04  lr: 0.000060  loss: 0.0900  time: 0.2302  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8500 L_L->G=0.0383 L_G->L=0.0376 qL=0.315 qG=0.969
+Train: data epoch: [8]  [ 500/1000]  eta: 0:01:53  lr: 0.000060  loss: 0.1030  time: 0.2371  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 550/1000]  eta: 0:01:42  lr: 0.000060  loss: 0.1304  time: 0.2106  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8600 L_L->G=0.0383 L_G->L=0.0376 qL=0.434 qG=0.983
+Train: data epoch: [8]  [ 600/1000]  eta: 0:01:31  lr: 0.000059  loss: 0.0628  time: 0.2392  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 650/1000]  eta: 0:01:19  lr: 0.000059  loss: 0.0160  time: 0.2251  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8700 L_L->G=0.0383 L_G->L=0.0376 qL=0.066 qG=0.967
+Train: data epoch: [8]  [ 700/1000]  eta: 0:01:07  lr: 0.000059  loss: 0.0539  time: 0.2025  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 750/1000]  eta: 0:00:56  lr: 0.000059  loss: 0.1155  time: 0.2359  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8800 L_L->G=0.0383 L_G->L=0.0376 qL=0.463 qG=0.984
+Train: data epoch: [8]  [ 800/1000]  eta: 0:00:45  lr: 0.000058  loss: 0.3032  time: 0.2223  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 850/1000]  eta: 0:00:33  lr: 0.000058  loss: 0.0111  time: 0.2240  data: 0.0000  max mem: 19556
+[mutual:rel] iters=8900 L_L->G=0.0382 L_G->L=0.0375 qL=0.356 qG=0.983
+Train: data epoch: [8]  [ 900/1000]  eta: 0:00:22  lr: 0.000058  loss: 0.2823  time: 0.2075  data: 0.0000  max mem: 19556
+Train: data epoch: [8]  [ 950/1000]  eta: 0:00:11  lr: 0.000058  loss: 0.0215  time: 0.2265  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9000 L_L->G=0.0382 L_G->L=0.0375 qL=0.008 qG=0.985
+2026-09-12 21:54:01,985 [INFO] Averaged stats: lr: 0.000060  loss: 0.236964
+2026-09-12 21:54:01,986 [INFO] Evaluating on valid.
+2026-09-12 21:57:34,572 [INFO] Averaged stats: loss: 0.804166  acc: 0.230577 ***auc: 0.6874029460862677 ***uauc:(0.6522221258633426, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.6083333333333334, 1.0, 0.7257142857142858, 0.5, 1.0, 0.6122448979591837, 0.8956521739130434, 0.42857142857142855, 0.7777777777777779, 0.6458333333333333, 0.8445378151260504, 0.6507936507936508, 0.7978151551933415, 0.5, 0.5681818181818181, 0.6666666666666667, 0.25, 0.7222222222222222, 0.5578947368421052, 0.7657142857142857, 1.0, 0.7333333333333333, 0.0, 1.0, 0.7196969696969697, 0.7380952380952381, 0.6000000000000001, 0.8125, 0.8666666666666667, 0.8194444444444444, 0.8333333333333334, 0.40625, 1.0, 0.7515964240102171, 0.7593984962406015, 0.7170542635658915, 0.8055555555555556, 0.0, 0.625, 1.0, 0.4726923076923077, 0.5, 0.4, 1.0, 1.0, 0.48484848484848486, 1.0, 1.0, 0.0, 1.0, 0.7393939393939394, 0.5, 0.7839506172839507, 0.8, 1.0, 0.7777777777777778, 0.3035714285714286, 0.7222222222222222, 0.5703125, 0.5714285714285714, 1.0, 0.838296112489661, 0.4954545454545454, 0.792022792022792, 1.0, 0.75, 0.6666666666666666, 0.5, 0.3099173553719008, 0.6818181818181819, 0.0, 0.625, 0.6641666666666667, 0.47619047619047616, 0.625, 0.7658730158730159, 0.5736842105263158, 0.5568322981366459, 0.5, 0.8333333333333334, 0.40740740740740744, 0.6153846153846154, 0.617283950617284, 0.6597222222222222, 0.676470588235294, 0.5794871794871795, 0.7942857142857143, 0.7894736842105263, 0.8, 0.8823529411764706, 0.34920634920634924, 0.7857142857142858, 0.75, 1.0, 0.6458333333333333, 0.0, 0.7, 1.0, 1.0, 0.5846153846153845, 0.875, 0.7777777777777778, 0.5, 0.5490196078431373, 0.6190476190476191, 0.6666666666666666, 0.7, 1.0, 0.38888888888888895, 0.7037037037037037, 0.6666666666666666, 0.5451559934318555, 0.4666666666666666, 0.475, 1.0, 1.0, 0.8, 0.6786458333333333, 0.5625, 0.5411764705882354, 1.0, 0.5347222222222222, 0.9285714285714286, 0.6666666666666667, 0.8333333333333334, 0.4874768089053803, 0.45652173913043476, 1.0, 0.4615384615384616, 1.0, 0.8, 0.7692307692307692, 0.5, 0.5, 0.5, 0.825, 1.0, 0.671875, 0.5, 0.5, 0.6689075630252102, 1.0, 0.5208333333333334, 0.75, 0.711111111111111, 0.5561497326203209, 0.33333333333333337, 0.6944444444444444, 1.0, 0.25, 0.7976190476190476, 1.0, 0.47008547008547014, 0.5159474671669794, 0.75, 0.6666666666666666, 1.0, 1.0, 0.9583333333333334, 1.0, 0.0, 0.6627450980392157, 0.7032786885245902, 0.4642857142857143, 0.5595238095238095, 0.6666666666666667, 0.7500000000000001, 0.8, 0.6565656565656566, 0.5555555555555556, 0.6169380285245488, 0.717948717948718, 0.6296296296296297, 0.75, 0.6221315655277919, 0.75, 1.0, 1.0, 0.6666666666666666, 1.0, 0.6153846153846154, 0.43181818181818177, 0.6666666666666666, 0.6026785714285715, 1.0, 1.0, 0.66, 1.0, 0.5, 0.9090909090909091, 1.0, 0.48076923076923084, 0.6666666666666667, 1.0, 0.6666666666666667, 0.7777777777777778, 0.6049155145929339, 0.32, 0.5, 0.5193236714975845, 0.380952380952381, 0.5294117647058824, 0.6727272727272726, 0.6666666666666666, 0.16666666666666669, 1.0, 0.6538461538461539, 0.9090909090909091, 0.0, 0.8333333333333333, 0.0, 0.8125, 0.5, 0.0, 0.4714285714285714, 1.0, 1.0, 0.0, 0.5923076923076923, 0.8877551020408164, 0.9696969696969697, 0.8, 1.0, 0.7777777777777779, 0.5, 0.1428571428571429, 0.0, 0.8974358974358974, 0.75, 0.5, 0.6166066164428432, 0.0, 0.6666666666666667, 0.9, 0.5042016806722689, 0.8125, 0.6783088235294117])
+2026-09-12 21:57:34,583 [INFO] Start training
+2026-09-12 21:57:34,595 [INFO] Start training epoch 9, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [8]  [ 999/1000]  eta: 0:00:00  lr: 0.000057  loss: 2.0705  time: 0.2018  data: 0.0000  max mem: 19556
+Train: data epoch: [8] Total time: 0:03:45 (0.2254 s / it)
+Evaluation  [   0/2600]  eta: 0:03:50  loss: 0.0395  acc: 0.5000  time: 0.0886  data: 0.0022  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.2629  acc: 0.0000  time: 0.0786  data: 0.0004  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.0714  acc: 0.5000  time: 0.0818  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.9693  acc: 0.0000  time: 0.0802  data: 0.0005  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.8036  acc: 0.0000  time: 0.0804  data: 0.0004  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.8540  acc: 0.0000  time: 0.0813  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.6874029460862677
+Train: data epoch: [9]  [   0/1000]  eta: 0:04:01  lr: 0.000057  loss: 0.5705  time: 0.2412  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [  50/1000]  eta: 0:03:34  lr: 0.000057  loss: 0.0226  time: 0.2250  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9100 L_L->G=0.0382 L_G->L=0.0375 qL=0.115 qG=0.980
+Train: data epoch: [9]  [ 100/1000]  eta: 0:03:23  lr: 0.000057  loss: 0.1840  time: 0.2372  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 150/1000]  eta: 0:03:13  lr: 0.000057  loss: 0.0515  time: 0.2325  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9200 L_L->G=0.0382 L_G->L=0.0375 qL=0.411 qG=0.977
+Train: data epoch: [9]  [ 200/1000]  eta: 0:03:00  lr: 0.000056  loss: 0.0113  time: 0.2191  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 250/1000]  eta: 0:02:48  lr: 0.000056  loss: 0.0546  time: 0.2309  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9300 L_L->G=0.0382 L_G->L=0.0375 qL=0.140 qG=0.960
+Train: data epoch: [9]  [ 300/1000]  eta: 0:02:38  lr: 0.000056  loss: 0.0076  time: 0.2398  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 350/1000]  eta: 0:02:28  lr: 0.000056  loss: 0.0604  time: 0.2283  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9400 L_L->G=0.0381 L_G->L=0.0374 qL=0.456 qG=0.874
+Train: data epoch: [9]  [ 400/1000]  eta: 0:02:16  lr: 0.000056  loss: 0.0231  time: 0.2117  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 450/1000]  eta: 0:02:04  lr: 0.000055  loss: 0.3846  time: 0.2011  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9500 L_L->G=0.0380 L_G->L=0.0373 qL=0.344 qG=0.981
+Train: data epoch: [9]  [ 500/1000]  eta: 0:01:52  lr: 0.000055  loss: 0.3097  time: 0.2247  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 550/1000]  eta: 0:01:41  lr: 0.000055  loss: 0.0564  time: 0.2250  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9600 L_L->G=0.0380 L_G->L=0.0373 qL=0.175 qG=0.911
+Train: data epoch: [9]  [ 600/1000]  eta: 0:01:30  lr: 0.000055  loss: 0.0411  time: 0.2168  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 650/1000]  eta: 0:01:19  lr: 0.000055  loss: 0.8683  time: 0.2259  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9700 L_L->G=0.0379 L_G->L=0.0372 qL=0.017 qG=0.952
+Train: data epoch: [9]  [ 700/1000]  eta: 0:01:08  lr: 0.000054  loss: 0.0354  time: 0.2239  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 750/1000]  eta: 0:00:56  lr: 0.000054  loss: 0.0197  time: 0.2251  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9800 L_L->G=0.0378 L_G->L=0.0371 qL=0.167 qG=0.984
+Train: data epoch: [9]  [ 800/1000]  eta: 0:00:45  lr: 0.000054  loss: 0.8660  time: 0.2000  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 850/1000]  eta: 0:00:33  lr: 0.000054  loss: 0.1401  time: 0.2205  data: 0.0000  max mem: 19556
+[mutual:rel] iters=9900 L_L->G=0.0377 L_G->L=0.0370 qL=0.285 qG=0.966
+Train: data epoch: [9]  [ 900/1000]  eta: 0:00:22  lr: 0.000054  loss: 0.1787  time: 0.2159  data: 0.0000  max mem: 19556
+Train: data epoch: [9]  [ 950/1000]  eta: 0:00:11  lr: 0.000054  loss: 0.0480  time: 0.2269  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10000 L_L->G=0.0376 L_G->L=0.0369 qL=0.440 qG=0.837
+2026-09-12 22:01:19,830 [INFO] Averaged stats: lr: 0.000055  loss: 0.222596
+2026-09-12 22:01:19,831 [INFO] Evaluating on valid.
+2026-09-12 22:04:52,621 [INFO] Averaged stats: loss: 0.762572  acc: 0.257308 ***auc: 0.6426565701627839 ***uauc:(0.605154400068297, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.4, 1.0, 0.6285714285714286, 0.5, 1.0, 0.7142857142857143, 0.8521739130434782, 0.46428571428571425, 0.7777777777777779, 0.5416666666666667, 0.8529411764705882, 0.6666666666666667, 0.8233050112710248, 0.25, 0.36850649350649345, 0.33333333333333337, 0.4166666666666667, 0.6888888888888889, 0.33684210526315783, 0.4828571428571428, 0.33333333333333337, 0.6666666666666666, 0.0, 1.0, 0.7190656565656566, 0.5952380952380952, 0.5333333333333334, 0.6875, 0.4666666666666666, 0.7916666666666666, 0.75, 0.5625, 1.0, 0.7420178799489144, 0.8270676691729323, 0.45542635658914726, 0.7083333333333334, 0.0, 0.5, 1.0, 0.4953846153846154, 1.0, 0.3, 1.0, 0.6666666666666666, 0.34545454545454546, 1.0, 1.0, 1.0, 1.0, 0.6787878787878788, 0.3333333333333333, 0.7530864197530864, 0.7777777777777778, 1.0, 0.5555555555555556, 0.6607142857142857, 0.625, 0.48958333333333337, 0.7142857142857143, 0.9, 0.8387096774193548, 0.6, 0.792022792022792, 1.0, 0.5, 0.5, 0.0, 0.5826446280991735, 0.6363636363636364, 0.3333333333333333, 0.5, 0.6897222222222222, 0.5064935064935066, 0.75, 0.8313492063492064, 0.5736842105263158, 0.37577639751552794, 0.6666666666666667, 0.6111111111111112, 0.45925925925925926, 0.7692307692307693, 0.37037037037037035, 0.5763888888888888, 0.6470588235294117, 0.5955128205128205, 0.6685714285714286, 0.7280701754385965, 0.7117647058823529, 0.7478991596638656, 0.36507936507936506, 0.9285714285714286, 0.625, 1.0, 0.6458333333333334, 1.0, 0.8, 1.0, 0.875, 0.6923076923076923, 0.6875, 0.22222222222222224, 0.5, 0.6263616557734205, 0.6507936507936507, 0.5, 0.65, 0.0, 0.6666666666666667, 0.6388888888888888, 0.8333333333333333, 0.535303776683087, 0.39999999999999997, 0.375, 0.3333333333333333, 1.0, 0.6666666666666667, 0.7088541666666667, 0.75, 0.296078431372549, 1.0, 0.625, 0.8571428571428571, 0.6666666666666667, 0.5, 0.4392393320964749, 0.22826086956521738, 1.0, 0.5384615384615385, 1.0, 1.0, 0.5944055944055944, 1.0, 1.0, 1.0, 0.7625000000000001, 1.0, 0.84375, 0.5, 0.5, 0.44201680672268906, 1.0, 0.41666666666666663, 1.0, 0.8, 0.4919786096256685, 0.5, 0.4027777777777778, 1.0, 0.75, 0.8095238095238095, 1.0, 0.5042735042735043, 0.5567542213883677, 0.5, 0.8333333333333334, 1.0, 1.0, 0.9166666666666667, 0.875, 0.5, 0.7627450980392156, 0.6655737704918032, 0.5357142857142857, 0.48809523809523814, 0.8888888888888888, 0.7916666666666667, 0.62, 0.5252525252525252, 0.5, 0.4543733434305187, 0.5641025641025641, 0.6666666666666666, 0.75, 0.582610912799592, 0.375, 1.0, 1.0, 0.9166666666666667, 1.0, 0.6282051282051282, 0.5, 0.6666666666666666, 0.5357142857142857, 1.0, 0.5, 0.6200000000000001, 1.0, 1.0, 1.0, 1.0, 0.5512820512820513, 0.6666666666666667, 1.0, 0.6666666666666667, 0.7777777777777778, 0.5156682027649769, 0.48, 0.45, 0.4750402576489533, 0.35714285714285715, 0.5882352941176471, 0.7090909090909091, 0.5555555555555556, 0.33333333333333337, 1.0, 0.5769230769230769, 1.0, 0.0, 0.5, 0.0, 0.53125, 0.25, 0.0, 0.6142857142857143, 1.0, 1.0, 0.0, 0.5076923076923077, 0.7551020408163265, 0.9393939393939394, 0.8, 1.0, 0.7777777777777779, 1.0, 0.4285714285714286, 0.0, 0.8717948717948718, 0.5555555555555556, 0.0, 0.41442843105142485, 0.3333333333333333, 0.5909090909090908, 0.9, 0.37815126050420167, 0.8125, 0.5036764705882353])
+2026-09-12 22:04:52,632 [INFO] Start training
+2026-09-12 22:04:52,644 [INFO] Start training epoch 10, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [9]  [ 999/1000]  eta: 0:00:00  lr: 0.000053  loss: 0.0642  time: 0.2242  data: 0.0000  max mem: 19556
+Train: data epoch: [9] Total time: 0:03:45 (0.2252 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.3214  acc: 0.0000  time: 0.0895  data: 0.0023  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.8029  acc: 0.0000  time: 0.0792  data: 0.0005  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.2468  acc: 0.5000  time: 0.0818  data: 0.0004  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.8739  acc: 0.0000  time: 0.0814  data: 0.0006  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 0.4963  acc: 0.0000  time: 0.0807  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.4208  acc: 0.0000  time: 0.0814  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0818 s / it)
+rank_0 auc: 0.6426565701627839
+Train: data epoch: [10]  [   0/1000]  eta: 0:04:04  lr: 0.000053  loss: 0.2309  time: 0.2449  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [  50/1000]  eta: 0:03:38  lr: 0.000053  loss: 0.0365  time: 0.2378  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10100 L_L->G=0.0376 L_G->L=0.0369 qL=0.466 qG=0.986
+Train: data epoch: [10]  [ 100/1000]  eta: 0:03:21  lr: 0.000053  loss: 0.0355  time: 0.2153  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 150/1000]  eta: 0:03:13  lr: 0.000053  loss: 0.0234  time: 0.2360  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10200 L_L->G=0.0375 L_G->L=0.0368 qL=0.376 qG=0.987
+Train: data epoch: [10]  [ 200/1000]  eta: 0:03:00  lr: 0.000053  loss: 1.3421  time: 0.2115  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 250/1000]  eta: 0:02:49  lr: 0.000053  loss: 0.1096  time: 0.2228  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10300 L_L->G=0.0374 L_G->L=0.0367 qL=0.471 qG=0.852
+Train: data epoch: [10]  [ 300/1000]  eta: 0:02:37  lr: 0.000052  loss: 0.0562  time: 0.2167  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 350/1000]  eta: 0:02:26  lr: 0.000052  loss: 0.0377  time: 0.2336  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10400 L_L->G=0.0373 L_G->L=0.0366 qL=0.024 qG=0.849
+Train: data epoch: [10]  [ 400/1000]  eta: 0:02:15  lr: 0.000052  loss: 0.0517  time: 0.2361  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 450/1000]  eta: 0:02:04  lr: 0.000052  loss: 0.0360  time: 0.2139  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10500 L_L->G=0.0372 L_G->L=0.0365 qL=0.396 qG=0.890
+Train: data epoch: [10]  [ 500/1000]  eta: 0:01:52  lr: 0.000052  loss: 0.2503  time: 0.2196  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 550/1000]  eta: 0:01:41  lr: 0.000052  loss: 0.0743  time: 0.2238  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10600 L_L->G=0.0371 L_G->L=0.0364 qL=0.210 qG=0.983
+Train: data epoch: [10]  [ 600/1000]  eta: 0:01:29  lr: 0.000052  loss: 0.1695  time: 0.2208  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 650/1000]  eta: 0:01:18  lr: 0.000052  loss: 0.2231  time: 0.2396  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10700 L_L->G=0.0370 L_G->L=0.0364 qL=0.063 qG=0.980
+Train: data epoch: [10]  [ 700/1000]  eta: 0:01:07  lr: 0.000051  loss: 0.0770  time: 0.2358  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 750/1000]  eta: 0:00:56  lr: 0.000051  loss: 0.0825  time: 0.2348  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10800 L_L->G=0.0369 L_G->L=0.0363 qL=0.031 qG=0.986
+Train: data epoch: [10]  [ 800/1000]  eta: 0:00:45  lr: 0.000051  loss: 1.8475  time: 0.2217  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 850/1000]  eta: 0:00:33  lr: 0.000051  loss: 0.0174  time: 0.2134  data: 0.0000  max mem: 19556
+[mutual:rel] iters=10900 L_L->G=0.0368 L_G->L=0.0362 qL=0.471 qG=0.965
+Train: data epoch: [10]  [ 900/1000]  eta: 0:00:22  lr: 0.000051  loss: 0.1965  time: 0.2215  data: 0.0000  max mem: 19556
+Train: data epoch: [10]  [ 950/1000]  eta: 0:00:11  lr: 0.000051  loss: 0.0641  time: 0.2258  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11000 L_L->G=0.0367 L_G->L=0.0361 qL=0.023 qG=0.910
+2026-09-12 22:08:38,382 [INFO] Averaged stats: lr: 0.000052  loss: 0.192504
+2026-09-12 22:08:38,384 [INFO] Evaluating on valid.
+2026-09-12 22:12:10,798 [INFO] Averaged stats: loss: 0.749229  acc: 0.267692 ***auc: 0.6544833875787925 ***uauc:(0.61498270448349, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.5, 0.8333333333333333, 0.5657142857142857, 0.5, 1.0, 0.6122448979591837, 0.808695652173913, 0.4523809523809524, 0.4444444444444445, 0.5208333333333333, 0.8361344537815126, 0.5396825396825397, 0.75619906363794, 0.375, 0.45860389610389607, 0.33333333333333337, 0.5, 0.7444444444444445, 0.5263157894736842, 0.5328571428571428, 0.6666666666666667, 0.6666666666666666, 0.0, 1.0, 0.6770833333333334, 0.7857142857142857, 0.4666666666666667, 0.625, 0.39999999999999997, 0.7638888888888888, 0.75, 0.546875, 0.5, 0.7286079182630907, 0.7612781954887219, 0.6104651162790697, 0.6527777777777778, 0.5, 0.25, 1.0, 0.5553846153846154, 1.0, 0.2, 1.0, 1.0, 0.47878787878787876, 0.3, 1.0, 0.75, 1.0, 0.7151515151515151, 0.3333333333333333, 0.7654320987654321, 0.8222222222222222, 1.0, 0.5555555555555556, 0.6607142857142857, 0.75, 0.5625, 0.5, 0.6, 0.8263027295285359, 0.5606060606060606, 0.7635327635327636, 1.0, 0.25, 0.6666666666666666, 0.0, 0.371900826446281, 0.6818181818181818, 0.0, 0.25, 0.633888888888889, 0.4848484848484848, 0.625, 0.7817460317460317, 0.5736842105263158, 0.6437888198757764, 0.7083333333333333, 0.8333333333333334, 0.34444444444444444, 0.6923076923076923, 0.4065255731922398, 0.4930555555555555, 0.6333333333333334, 0.4782051282051282, 0.7828571428571428, 0.7543859649122807, 0.6705882352941177, 0.7226890756302521, 0.3650793650793651, 0.9285714285714286, 0.625, 1.0, 0.7916666666666666, 0.0, 0.7, 0.6666666666666666, 0.75, 0.5692307692307692, 0.9375, 0.3333333333333333, 0.0, 0.6127450980392156, 0.8095238095238095, 0.6666666666666666, 0.49999999999999994, 1.0, 0.38888888888888895, 0.5370370370370371, 0.3333333333333333, 0.4482758620689655, 0.4666666666666666, 0.7000000000000001, 1.0, 1.0, 0.5333333333333334, 0.6984375, 0.625, 0.4823529411764706, 1.0, 0.6319444444444444, 0.8928571428571428, 0.6666666666666667, 0.6666666666666667, 0.3608534322820037, 0.46739130434782605, 1.0, 0.5128205128205129, 0.0, 1.0, 0.8041958041958042, 1.0, 0.5, 0.5, 0.9125, 1.0, 0.59375, 1.0, 0.5, 0.5495798319327732, 1.0, 0.41666666666666663, 0.8333333333333334, 0.711111111111111, 0.5775401069518716, 0.6666666666666667, 0.5555555555555556, 0.0, 0.25, 0.7857142857142858, 1.0, 0.5128205128205129, 0.6088180112570356, 0.4375, 1.0, 1.0, 1.0, 1.0, 0.5625, 0.5, 0.7137254901960783, 0.6939890710382514, 0.5357142857142857, 0.5952380952380951, 0.7777777777777778, 0.75, 0.66, 0.5757575757575757, 0.38888888888888884, 0.5995834911018553, 0.6153846153846154, 0.5925925925925926, 0.75, 0.5785313615502294, 0.625, 1.0, 1.0, 0.5, 1.0, 0.6282051282051282, 0.13636363636363635, 0.6666666666666666, 0.7232142857142857, 1.0, 1.0, 0.4799999999999999, 1.0, 1.0, 1.0, 1.0, 0.6175213675213675, 0.33333333333333337, 1.0, 0.6666666666666667, 0.5555555555555556, 0.5846390168970813, 0.36, 0.48823529411764705, 0.43518518518518523, 0.38095238095238093, 0.11764705882352941, 0.6909090909090909, 0.5, 0.33333333333333337, 1.0, 0.5961538461538463, 1.0, 0.0, 0.6666666666666666, 0.06666666666666668, 0.5625, 0.0, 0.0, 0.5285714285714286, 1.0, 1.0, 0.0, 0.5487179487179487, 0.653061224489796, 0.9090909090909091, 0.8444444444444444, 1.0, 0.8333333333333334, 1.0, 0.1428571428571429, 0.0, 0.8846153846153846, 0.7083333333333334, 0.16666666666666666, 0.5438912545037669, 0.3333333333333333, 0.5151515151515151, 0.9, 0.7478991596638656, 0.8125, 0.6286764705882353])
+2026-09-12 22:12:10,810 [INFO] Start training
+2026-09-12 22:12:10,822 [INFO] Start training epoch 11, 1000 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:221: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:988: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1102: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1383: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [10]  [ 999/1000]  eta: 0:00:00  lr: 0.000051  loss: 0.0236  time: 0.2222  data: 0.0000  max mem: 19556
+Train: data epoch: [10] Total time: 0:03:45 (0.2257 s / it)
+Evaluation  [   0/2600]  eta: 0:03:52  loss: 0.2259  acc: 0.5000  time: 0.0896  data: 0.0023  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.3684  acc: 0.0000  time: 0.0785  data: 0.0005  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.4555  acc: 0.5000  time: 0.0817  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 0.9806  acc: 0.0000  time: 0.0802  data: 0.0005  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 1.5517  acc: 0.0000  time: 0.0803  data: 0.0004  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.6171  acc: 0.0000  time: 0.0814  data: 0.0004  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.6544833875787925
+Train: data epoch: [11]  [   0/1000]  eta: 0:02:09  lr: 0.000051  loss: 0.1162  time: 0.1296  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [  50/1000]  eta: 0:03:32  lr: 0.000051  loss: 0.8878  time: 0.2195  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11100 L_L->G=0.0367 L_G->L=0.0360 qL=0.471 qG=0.989
+Train: data epoch: [11]  [ 100/1000]  eta: 0:03:26  lr: 0.000051  loss: 0.1574  time: 0.2332  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 150/1000]  eta: 0:03:14  lr: 0.000051  loss: 0.0869  time: 0.2377  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11200 L_L->G=0.0366 L_G->L=0.0359 qL=0.414 qG=0.971
+Train: data epoch: [11]  [ 200/1000]  eta: 0:03:00  lr: 0.000051  loss: 0.5419  time: 0.2108  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 250/1000]  eta: 0:02:48  lr: 0.000050  loss: 0.1140  time: 0.2135  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11300 L_L->G=0.0365 L_G->L=0.0359 qL=0.020 qG=0.844
+Train: data epoch: [11]  [ 300/1000]  eta: 0:02:37  lr: 0.000050  loss: 0.0442  time: 0.2219  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 350/1000]  eta: 0:02:26  lr: 0.000050  loss: 0.0254  time: 0.2096  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11400 L_L->G=0.0365 L_G->L=0.0358 qL=0.482 qG=0.918
+Train: data epoch: [11]  [ 400/1000]  eta: 0:02:14  lr: 0.000050  loss: 0.0349  time: 0.2153  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 450/1000]  eta: 0:02:03  lr: 0.000050  loss: 0.1848  time: 0.2125  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11500 L_L->G=0.0364 L_G->L=0.0358 qL=0.143 qG=0.978
+Train: data epoch: [11]  [ 500/1000]  eta: 0:01:52  lr: 0.000050  loss: 0.5830  time: 0.2380  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 550/1000]  eta: 0:01:40  lr: 0.000050  loss: 1.5700  time: 0.2125  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11600 L_L->G=0.0364 L_G->L=0.0357 qL=0.017 qG=0.979
+Train: data epoch: [11]  [ 600/1000]  eta: 0:01:29  lr: 0.000050  loss: 1.1006  time: 0.2264  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 650/1000]  eta: 0:01:18  lr: 0.000050  loss: 0.1896  time: 0.2320  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11700 L_L->G=0.0363 L_G->L=0.0357 qL=0.476 qG=0.990
+Train: data epoch: [11]  [ 700/1000]  eta: 0:01:07  lr: 0.000050  loss: 1.2454  time: 0.2358  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 750/1000]  eta: 0:00:56  lr: 0.000050  loss: 0.0216  time: 0.2288  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11800 L_L->G=0.0363 L_G->L=0.0356 qL=0.047 qG=0.988
+Train: data epoch: [11]  [ 800/1000]  eta: 0:00:44  lr: 0.000050  loss: 0.1752  time: 0.2078  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 850/1000]  eta: 0:00:33  lr: 0.000050  loss: 0.1529  time: 0.2174  data: 0.0000  max mem: 19556
+[mutual:rel] iters=11900 L_L->G=0.0362 L_G->L=0.0356 qL=0.012 qG=0.981
+Train: data epoch: [11]  [ 900/1000]  eta: 0:00:22  lr: 0.000050  loss: 0.0155  time: 0.2121  data: 0.0000  max mem: 19556
+Train: data epoch: [11]  [ 950/1000]  eta: 0:00:11  lr: 0.000050  loss: 0.0153  time: 0.2166  data: 0.0000  max mem: 19556
+[mutual:rel] iters=12000 L_L->G=0.0361 L_G->L=0.0355 qL=0.473 qG=0.937
+2026-09-12 22:15:54,710 [INFO] Averaged stats: lr: 0.000050  loss: 0.195147
+2026-09-12 22:15:54,711 [INFO] Evaluating on valid.
+2026-09-12 22:19:27,272 [INFO] Averaged stats: loss: 0.761238  acc: 0.309038 ***auc: 0.6511988744160053 ***uauc:(0.6169982478019084, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.5666666666666667, 0.8333333333333333, 0.6114285714285714, 0.6666666666666666, 0.4, 0.6734693877551021, 0.8434782608695652, 0.41666666666666663, 0.4444444444444444, 0.5625, 0.8130252100840336, 0.7777777777777778, 0.7751864054100919, 0.5, 0.551948051948052, 0.6666666666666667, 0.33333333333333337, 0.7555555555555555, 0.5368421052631579, 0.7400000000000001, 0.33333333333333337, 0.6666666666666666, 1.0, 0.5, 0.5801767676767676, 0.9047619047619048, 0.6666666666666667, 0.4375, 0.39999999999999997, 0.75, 0.6666666666666667, 0.453125, 1.0, 0.7212643678160919, 0.6165413533834587, 0.7228682170542636, 0.4722222222222222, 0.5, 0.5, 1.0, 0.5392307692307692, 0.5, 0.4, 1.0, 1.0, 0.503030303030303, 0.4, 1.0, 0.75, 1.0, 0.593939393939394, 0.75, 0.8518518518518519, 0.7555555555555555, 1.0, 0.7777777777777778, 0.6607142857142858, 0.763888888888889, 0.53125, 0.6785714285714286, 1.0, 0.728701406120761, 0.5636363636363636, 0.7549857549857549, 1.0, 0.5, 0.3333333333333333, 0.5, 0.40082644628099173, 0.6060606060606061, 0.0, 0.5, 0.5983333333333334, 0.5303030303030303, 0.625, 0.6825396825396826, 0.7315789473684211, 0.6149068322981366, 0.625, 0.6111111111111112, 0.5444444444444445, 0.34615384615384615, 0.41578483245149916, 0.4375, 0.5647058823529412, 0.4871794871794872, 0.9142857142857144, 0.6052631578947368, 0.7294117647058823, 0.7815126050420168, 0.2857142857142857, 0.8095238095238095, 0.5, 1.0, 0.8333333333333334, 0.0, 0.6, 1.0, 0.375, 0.3538461538461538, 1.0, 0.4444444444444444, 0.0, 0.6715686274509804, 0.6507936507936509, 0.6666666666666666, 0.55, 1.0, 0.5925925925925926, 0.6944444444444444, 0.6666666666666666, 0.5467980295566502, 0.7333333333333333, 0.675, 1.0, 1.0, 0.5333333333333334, 0.6663194444444445, 0.5625, 0.6411764705882352, 1.0, 0.795138888888889, 0.9642857142857143, 0.6666666666666667, 0.5, 0.5709647495361782, 0.6521739130434783, 1.0, 0.38461538461538464, 1.0, 1.0, 0.8041958041958042, 0.5, 0.5, 0.25, 0.725, 1.0, 0.5, 1.0, 0.625, 0.4453781512605042, 1.0, 0.47916666666666663, 0.8333333333333333, 0.7111111111111111, 0.4705882352941177, 0.33333333333333337, 0.625, 0.0, 0.75, 0.7619047619047619, 1.0, 0.5299145299145299, 0.5290806754221389, 0.75, 0.6666666666666666, 1.0, 0.5, 0.9583333333333334, 0.75, 0.5, 0.5921568627450979, 0.6907103825136612, 0.33928571428571425, 0.5476190476190477, 0.7777777777777778, 0.7083333333333334, 0.43999999999999995, 0.6565656565656566, 0.4444444444444445, 0.5211409819512811, 0.641025641025641, 0.5185185185185186, 0.75, 0.5530341662417134, 0.625, 1.0, 1.0, 0.33333333333333337, 1.0, 0.5769230769230769, 0.6136363636363635, 0.16666666666666666, 0.6517857142857143, 1.0, 0.6666666666666666, 0.64, 0.6666666666666666, 0.5, 0.8181818181818182, 0.5, 0.6495726495726496, 0.33333333333333337, 1.0, 0.0, 0.5555555555555556, 0.677726574500768, 0.28, 0.586764705882353, 0.40740740740740744, 0.3333333333333333, 0.32352941176470584, 0.8545454545454545, 0.5555555555555556, 0.33333333333333337, 1.0, 0.5576923076923077, 1.0, 0.0, 0.6666666666666666, 0.2, 0.625, 0.25, 0.0, 0.7142857142857142, 1.0, 1.0, 0.0, 0.6230769230769231, 0.7857142857142857, 0.7272727272727273, 0.7333333333333333, 1.0, 0.8333333333333334, 0.5, 0.1428571428571429, 0.0, 0.8205128205128205, 0.7291666666666667, 0.0, 0.5393874877169997, 0.3333333333333333, 0.48484848484848486, 1.0, 0.6302521008403361, 0.9375, 0.4797794117647059])
+2026-09-12 22:19:27,279 [INFO] Training time 1:27:59
+Train: data epoch: [11]  [ 999/1000]  eta: 0:00:00  lr: 0.000050  loss: 0.0276  time: 0.2301  data: 0.0000  max mem: 19556
+Train: data epoch: [11] Total time: 0:03:43 (0.2239 s / it)
+Evaluation  [   0/2600]  eta: 0:03:54  loss: 0.3663  acc: 0.5000  time: 0.0903  data: 0.0025  max mem: 19556
+Evaluation  [ 520/2600]  eta: 0:02:49  loss: 0.1207  acc: 0.0000  time: 0.0785  data: 0.0005  max mem: 19556
+Evaluation  [1040/2600]  eta: 0:02:07  loss: 0.6238  acc: 0.0000  time: 0.0819  data: 0.0005  max mem: 19556
+Evaluation  [1560/2600]  eta: 0:01:24  loss: 1.5232  acc: 0.0000  time: 0.0802  data: 0.0005  max mem: 19556
+Evaluation  [2080/2600]  eta: 0:00:42  loss: 1.4964  acc: 0.0000  time: 0.0804  data: 0.0005  max mem: 19556
+Evaluation  [2599/2600]  eta: 0:00:00  loss: 0.3243  acc: 0.5000  time: 0.0826  data: 0.0005  max mem: 19556
+Evaluation Total time: 0:03:32 (0.0817 s / it)
+rank_0 auc: 0.6511988744160053
