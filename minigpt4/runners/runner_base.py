@@ -481,7 +481,12 @@ class RunnerBase:
                                 if agg_metrics > best_agg_metric and split_name == "valid":
                                     best_epoch, best_agg_metric = cur_epoch, agg_metrics
 
-                                    self._save_checkpoint(cur_epoch, is_best=True)
+                                    # self._save_checkpoint(cur_epoch, is_best=True)
+                                    self._save_checkpoint(
+                                        cur_epoch,
+                                        is_best=True,
+                                        trainable_only=True
+                                    )
                                     not_change = 0
 
                                     # logging.info("Evaluating on {}.".format('test'))

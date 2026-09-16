@@ -470,7 +470,9 @@ class MiniGPT4Rec_v2(Rec2Base):
             rel_ema_momentum=0.0,
             grad_projection=False,
             rel_topk=0,
-            sem_refine=False
+            sem_refine=False,
+            rlm_bridge_dim=256,
+            rlm_tau=0.1
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -685,7 +687,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             # GNN collaborative view: penultimate 256-d GNN embedding.
             # Neither side is frozen: stop-grad only fixes the *target* inside each
             # auxiliary loss, LoRA keeps updating via L_rec and L_{G->L}.
-            assert mutual_mode in ("off", "b2", "b3", "rel"), f"unsupported mutual_mode: {mutual_mode}"
+            assert mutual_mode in ("off", "b2", "b3", "rel", "rlm"), f"unsupported mutual_mode: {mutual_mode}"
             assert not self.semantic_feedback, \
                 "semantic_feedback and mutual_mode are mutually exclusive"
             self.mutual_mode = mutual_mode
@@ -2540,6 +2542,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         rel_ema_momentum = cfg.get("rel_ema_momentum", 0.0)
         grad_projection = cfg.get("grad_projection", False)
         rel_topk = cfg.get("rel_topk", 0)
+        # RLMRec-Con bridge-space configuration
+        rlm_bridge_dim = cfg.get("rlm_bridge_dim", 256)
+        rlm_tau = cfg.get("rlm_tau", 0.1)
         injection_mode = cfg.get("injection_mode", "legacy")
         injection_layers = cfg.get("injection_layers", None)
         router_entropy_weight = cfg.get("router_entropy_weight", 0.0)

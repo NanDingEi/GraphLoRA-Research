@@ -82,9 +82,9 @@ run:
 
 
   weight_decay: 1e-3 # by default
-  max_epoch: 500
-  iters_per_epoch: 1000 #100
-  batch_size_train: 2 # shared GPU: batch=3 leaves only 2GB headroom, co-tenant processes cause OOM
+  max_epoch: 10
+  # iters_per_epoch: 1000 #100
+  batch_size_train: 3 # shared GPU: batch=3 leaves only 2GB headroom, co-tenant processes cause OOM
   batch_size_eval: 4 # 32
   num_workers: 0
   warmup_steps: 200

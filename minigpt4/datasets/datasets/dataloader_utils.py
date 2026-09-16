@@ -82,8 +82,15 @@ class MultiIterLoader:
         loader_idx = random.choices(range(len(self.loaders)), self.ratios, k=1)[0]
         return next(self.loaders[loader_idx])
     
-    # def __len__(self):
-    #     return len(self.loaders)
+    def __len__(self):
+        # 当前 GraphLoRA 推荐任务使用单个实际训练 DataLoader。
+        # 返回底层 loader 的 batch 数，使未设置 iters_per_epoch 时
+        # runner 能自动使用完整训练集长度。
+        if len(self.loaders) == 1:
+            return len(self.loaders[0])
+
+        # 保留多数据集情况下的兼容性。
+        return sum(len(loader) for loader in self.loaders)
     
     # def __iter__(self):
     #     # for loader in self.loaders:
