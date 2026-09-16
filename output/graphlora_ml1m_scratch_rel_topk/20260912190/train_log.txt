@@ -1,5 +1,0 @@
-{"train_lr": "0.000", "train_loss": "0.546"}
-{"train_lr": "0.000", "train_loss": "0.321"}
-{"train_lr": "0.000", "train_loss": "0.299"}
-{"train_lr": "0.000", "train_loss": "0.278"}
-{"train_lr": "0.000", "train_loss": "0.292"}
