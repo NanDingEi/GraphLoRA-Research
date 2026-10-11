@@ -95,26 +95,56 @@ class RunnerBase:
     def optimizer(self):
         # TODO make optimizer class and configurations
         if self._optimizer is None:
+            # graphlora-train-controls-v1: per-module LR multipliers.
+            lr_scales = {
+                "rec": float(self.config.run_cfg.get("lr_scale_rec", 1.0)),
+                "proj": float(self.config.run_cfg.get("lr_scale_proj", 1.0)),
+                "gnn": float(self.config.run_cfg.get("lr_scale_gnn", 1.0)),
+                "lora": float(self.config.run_cfg.get("lr_scale_lora", 1.0)),
+                "other": float(self.config.run_cfg.get("lr_scale_other", 1.0)),
+            }
+            import math
+            for key, scale in lr_scales.items():
+                if not math.isfinite(scale) or scale < 0:
+                    raise ValueError("Invalid LR multiplier for {}: {}".format(key, scale))
+
+            wd_value = float(self.config.run_cfg.weight_decay)
+            layer_id = str(self.config.model_cfg.get("gcn_layer", 31))
+            groups = {}
             num_parameters = 0
-            p_wd, p_non_wd = [], []
             for n, p in self.model.named_parameters():
                 if not p.requires_grad:
-                    continue  # frozen weights
+                    continue
                 print(n)
-                if p.ndim < 2 or "bias" in n or "ln" in n or "bn" in n:
-                    p_non_wd.append(p)
+                if n.startswith("rec_encoder."):
+                    part = "rec"
+                elif n.startswith("llama_proj."):
+                    part = "proj"
+                elif n.startswith("gcn.") or n.startswith("gnn.") or                      "Wneck" in n or "gnn_proj" in n or                      (".layers." + layer_id + "." in n and
+                      (n.endswith(".q_proj.bias") or n.endswith(".v_proj.bias"))):
+                    part = "gnn"
+                elif "lora_" in n or ".lora_" in n:
+                    part = "lora"
                 else:
-                    p_wd.append(p)
-                num_parameters += p.data.nelement()
-            logging.info("number of trainable parameters: %d" % num_parameters)
+                    part = "other"
+                no_decay = p.ndim < 2 or "bias" in n or "ln" in n or "bn" in n
+                key = (part, no_decay)
+                if key not in groups:
+                    groups[key] = {
+                        "params": [],
+                        "weight_decay": 0.0 if no_decay else wd_value,
+                        "lr_scale": lr_scales[part],
+                        "group_name": part + ("_no_wd" if no_decay else "_wd"),
+                    }
+                groups[key]["params"].append(p)
+                num_parameters += p.numel()
+            logging.info("number of trainable parameters: %d", num_parameters)
             self._num_trainable_para = num_parameters > 0
-            optim_params = [
-                {
-                    "params": p_wd,
-                    "weight_decay": float(self.config.run_cfg.weight_decay),
-                },
-                {"params": p_non_wd, "weight_decay": 0},
-            ]
+            optim_params = list(groups.values())
+            for group in optim_params:
+                logging.info("[lr-group] %s tensors=%d scale=%.4g wd=%.4g",
+                             group["group_name"], len(group["params"]),
+                             group["lr_scale"], group["weight_decay"])
             beta2 = self.config.run_cfg.get("beta2", 0.999)
             self._optimizer = torch.optim.AdamW(
                 optim_params,
@@ -444,6 +474,34 @@ class RunnerBase:
         best_epoch = 0
         not_change = 0
         self.set_model_mode(self.config.run_cfg.mode)
+
+        # Mid-epoch evaluation hook (peak-capture): evaluates the model at
+        # specific intra-epoch steps without disturbing the training
+        # trajectory — every RNG (python / CPU / CUDA) is snapshotted before
+        # the validation pass and restored after it, so subsequent training
+        # steps see bit-identical RNG streams.
+        _me_iters = str(self.config.run_cfg.get("mid_epoch_eval_iters", ""))
+        if _me_iters and not self.evaluate_only:
+            _me_set = set(int(x) for x in _me_iters.split(",") if x.strip() != "")
+
+            def mid_epoch_hook(cur_epoch, cur_step, model):
+                if cur_epoch != 0 or cur_step not in _me_set:
+                    return
+                import random as _pyrandom
+                _py = _pyrandom.getstate()
+                _cpu = torch.get_rng_state()
+                _cuda = torch.cuda.get_rng_state_all()
+                logging.info("[mid-epoch-eval] step %d start", cur_step)
+                val_log = self.eval_epoch(split_name="valid",
+                                          cur_epoch=f"ep0_step{cur_step}")
+                _pyrandom.setstate(_py)
+                torch.set_rng_state(_cpu)
+                torch.cuda.set_rng_state_all(_cuda)
+                model.train()
+                if val_log is not None:
+                    logging.info("[mid-epoch-eval] step %d agg=%s",
+                                 cur_step, val_log.get("agg_metrics"))
+            self.task.mid_epoch_hook = mid_epoch_hook
 
         self.log_config()
         stop_training_flag = False

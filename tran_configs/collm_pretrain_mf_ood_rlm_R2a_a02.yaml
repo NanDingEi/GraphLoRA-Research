@@ -1,0 +1,125 @@
+model:
+  arch: mini_gpt4rec_v2
+  model_type: pretrain_vicuna
+
+  freeze_rec: False
+  freeze_proj: False
+  freeze_lora: False
+
+  max_txt_len: 1024
+  proj_token_num: 1
+  proj_drop: 0
+  proj_mid_times: 10
+
+  end_sym: "###"
+  prompt_path: "prompts/collm_movie_idlist.txt"
+  prompt_template: '{}'
+  llama_model: "/home/bbx/user_lx/models/vicuna-7b-v0"
+
+  user_num: -100
+  item_num: -100
+
+  # =========================
+  # Original GraphLoRA
+  # =========================
+  lora_gnn: "ngcf"
+  lora_scale: 1.0
+  gnn_scale: 0.1
+  gcn_layer: 31
+
+  # =========================
+  # LLM semantic -> GNN
+  # =========================
+
+  # 是否开启 LLM 语义关系对 GNN 的修正
+  gnn_semantic_align: True
+
+  # L_total = L_rec + weight * L_sem
+  gnn_semantic_weight: 1e-4
+
+  # True:
+  #   L_rec -> GNN
+  #   L_sem -> GNN
+  #
+  # False:
+  #   L_rec -X-> GNN
+  #   L_sem -> GNN
+  train_gnn_with_rec_loss: True
+  sem_adapter: True
+  sem_alpha: 0.02
+  sem_rho: 0.05
+  sem_corr_weight: 0.04
+  sem_adapter_in_path: True
+  sem_trunk_grad: False
+
+  dataset: movie
+  ans_type: 'v2'
+  rec_model: "MF"
+
+  lora_config:
+    use_lora: True
+    r: 8
+    alpha: 16
+    target_modules: ["q_proj", "v_proj"]
+    dropout: 0.05
+
+  rec_config:
+    user_num: -100
+    item_num: -100
+    embedding_size: 256
+    pretrained_path: /home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth
+
+  ckpt: null
+
+
+datasets:
+  amazon_ood:
+    path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+    train_file: train_ood2.pkl
+    val_file: valid_ood2.pkl
+    test_file: test_ood2.pkl
+    data_type: default
+
+    build_info:
+      storage: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+
+
+run:
+  task: rec_pretrain
+
+  lr_sched: "linear_warmup_cosine_lr"
+
+  init_lr: 1e-4
+  min_lr: 5e-5
+  warmup_lr: 1e-5
+
+  mode: 'v2'
+
+  weight_decay: 1e-3
+  max_epoch: 3
+
+  batch_size_train: 3
+  batch_size_eval: 4
+  num_workers: 0
+
+  warmup_steps: 200
+
+  seed: 42
+
+  output_dir: /home/bbx/user_lx/GraphLoRA/output/graphlora_ml1m_rlm_r2a_a02
+
+  save_checkpoint_every_n_epochs: 1
+
+  amp: True
+  resume_ckpt_path: null
+
+  evaluate: False
+
+  train_splits: ["train"]
+  valid_splits: ["valid"]
+  test_splits: ["test"]
+
+  device: "cuda"
+  world_size: 1
+  dist_url: "env://"
+  distributed: False

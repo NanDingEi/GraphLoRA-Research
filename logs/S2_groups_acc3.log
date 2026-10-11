@@ -1,0 +1,1167 @@
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/torchvision/io/image.py:13: UserWarning: Failed to load image Python extension: libtorch_cuda_cu.so: cannot open shared object file: No such file or directory
+  warn(f"Failed to load image Python extension: {e}")
+/home/bbx/anaconda3/envs/minigpt4/lib/python3.9/site-packages/accelerate/utils/torch_xla.py:18: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
+  import pkg_resources
+
+===================================BUG REPORT===================================
+Welcome to bitsandbytes. For bug reports, please submit your error trace to: https://github.com/TimDettmers/bitsandbytes/issues
+================================================================================
+Not using distributed mode
+2026-10-10 22:37:47,175 [INFO] Building datasets...
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/train data size: (33891, 7)
+Amazon OOD datasets, max history length: 10
+2026-10-10 22:37:47,348 [INFO] Amazon OOD datasets, max history length:10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/valid_small data size: (5200, 7)
+Amazon OOD datasets, max history length: 10
+2026-10-10 22:37:47,376 [INFO] Amazon OOD datasets, max history length:10
+data path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/test data size: (7331, 7)
+Amazon OOD datasets, max history length: 10
+2026-10-10 22:37:47,425 [INFO] Amazon OOD datasets, max history length:10
+data dir: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+2026-10-10 22:37:47,649 [INFO] 
+=====  Running Parameters    =====
+2026-10-10 22:37:47,650 [INFO] {
+    "accum_grad_iters": 3,
+    "amp": true,
+    "batch_size_eval": 4,
+    "batch_size_train": 3,
+    "device": "cuda",
+    "dist_url": "env://",
+    "distributed": false,
+    "evaluate": false,
+    "init_lr": 0.0001,
+    "lr_scale_gnn": 0.25,
+    "lr_scale_lora": 1.0,
+    "lr_scale_proj": 0.5,
+    "lr_scale_rec": 0.5,
+    "lr_sched": "linear_warmup_cosine_lr",
+    "max_epoch": 3,
+    "min_lr": 5e-05,
+    "mode": "v2",
+    "num_workers": 0,
+    "output_dir": "/home/bbx/user_lx/GraphLoRA/output/S2_groups_acc3",
+    "resume_ckpt_path": null,
+    "save_checkpoint_every_n_epochs": 1,
+    "seed": 42,
+    "task": "rec_pretrain",
+    "test_splits": [
+        "test"
+    ],
+    "train_splits": [
+        "train"
+    ],
+    "valid_splits": [
+        "valid"
+    ],
+    "warmup_lr": 1e-05,
+    "warmup_steps": 200,
+    "weight_decay": 0.001,
+    "world_size": 1
+}
+2026-10-10 22:37:47,650 [INFO] 
+======  Dataset Attributes  ======
+2026-10-10 22:37:47,650 [INFO] 
+======== amazon_ood =======
+2026-10-10 22:37:47,650 [INFO] {
+    "build_info": {
+        "storage": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/"
+    },
+    "data_type": "default",
+    "path": "/home/bbx/user_lx/GraphLoRA/dataset/ml-1m/",
+    "test_file": "test_ood2.pkl",
+    "train_file": "train_ood2.pkl",
+    "val_file": "valid_ood2.pkl"
+}
+2026-10-10 22:37:47,650 [INFO] 
+======  Model Attributes  ======
+2026-10-10 22:37:47,650 [INFO] {
+    "ans_type": "v2",
+    "arch": "mini_gpt4rec_v2",
+    "ckpt": null,
+    "dataset": "movie",
+    "end_sym": "###",
+    "freeze_lora": false,
+    "freeze_proj": false,
+    "freeze_rec": false,
+    "gcn_layer": 31,
+    "gnn_scale": 0.1,
+    "gnn_semantic_align": true,
+    "gnn_semantic_weight": 0.0001,
+    "item_num": -100,
+    "llama_model": "/home/bbx/user_lx/models/vicuna-7b-v0",
+    "lora_config": {
+        "alpha": 16,
+        "dropout": 0.05,
+        "r": 8,
+        "target_modules": [
+            "q_proj",
+            "v_proj"
+        ],
+        "use_lora": true
+    },
+    "lora_gnn": "ngcf",
+    "lora_scale": 1.0,
+    "max_txt_len": 1024,
+    "model_type": "pretrain_vicuna",
+    "proj_drop": 0,
+    "proj_mid_times": 10,
+    "proj_reg_items": 64,
+    "proj_reg_weight": 0.0005,
+    "proj_token_num": 1,
+    "prompt_path": "prompts/collm_movie_idlist.txt",
+    "prompt_template": "{}",
+    "rec_config": {
+        "embedding_size": 256,
+        "item_num": 3256,
+        "pretrained_path": "/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth",
+        "user_num": 839
+    },
+    "rec_model": "MF",
+    "train_gnn_with_rec_loss": true,
+    "user_num": -100
+}
+running MiniGPT4Rec_v2 ...... 
+Loading Rec_model
+### rec_encoder: MF
+creat MF model, user num: 839 item num: 3256
+successfully load the pretrained model......
+Loading Rec_model Done
+Loading LLAMA
+Loading checkpoint shards:   0%|          | 0/2 [00:00<?, ?it/s]Loading checkpoint shards:  50%|█████     | 1/2 [00:04<00:04,  4.23s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:06<00:00,  2.87s/it]Loading checkpoint shards: 100%|██████████| 2/2 [00:06<00:00,  3.07s/it]
+Loading LLAMA Done
+Setting LoRA
+Preparing to inject GCN into: model.layers.31 with gnn_scale: 0.1
+Setting LoRA, GCN, and MyLinear for layer 31 Done. Replaced 2 modules.
+GNN semantic correction ON: teacher_layer=8, weight=0.0001, rec_loss_updates_gnn=True
+Load 4 training prompts
+Prompt List: 
+['#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:', '#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user\'s preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \\n#Answer:']
+answer token ids: pos: 3869 neg ids: 1939
+Prompt Pos Example 
+#Question: A user has given high ratings to the following movies: <ItemTitleList>. Additionally, we have information about the user's preferences encoded in the feature <UserID> together with the interacted item IDs <ItemIDList>. Using all available information, make a prediction about whether the user would enjoy the movie titled <TargetItemTitle> with the feature <TargetItemID>? Answer with "Yes" or "No". \n#Answer: Yes or No
+2026-10-10 22:38:02,058 [INFO] Start training
+2026-10-10 22:38:02,072 [INFO] dataset_ratios not specified, datasets will be concatenated (map-style datasets) or chained (webdataset.DataPipeline).
+2026-10-10 22:38:02,073 [INFO] Loaded 33891 records for train split from the dataset.
+2026-10-10 22:38:02,073 [INFO] Loaded 5200 records for valid split from the dataset.
+2026-10-10 22:38:02,073 [INFO] Loaded 7331 records for test split from the dataset.
+rec_encoder.user_embedding.weight
+rec_encoder.item_embedding.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.0.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.1.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.2.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.3.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.4.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.5.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.6.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.7.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.8.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.9.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.10.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.11.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.12.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.13.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.14.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.15.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.16.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.17.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.18.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.19.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.20.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.21.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.21.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.21.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.21.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.22.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.22.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.22.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.22.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.23.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.23.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.23.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.23.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.24.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.24.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.24.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.24.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.25.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.25.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.25.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.25.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.26.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.26.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.26.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.26.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.27.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.27.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.27.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.27.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.28.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.28.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.28.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.28.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.29.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.29.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.29.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.29.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.30.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.30.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.30.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.30.self_attn.v_proj.lora_B.default.weight
+llama_model.model.layers.31.self_attn.q_proj.bias
+llama_model.model.layers.31.self_attn.q_proj.lora_A.default.weight
+llama_model.model.layers.31.self_attn.q_proj.lora_B.default.weight
+llama_model.model.layers.31.self_attn.v_proj.bias
+llama_model.model.layers.31.self_attn.v_proj.lora_A.default.weight
+llama_model.model.layers.31.self_attn.v_proj.lora_B.default.weight
+gcn.layers.0.W1.weight
+gcn.layers.0.W1.bias
+gcn.layers.0.W2.weight
+gcn.layers.0.W2.bias
+gcn.layers.1.W1.weight
+gcn.layers.1.W1.bias
+gcn.layers.1.W2.weight
+gcn.layers.1.W2.bias
+gcn.layers.2.W1.weight
+gcn.layers.2.W1.bias
+gcn.layers.2.W2.weight
+gcn.layers.2.W2.bias
+llama_proj.0.weight
+llama_proj.0.bias
+llama_proj.2.weight
+llama_proj.2.bias
+2026-10-10 22:38:02,082 [INFO] number of trainable parameters: 16665872
+2026-10-10 22:38:02,082 [INFO] [lr-group] rec_wd tensors=2 scale=0.5 wd=0.001
+2026-10-10 22:38:02,082 [INFO] [lr-group] lora_wd tensors=128 scale=1 wd=0.001
+2026-10-10 22:38:02,082 [INFO] [lr-group] gnn_no_wd tensors=8 scale=0.25 wd=0
+2026-10-10 22:38:02,082 [INFO] [lr-group] gnn_wd tensors=6 scale=0.25 wd=0.001
+2026-10-10 22:38:02,082 [INFO] [lr-group] proj_wd tensors=2 scale=0.5 wd=0.001
+2026-10-10 22:38:02,082 [INFO] [lr-group] proj_no_wd tensors=2 scale=0.5 wd=0
+/home/bbx/user_lx/GraphLoRA/minigpt4/runners/runner_base.py:164: FutureWarning: `torch.cuda.amp.GradScaler(args...)` is deprecated. Please use `torch.amp.GradScaler('cuda', args...)` instead.
+  self._scaler = torch.cuda.amp.GradScaler()
+2026-10-10 22:38:02,083 [INFO] Start training epoch 0, 11297 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:225: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+prompt example: <s>#Question: A user has given high ratings to the following movies: "One Flew Over the Cuckoo's Nest (1975)", "When Harry Met Sally... (1989)", "Star Wars: Episode V - The Empire Strikes Back (1980)", "Terminator 2: Judgment Day (1991)", "Close Encounters of the Third Kind (1977)", "Star Wars: Episode VI - Return of the Jedi (1983)", "Alien (1979)", "E.T. the Extra-Terrestrial (1982)", "Terminator, The (1984)", "Contact (1997)". Additionally, we have information about the user's preferences encoded in the feature <unk> together with the interacted item IDs <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>, <unk>. Using all available information, make a prediction about whether the user would enjoy the movie titled "2001: A Space Odyssey (1968)" with the feature <unk>? Answer with "Yes" or "No". \n#Answer:
+#######prompt decoded example: <s> # Question : A user has given high ratings to the following mov ies : " One Fle w Over the C uck oo ' s N est ( 1 9 7 5 )", " When Harry Met S ally ... ( 1 9 8 9 )", " Star Wars : E pisode V - The Empire St rik es Back ( 1 9 8 0 )", " Term in ator  2 : Jud gment Day ( 1 9 9 1 )", " Close Enc oun ters of the Third Kind ( 1 9 7 7 )", " Star Wars : E pisode VI - Return of the J edi ( 1 9 8 3 )", " A li en ( 1 9 7 9 )", " E . T . the Ext ra - T err est rial ( 1 9 8 2 )", " Term in ator , The ( 1 9 8 4 )", " Contact ( 1 9 9 7 ) ". Additionally , we have information about the user ' s prefer ences encoded in the feature  <unk>  together with the interact ed item IDs  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> ,  <unk> . Using all available information , make a prediction about whether the user would enjoy the movie titled " 2 0 0 1 : A Space Od ys sey ( 1 9 6 8 )" with the feature  <unk> ? Answer with " Yes " or " No ". \ n # Answer :
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1080: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+[projector-reg] step=1 cosine_mse=0.592740 weighted=0.000296
+Train: data epoch: [0]  [    0/11297]  eta: 2:29:49  lr: 0.000005  loss: 0.0003  time: 0.7957  data: 0.0000  max mem: 19798
+Train: data epoch: [0]  [   50/11297]  eta: 1:05:17  lr: 0.000016  loss: 2.2665  time: 0.3446  data: 0.0000  max mem: 20224
+[semantic] step=100 L_rec=1.175820 L_corr=0.040298 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  100/11297]  eta: 1:04:08  lr: 0.000028  loss: 0.1661  time: 0.3446  data: 0.0000  max mem: 20224
+Train: data epoch: [0]  [  150/11297]  eta: 1:03:33  lr: 0.000039  loss: 0.8050  time: 0.3326  data: 0.0000  max mem: 20242
+[semantic] step=200 L_rec=0.757621 L_corr=0.253131 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  200/11297]  eta: 1:03:29  lr: 0.000050  loss: 0.9311  time: 0.3436  data: 0.0000  max mem: 20438
+Train: data epoch: [0]  [  250/11297]  eta: 1:03:17  lr: 0.000050  loss: 0.6064  time: 0.3475  data: 0.0000  max mem: 20438
+[semantic] step=300 L_rec=0.378567 L_corr=0.126973 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  300/11297]  eta: 1:02:53  lr: 0.000050  loss: 0.6408  time: 0.3472  data: 0.0000  max mem: 20438
+Train: data epoch: [0]  [  350/11297]  eta: 1:02:36  lr: 0.000050  loss: 0.6654  time: 0.3404  data: 0.0000  max mem: 20929
+[semantic] step=400 L_rec=0.489395 L_corr=0.075703 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  400/11297]  eta: 1:02:13  lr: 0.000050  loss: 0.8012  time: 0.3319  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [  450/11297]  eta: 1:01:59  lr: 0.000050  loss: 0.6283  time: 0.3432  data: 0.0000  max mem: 20929
+[semantic] step=500 L_rec=1.431297 L_corr=0.106144 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=500 cosine_mse=0.699386 weighted=0.000350
+Train: data epoch: [0]  [  500/11297]  eta: 1:01:45  lr: 0.000050  loss: 0.5769  time: 0.3392  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [  550/11297]  eta: 1:01:25  lr: 0.000050  loss: 0.8014  time: 0.3411  data: 0.0000  max mem: 20929
+[semantic] step=600 L_rec=0.326355 L_corr=0.146026 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  600/11297]  eta: 1:01:11  lr: 0.000050  loss: 0.9359  time: 0.3461  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [  650/11297]  eta: 1:00:51  lr: 0.000050  loss: 0.8997  time: 0.3420  data: 0.0000  max mem: 20929
+[semantic] step=700 L_rec=0.423760 L_corr=0.057501 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  700/11297]  eta: 1:00:35  lr: 0.000050  loss: 0.4204  time: 0.3465  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [  750/11297]  eta: 1:00:15  lr: 0.000050  loss: 0.4523  time: 0.3425  data: 0.0000  max mem: 20929
+[semantic] step=800 L_rec=0.588228 L_corr=0.056755 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  800/11297]  eta: 0:59:59  lr: 0.000050  loss: 0.9829  time: 0.3485  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [  850/11297]  eta: 0:59:40  lr: 0.000050  loss: 0.5173  time: 0.3294  data: 0.0000  max mem: 20929
+[semantic] step=900 L_rec=0.432399 L_corr=0.102864 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [  900/11297]  eta: 0:59:23  lr: 0.000050  loss: 0.3001  time: 0.3451  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [  950/11297]  eta: 0:59:05  lr: 0.000050  loss: 0.4740  time: 0.3413  data: 0.0000  max mem: 20929
+[semantic] step=1000 L_rec=0.505020 L_corr=0.057711 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=1000 cosine_mse=0.771559 weighted=0.000386
+Train: data epoch: [0]  [ 1000/11297]  eta: 0:58:51  lr: 0.000050  loss: 0.9729  time: 0.3472  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1050/11297]  eta: 0:58:34  lr: 0.000050  loss: 0.4066  time: 0.3444  data: 0.0000  max mem: 20929
+[semantic] step=1100 L_rec=0.572989 L_corr=0.080699 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1100/11297]  eta: 0:58:18  lr: 0.000050  loss: 0.5386  time: 0.3369  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1150/11297]  eta: 0:58:02  lr: 0.000050  loss: 0.5285  time: 0.3475  data: 0.0000  max mem: 20929
+[semantic] step=1200 L_rec=0.444935 L_corr=0.074737 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1200/11297]  eta: 0:57:46  lr: 0.000050  loss: 0.3908  time: 0.3491  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1250/11297]  eta: 0:57:30  lr: 0.000050  loss: 0.3019  time: 0.3470  data: 0.0000  max mem: 20929
+[semantic] step=1300 L_rec=0.835568 L_corr=0.085493 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1300/11297]  eta: 0:57:14  lr: 0.000050  loss: 0.5521  time: 0.3464  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1350/11297]  eta: 0:56:56  lr: 0.000050  loss: 0.2760  time: 0.3381  data: 0.0000  max mem: 20929
+[semantic] step=1400 L_rec=0.832965 L_corr=0.073828 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1400/11297]  eta: 0:56:38  lr: 0.000050  loss: 1.0640  time: 0.3370  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1450/11297]  eta: 0:56:21  lr: 0.000050  loss: 0.5740  time: 0.3422  data: 0.0000  max mem: 20929
+[semantic] step=1500 L_rec=0.276760 L_corr=0.039650 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=1500 cosine_mse=0.735438 weighted=0.000368
+Train: data epoch: [0]  [ 1500/11297]  eta: 0:56:04  lr: 0.000050  loss: 1.0945  time: 0.3473  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1550/11297]  eta: 0:55:47  lr: 0.000050  loss: 0.6382  time: 0.3419  data: 0.0000  max mem: 20929
+[semantic] step=1600 L_rec=0.201048 L_corr=0.039639 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1600/11297]  eta: 0:55:30  lr: 0.000050  loss: 0.8669  time: 0.3455  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1650/11297]  eta: 0:55:14  lr: 0.000050  loss: 1.0903  time: 0.3474  data: 0.0000  max mem: 20929
+[semantic] step=1700 L_rec=0.871333 L_corr=0.025287 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1700/11297]  eta: 0:54:57  lr: 0.000050  loss: 0.4565  time: 0.3461  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1750/11297]  eta: 0:54:40  lr: 0.000050  loss: 1.9295  time: 0.3383  data: 0.0000  max mem: 20929
+[semantic] step=1800 L_rec=0.639769 L_corr=0.053071 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1800/11297]  eta: 0:54:23  lr: 0.000050  loss: 0.3304  time: 0.3462  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1850/11297]  eta: 0:54:06  lr: 0.000050  loss: 0.2182  time: 0.3465  data: 0.0000  max mem: 20929
+[semantic] step=1900 L_rec=0.853311 L_corr=0.035055 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 1900/11297]  eta: 0:53:49  lr: 0.000050  loss: 1.0109  time: 0.3480  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 1950/11297]  eta: 0:53:31  lr: 0.000050  loss: 0.6369  time: 0.3443  data: 0.0000  max mem: 20929
+[semantic] step=2000 L_rec=0.456350 L_corr=0.027002 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=2000 cosine_mse=0.743179 weighted=0.000372
+Train: data epoch: [0]  [ 2000/11297]  eta: 0:53:15  lr: 0.000050  loss: 0.2883  time: 0.3489  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2050/11297]  eta: 0:52:59  lr: 0.000050  loss: 0.7927  time: 0.3453  data: 0.0000  max mem: 20929
+[semantic] step=2100 L_rec=0.604206 L_corr=0.358490 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2100/11297]  eta: 0:52:42  lr: 0.000050  loss: 0.7391  time: 0.3447  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2150/11297]  eta: 0:52:26  lr: 0.000050  loss: 1.0651  time: 0.3452  data: 0.0000  max mem: 20929
+[semantic] step=2200 L_rec=0.445656 L_corr=0.104857 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2200/11297]  eta: 0:52:09  lr: 0.000050  loss: 0.8402  time: 0.3394  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2250/11297]  eta: 0:51:52  lr: 0.000050  loss: 0.2849  time: 0.3481  data: 0.0000  max mem: 20929
+[semantic] step=2300 L_rec=0.446396 L_corr=0.065803 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2300/11297]  eta: 0:51:36  lr: 0.000050  loss: 0.3930  time: 0.3410  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2350/11297]  eta: 0:51:19  lr: 0.000050  loss: 0.5518  time: 0.3410  data: 0.0000  max mem: 20929
+[semantic] step=2400 L_rec=0.741825 L_corr=0.038224 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2400/11297]  eta: 0:51:02  lr: 0.000050  loss: 0.3223  time: 0.3463  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2450/11297]  eta: 0:50:45  lr: 0.000050  loss: 0.4018  time: 0.3472  data: 0.0000  max mem: 20929
+[semantic] step=2500 L_rec=1.083013 L_corr=0.018274 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=2500 cosine_mse=0.876000 weighted=0.000438
+Train: data epoch: [0]  [ 2500/11297]  eta: 0:50:27  lr: 0.000050  loss: 0.7053  time: 0.3399  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2550/11297]  eta: 0:50:10  lr: 0.000050  loss: 0.3631  time: 0.3427  data: 0.0000  max mem: 20929
+[semantic] step=2600 L_rec=0.811169 L_corr=0.011254 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2600/11297]  eta: 0:49:53  lr: 0.000050  loss: 0.7897  time: 0.3484  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2650/11297]  eta: 0:49:35  lr: 0.000050  loss: 0.3245  time: 0.3381  data: 0.0000  max mem: 20929
+[semantic] step=2700 L_rec=0.356778 L_corr=0.043071 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2700/11297]  eta: 0:49:18  lr: 0.000050  loss: 0.2019  time: 0.3549  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2750/11297]  eta: 0:49:01  lr: 0.000050  loss: 0.6118  time: 0.3414  data: 0.0000  max mem: 20929
+[semantic] step=2800 L_rec=0.536141 L_corr=0.025527 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2800/11297]  eta: 0:48:44  lr: 0.000050  loss: 0.3966  time: 0.3439  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2850/11297]  eta: 0:48:27  lr: 0.000050  loss: 0.3404  time: 0.3497  data: 0.0000  max mem: 20929
+[semantic] step=2900 L_rec=0.410345 L_corr=0.032675 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 2900/11297]  eta: 0:48:09  lr: 0.000050  loss: 0.6046  time: 0.3343  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 2950/11297]  eta: 0:47:52  lr: 0.000050  loss: 0.3498  time: 0.3472  data: 0.0000  max mem: 20929
+[semantic] step=3000 L_rec=1.484879 L_corr=0.060472 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=3000 cosine_mse=0.836986 weighted=0.000418
+Train: data epoch: [0]  [ 3000/11297]  eta: 0:47:34  lr: 0.000050  loss: 1.2592  time: 0.3421  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3050/11297]  eta: 0:47:17  lr: 0.000050  loss: 0.8839  time: 0.3455  data: 0.0000  max mem: 20929
+[semantic] step=3100 L_rec=0.560424 L_corr=0.035637 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3100/11297]  eta: 0:47:00  lr: 0.000049  loss: 1.4338  time: 0.3526  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3150/11297]  eta: 0:46:42  lr: 0.000049  loss: 0.3435  time: 0.3356  data: 0.0000  max mem: 20929
+[semantic] step=3200 L_rec=0.399988 L_corr=0.041623 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3200/11297]  eta: 0:46:26  lr: 0.000049  loss: 0.6496  time: 0.3433  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3250/11297]  eta: 0:46:09  lr: 0.000049  loss: 0.6919  time: 0.3441  data: 0.0000  max mem: 20929
+[semantic] step=3300 L_rec=0.593699 L_corr=0.027769 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3300/11297]  eta: 0:45:50  lr: 0.000049  loss: 0.4674  time: 0.3432  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3350/11297]  eta: 0:45:34  lr: 0.000049  loss: 0.2182  time: 0.3476  data: 0.0000  max mem: 20929
+[semantic] step=3400 L_rec=0.250145 L_corr=0.016064 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3400/11297]  eta: 0:45:16  lr: 0.000049  loss: 1.2310  time: 0.3366  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3450/11297]  eta: 0:44:59  lr: 0.000049  loss: 1.2433  time: 0.3472  data: 0.0000  max mem: 20929
+[semantic] step=3500 L_rec=0.870300 L_corr=0.018288 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=3500 cosine_mse=0.835084 weighted=0.000418
+Train: data epoch: [0]  [ 3500/11297]  eta: 0:44:42  lr: 0.000049  loss: 1.5464  time: 0.3467  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3550/11297]  eta: 0:44:24  lr: 0.000049  loss: 0.9509  time: 0.3456  data: 0.0000  max mem: 20929
+[semantic] step=3600 L_rec=0.541671 L_corr=0.014639 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3600/11297]  eta: 0:44:07  lr: 0.000049  loss: 0.9713  time: 0.3457  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3650/11297]  eta: 0:43:50  lr: 0.000049  loss: 0.2217  time: 0.3469  data: 0.0000  max mem: 20929
+[semantic] step=3700 L_rec=0.161851 L_corr=0.013343 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3700/11297]  eta: 0:43:33  lr: 0.000049  loss: 0.2034  time: 0.3488  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3750/11297]  eta: 0:43:16  lr: 0.000049  loss: 0.2372  time: 0.3448  data: 0.0000  max mem: 20929
+[semantic] step=3800 L_rec=1.510282 L_corr=0.021720 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3800/11297]  eta: 0:42:59  lr: 0.000049  loss: 0.2927  time: 0.3444  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3850/11297]  eta: 0:42:41  lr: 0.000049  loss: 1.2971  time: 0.3310  data: 0.0000  max mem: 20929
+[semantic] step=3900 L_rec=0.606966 L_corr=0.015249 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 3900/11297]  eta: 0:42:24  lr: 0.000049  loss: 1.3823  time: 0.3389  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 3950/11297]  eta: 0:42:06  lr: 0.000049  loss: 0.9546  time: 0.3444  data: 0.0000  max mem: 20929
+[semantic] step=4000 L_rec=0.532326 L_corr=0.015897 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=4000 cosine_mse=0.807040 weighted=0.000404
+Train: data epoch: [0]  [ 4000/11297]  eta: 0:41:49  lr: 0.000049  loss: 0.6873  time: 0.3435  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4050/11297]  eta: 0:41:32  lr: 0.000049  loss: 0.5157  time: 0.3383  data: 0.0000  max mem: 20929
+[semantic] step=4100 L_rec=0.677147 L_corr=0.033694 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4100/11297]  eta: 0:41:14  lr: 0.000049  loss: 0.3939  time: 0.3331  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4150/11297]  eta: 0:40:58  lr: 0.000049  loss: 0.6224  time: 0.3462  data: 0.0000  max mem: 20929
+[semantic] step=4200 L_rec=0.347963 L_corr=0.022519 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4200/11297]  eta: 0:40:41  lr: 0.000049  loss: 0.8123  time: 0.3445  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4250/11297]  eta: 0:40:23  lr: 0.000049  loss: 0.2992  time: 0.3397  data: 0.0000  max mem: 20929
+[semantic] step=4300 L_rec=0.868634 L_corr=0.010692 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4300/11297]  eta: 0:40:06  lr: 0.000049  loss: 0.3495  time: 0.3426  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4350/11297]  eta: 0:39:49  lr: 0.000049  loss: 0.5158  time: 0.3473  data: 0.0000  max mem: 20929
+[semantic] step=4400 L_rec=0.339651 L_corr=0.010804 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4400/11297]  eta: 0:39:32  lr: 0.000049  loss: 0.4916  time: 0.3488  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4450/11297]  eta: 0:39:14  lr: 0.000049  loss: 0.1461  time: 0.3431  data: 0.0000  max mem: 20929
+[semantic] step=4500 L_rec=0.655185 L_corr=0.009096 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=4500 cosine_mse=0.876031 weighted=0.000438
+Train: data epoch: [0]  [ 4500/11297]  eta: 0:38:57  lr: 0.000049  loss: 0.4048  time: 0.3436  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4550/11297]  eta: 0:38:40  lr: 0.000049  loss: 0.8995  time: 0.3440  data: 0.0000  max mem: 20929
+[semantic] step=4600 L_rec=1.569713 L_corr=0.012977 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4600/11297]  eta: 0:38:22  lr: 0.000049  loss: 0.2457  time: 0.3385  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4650/11297]  eta: 0:38:05  lr: 0.000049  loss: 0.7634  time: 0.3536  data: 0.0000  max mem: 20929
+[semantic] step=4700 L_rec=0.661499 L_corr=0.034925 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4700/11297]  eta: 0:37:48  lr: 0.000049  loss: 0.4834  time: 0.3559  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4750/11297]  eta: 0:37:31  lr: 0.000049  loss: 0.4223  time: 0.3391  data: 0.0000  max mem: 20929
+[semantic] step=4800 L_rec=0.703976 L_corr=0.006280 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4800/11297]  eta: 0:37:13  lr: 0.000049  loss: 0.7515  time: 0.3454  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4850/11297]  eta: 0:36:56  lr: 0.000049  loss: 0.5993  time: 0.3412  data: 0.0000  max mem: 20929
+[semantic] step=4900 L_rec=0.354613 L_corr=0.014685 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 4900/11297]  eta: 0:36:39  lr: 0.000049  loss: 0.2285  time: 0.3401  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 4950/11297]  eta: 0:36:22  lr: 0.000049  loss: 0.1641  time: 0.3417  data: 0.0000  max mem: 20929
+[semantic] step=5000 L_rec=1.001945 L_corr=0.011528 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=5000 cosine_mse=0.855840 weighted=0.000428
+Train: data epoch: [0]  [ 5000/11297]  eta: 0:36:05  lr: 0.000049  loss: 0.2399  time: 0.3456  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5050/11297]  eta: 0:35:47  lr: 0.000049  loss: 0.3249  time: 0.3446  data: 0.0000  max mem: 20929
+[semantic] step=5100 L_rec=1.024372 L_corr=0.014352 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5100/11297]  eta: 0:35:30  lr: 0.000049  loss: 0.2692  time: 0.3464  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5150/11297]  eta: 0:35:13  lr: 0.000049  loss: 0.4033  time: 0.3523  data: 0.0000  max mem: 20929
+[semantic] step=5200 L_rec=0.665464 L_corr=0.019482 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5200/11297]  eta: 0:34:56  lr: 0.000049  loss: 0.3484  time: 0.3494  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5250/11297]  eta: 0:34:39  lr: 0.000049  loss: 0.6220  time: 0.3474  data: 0.0000  max mem: 20929
+[semantic] step=5300 L_rec=0.638144 L_corr=0.019459 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5300/11297]  eta: 0:34:22  lr: 0.000049  loss: 0.2519  time: 0.3494  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5350/11297]  eta: 0:34:05  lr: 0.000048  loss: 0.6788  time: 0.3443  data: 0.0000  max mem: 20929
+[semantic] step=5400 L_rec=0.350827 L_corr=0.013117 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5400/11297]  eta: 0:33:48  lr: 0.000048  loss: 0.3931  time: 0.3507  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5450/11297]  eta: 0:33:31  lr: 0.000048  loss: 0.5070  time: 0.3515  data: 0.0000  max mem: 20929
+[semantic] step=5500 L_rec=0.533968 L_corr=0.008506 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=5500 cosine_mse=0.827302 weighted=0.000414
+Train: data epoch: [0]  [ 5500/11297]  eta: 0:33:14  lr: 0.000048  loss: 1.0955  time: 0.3430  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5550/11297]  eta: 0:32:56  lr: 0.000048  loss: 0.7311  time: 0.3440  data: 0.0000  max mem: 20929
+[semantic] step=5600 L_rec=0.976092 L_corr=0.008880 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5600/11297]  eta: 0:32:39  lr: 0.000048  loss: 0.5989  time: 0.3448  data: 0.0000  max mem: 20929
+Train: data epoch: [0]  [ 5650/11297]  eta: 0:32:22  lr: 0.000048  loss: 0.1463  time: 0.3456  data: 0.0000  max mem: 20929
+[semantic] step=5700 L_rec=0.307380 L_corr=0.012965 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5700/11297]  eta: 0:32:05  lr: 0.000048  loss: 0.2199  time: 0.3414  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 5750/11297]  eta: 0:31:48  lr: 0.000048  loss: 0.4716  time: 0.3477  data: 0.0000  max mem: 21118
+[semantic] step=5800 L_rec=0.232774 L_corr=0.003812 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5800/11297]  eta: 0:31:31  lr: 0.000048  loss: 0.4623  time: 0.3431  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 5850/11297]  eta: 0:31:14  lr: 0.000048  loss: 0.4829  time: 0.3453  data: 0.0000  max mem: 21118
+[semantic] step=5900 L_rec=0.303056 L_corr=0.008124 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 5900/11297]  eta: 0:30:56  lr: 0.000048  loss: 0.3567  time: 0.3462  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 5950/11297]  eta: 0:30:39  lr: 0.000048  loss: 0.4474  time: 0.3416  data: 0.0000  max mem: 21118
+[semantic] step=6000 L_rec=0.477339 L_corr=0.007794 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=6000 cosine_mse=0.871794 weighted=0.000436
+Train: data epoch: [0]  [ 6000/11297]  eta: 0:30:22  lr: 0.000048  loss: 0.9832  time: 0.3484  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6050/11297]  eta: 0:30:05  lr: 0.000048  loss: 0.6216  time: 0.3438  data: 0.0000  max mem: 21118
+[semantic] step=6100 L_rec=0.698590 L_corr=0.027355 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6100/11297]  eta: 0:29:48  lr: 0.000048  loss: 0.6379  time: 0.3436  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6150/11297]  eta: 0:29:30  lr: 0.000048  loss: 0.3374  time: 0.3488  data: 0.0000  max mem: 21118
+[semantic] step=6200 L_rec=0.185607 L_corr=0.030364 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6200/11297]  eta: 0:29:13  lr: 0.000048  loss: 0.7339  time: 0.3452  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6250/11297]  eta: 0:28:56  lr: 0.000048  loss: 0.6650  time: 0.3392  data: 0.0000  max mem: 21118
+[semantic] step=6300 L_rec=0.235252 L_corr=0.009826 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6300/11297]  eta: 0:28:39  lr: 0.000048  loss: 0.3412  time: 0.3503  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6350/11297]  eta: 0:28:22  lr: 0.000048  loss: 1.3373  time: 0.3435  data: 0.0000  max mem: 21118
+[semantic] step=6400 L_rec=0.318731 L_corr=0.014422 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6400/11297]  eta: 0:28:05  lr: 0.000048  loss: 0.6447  time: 0.3458  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6450/11297]  eta: 0:27:47  lr: 0.000048  loss: 0.2235  time: 0.3483  data: 0.0000  max mem: 21118
+[semantic] step=6500 L_rec=0.168803 L_corr=0.007880 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=6500 cosine_mse=0.856233 weighted=0.000428
+Train: data epoch: [0]  [ 6500/11297]  eta: 0:27:30  lr: 0.000048  loss: 0.4865  time: 0.3452  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6550/11297]  eta: 0:27:13  lr: 0.000048  loss: 0.2701  time: 0.3489  data: 0.0000  max mem: 21118
+[semantic] step=6600 L_rec=1.494150 L_corr=0.001914 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6600/11297]  eta: 0:26:56  lr: 0.000048  loss: 0.2714  time: 0.3422  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6650/11297]  eta: 0:26:39  lr: 0.000048  loss: 0.8036  time: 0.3448  data: 0.0000  max mem: 21118
+[semantic] step=6700 L_rec=0.835190 L_corr=0.006885 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6700/11297]  eta: 0:26:21  lr: 0.000048  loss: 0.5363  time: 0.3486  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6750/11297]  eta: 0:26:04  lr: 0.000048  loss: 0.8877  time: 0.3561  data: 0.0000  max mem: 21118
+[semantic] step=6800 L_rec=0.408894 L_corr=0.013233 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6800/11297]  eta: 0:25:47  lr: 0.000048  loss: 0.8265  time: 0.3449  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6850/11297]  eta: 0:25:30  lr: 0.000048  loss: 0.9792  time: 0.3409  data: 0.0000  max mem: 21118
+[semantic] step=6900 L_rec=0.849722 L_corr=0.006552 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 6900/11297]  eta: 0:25:12  lr: 0.000048  loss: 1.2397  time: 0.3432  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 6950/11297]  eta: 0:24:55  lr: 0.000047  loss: 0.3633  time: 0.3408  data: 0.0000  max mem: 21118
+[semantic] step=7000 L_rec=0.455609 L_corr=0.016435 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=7000 cosine_mse=0.875915 weighted=0.000438
+Train: data epoch: [0]  [ 7000/11297]  eta: 0:24:38  lr: 0.000047  loss: 0.3087  time: 0.3475  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7050/11297]  eta: 0:24:21  lr: 0.000047  loss: 0.2933  time: 0.3530  data: 0.0000  max mem: 21118
+[semantic] step=7100 L_rec=0.554218 L_corr=0.005906 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7100/11297]  eta: 0:24:04  lr: 0.000047  loss: 0.9168  time: 0.3515  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7150/11297]  eta: 0:23:47  lr: 0.000047  loss: 0.4661  time: 0.3490  data: 0.0000  max mem: 21118
+[semantic] step=7200 L_rec=0.338460 L_corr=0.020107 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7200/11297]  eta: 0:23:29  lr: 0.000047  loss: 0.4260  time: 0.3470  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7250/11297]  eta: 0:23:12  lr: 0.000047  loss: 0.3736  time: 0.3462  data: 0.0000  max mem: 21118
+[semantic] step=7300 L_rec=0.432700 L_corr=0.013940 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7300/11297]  eta: 0:22:55  lr: 0.000047  loss: 0.3726  time: 0.3471  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7350/11297]  eta: 0:22:38  lr: 0.000047  loss: 0.6568  time: 0.3397  data: 0.0000  max mem: 21118
+[semantic] step=7400 L_rec=0.137638 L_corr=0.007224 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7400/11297]  eta: 0:22:20  lr: 0.000047  loss: 0.1004  time: 0.3516  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7450/11297]  eta: 0:22:03  lr: 0.000047  loss: 0.3273  time: 0.3454  data: 0.0000  max mem: 21118
+[semantic] step=7500 L_rec=0.083621 L_corr=0.006852 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=7500 cosine_mse=0.831317 weighted=0.000416
+Train: data epoch: [0]  [ 7500/11297]  eta: 0:21:46  lr: 0.000047  loss: 0.6861  time: 0.3380  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7550/11297]  eta: 0:21:29  lr: 0.000047  loss: 0.6333  time: 0.3470  data: 0.0000  max mem: 21118
+[semantic] step=7600 L_rec=0.447345 L_corr=0.007718 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7600/11297]  eta: 0:21:12  lr: 0.000047  loss: 0.4744  time: 0.3449  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7650/11297]  eta: 0:20:54  lr: 0.000047  loss: 0.5337  time: 0.3448  data: 0.0000  max mem: 21118
+[semantic] step=7700 L_rec=0.333997 L_corr=0.006412 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7700/11297]  eta: 0:20:37  lr: 0.000047  loss: 0.7932  time: 0.3436  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7750/11297]  eta: 0:20:20  lr: 0.000047  loss: 0.3479  time: 0.3453  data: 0.0000  max mem: 21118
+[semantic] step=7800 L_rec=0.379927 L_corr=0.005523 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7800/11297]  eta: 0:20:03  lr: 0.000047  loss: 0.3803  time: 0.3315  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7850/11297]  eta: 0:19:46  lr: 0.000047  loss: 0.2466  time: 0.3399  data: 0.0000  max mem: 21118
+[semantic] step=7900 L_rec=0.850701 L_corr=0.005656 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 7900/11297]  eta: 0:19:28  lr: 0.000047  loss: 0.9967  time: 0.3443  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 7950/11297]  eta: 0:19:11  lr: 0.000047  loss: 0.9096  time: 0.3405  data: 0.0000  max mem: 21118
+[semantic] step=8000 L_rec=0.416444 L_corr=0.005289 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=8000 cosine_mse=0.825803 weighted=0.000413
+Train: data epoch: [0]  [ 8000/11297]  eta: 0:18:54  lr: 0.000047  loss: 0.5983  time: 0.3514  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8050/11297]  eta: 0:18:37  lr: 0.000047  loss: 0.3072  time: 0.3362  data: 0.0000  max mem: 21118
+[semantic] step=8100 L_rec=0.930758 L_corr=0.006102 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8100/11297]  eta: 0:18:20  lr: 0.000047  loss: 0.2123  time: 0.3471  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8150/11297]  eta: 0:18:02  lr: 0.000047  loss: 0.8358  time: 0.3481  data: 0.0000  max mem: 21118
+[semantic] step=8200 L_rec=0.400289 L_corr=0.016917 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8200/11297]  eta: 0:17:45  lr: 0.000047  loss: 0.4942  time: 0.3367  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8250/11297]  eta: 0:17:28  lr: 0.000047  loss: 0.2239  time: 0.3366  data: 0.0000  max mem: 21118
+[semantic] step=8300 L_rec=0.767253 L_corr=0.005449 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8300/11297]  eta: 0:17:11  lr: 0.000046  loss: 0.0753  time: 0.3438  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8350/11297]  eta: 0:16:54  lr: 0.000046  loss: 0.7086  time: 0.3450  data: 0.0000  max mem: 21118
+[semantic] step=8400 L_rec=0.506675 L_corr=0.008914 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8400/11297]  eta: 0:16:36  lr: 0.000046  loss: 0.3930  time: 0.3378  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8450/11297]  eta: 0:16:19  lr: 0.000046  loss: 0.5701  time: 0.3532  data: 0.0000  max mem: 21118
+[semantic] step=8500 L_rec=0.636334 L_corr=0.004066 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=8500 cosine_mse=0.806793 weighted=0.000403
+Train: data epoch: [0]  [ 8500/11297]  eta: 0:16:02  lr: 0.000046  loss: 0.7958  time: 0.3452  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8550/11297]  eta: 0:15:45  lr: 0.000046  loss: 0.1687  time: 0.3514  data: 0.0000  max mem: 21118
+[semantic] step=8600 L_rec=0.344560 L_corr=0.012469 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8600/11297]  eta: 0:15:28  lr: 0.000046  loss: 0.5940  time: 0.3411  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8650/11297]  eta: 0:15:10  lr: 0.000046  loss: 0.4098  time: 0.3437  data: 0.0000  max mem: 21118
+[semantic] step=8700 L_rec=0.360254 L_corr=0.011211 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8700/11297]  eta: 0:14:53  lr: 0.000046  loss: 0.5937  time: 0.3422  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8750/11297]  eta: 0:14:36  lr: 0.000046  loss: 0.4152  time: 0.3454  data: 0.0000  max mem: 21118
+[semantic] step=8800 L_rec=0.290493 L_corr=0.003834 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8800/11297]  eta: 0:14:19  lr: 0.000046  loss: 0.1564  time: 0.3488  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8850/11297]  eta: 0:14:02  lr: 0.000046  loss: 0.8334  time: 0.3531  data: 0.0000  max mem: 21118
+[semantic] step=8900 L_rec=0.766801 L_corr=0.009799 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 8900/11297]  eta: 0:13:45  lr: 0.000046  loss: 0.4126  time: 0.3465  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 8950/11297]  eta: 0:13:27  lr: 0.000046  loss: 0.4892  time: 0.3474  data: 0.0000  max mem: 21118
+[semantic] step=9000 L_rec=0.847257 L_corr=0.007196 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=9000 cosine_mse=0.810711 weighted=0.000405
+Train: data epoch: [0]  [ 9000/11297]  eta: 0:13:10  lr: 0.000046  loss: 0.7880  time: 0.3469  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9050/11297]  eta: 0:12:53  lr: 0.000046  loss: 0.3872  time: 0.3404  data: 0.0000  max mem: 21118
+[semantic] step=9100 L_rec=0.366157 L_corr=0.005435 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9100/11297]  eta: 0:12:36  lr: 0.000046  loss: 0.5993  time: 0.3468  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9150/11297]  eta: 0:12:19  lr: 0.000046  loss: 0.3275  time: 0.3421  data: 0.0000  max mem: 21118
+[semantic] step=9200 L_rec=0.370655 L_corr=0.005671 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9200/11297]  eta: 0:12:01  lr: 0.000046  loss: 0.8739  time: 0.3398  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9250/11297]  eta: 0:11:44  lr: 0.000046  loss: 0.5901  time: 0.3471  data: 0.0000  max mem: 21118
+[semantic] step=9300 L_rec=0.338194 L_corr=0.003117 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9300/11297]  eta: 0:11:27  lr: 0.000046  loss: 0.1801  time: 0.3381  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9350/11297]  eta: 0:11:10  lr: 0.000046  loss: 1.2149  time: 0.3475  data: 0.0000  max mem: 21118
+[semantic] step=9400 L_rec=0.377119 L_corr=0.006042 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9400/11297]  eta: 0:10:52  lr: 0.000046  loss: 0.2563  time: 0.3511  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9450/11297]  eta: 0:10:35  lr: 0.000046  loss: 1.1841  time: 0.3479  data: 0.0000  max mem: 21118
+[semantic] step=9500 L_rec=0.602010 L_corr=0.005886 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=9500 cosine_mse=0.865972 weighted=0.000433
+Train: data epoch: [0]  [ 9500/11297]  eta: 0:10:18  lr: 0.000045  loss: 0.1928  time: 0.3441  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9550/11297]  eta: 0:10:01  lr: 0.000045  loss: 0.2226  time: 0.3403  data: 0.0000  max mem: 21118
+[semantic] step=9600 L_rec=0.902077 L_corr=0.008217 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9600/11297]  eta: 0:09:44  lr: 0.000045  loss: 0.7630  time: 0.3420  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9650/11297]  eta: 0:09:26  lr: 0.000045  loss: 0.6280  time: 0.3497  data: 0.0000  max mem: 21118
+[semantic] step=9700 L_rec=0.354697 L_corr=0.008763 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9700/11297]  eta: 0:09:09  lr: 0.000045  loss: 0.9497  time: 0.3402  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9750/11297]  eta: 0:08:52  lr: 0.000045  loss: 1.3870  time: 0.3443  data: 0.0000  max mem: 21118
+[semantic] step=9800 L_rec=1.613351 L_corr=0.010139 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9800/11297]  eta: 0:08:35  lr: 0.000045  loss: 1.3890  time: 0.3512  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9850/11297]  eta: 0:08:18  lr: 0.000045  loss: 0.6499  time: 0.3409  data: 0.0000  max mem: 21118
+[semantic] step=9900 L_rec=0.447411 L_corr=0.004289 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [ 9900/11297]  eta: 0:08:00  lr: 0.000045  loss: 0.2199  time: 0.3449  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [ 9950/11297]  eta: 0:07:43  lr: 0.000045  loss: 0.5059  time: 0.3494  data: 0.0000  max mem: 21118
+[semantic] step=10000 L_rec=0.540232 L_corr=0.005003 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=10000 cosine_mse=0.825516 weighted=0.000413
+Train: data epoch: [0]  [10000/11297]  eta: 0:07:26  lr: 0.000045  loss: 0.3509  time: 0.3459  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10050/11297]  eta: 0:07:09  lr: 0.000045  loss: 0.1791  time: 0.3404  data: 0.0000  max mem: 21118
+[semantic] step=10100 L_rec=0.793040 L_corr=0.004406 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10100/11297]  eta: 0:06:52  lr: 0.000045  loss: 0.5228  time: 0.3430  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10150/11297]  eta: 0:06:34  lr: 0.000045  loss: 0.3026  time: 0.3521  data: 0.0000  max mem: 21118
+[semantic] step=10200 L_rec=0.367449 L_corr=0.003503 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10200/11297]  eta: 0:06:17  lr: 0.000045  loss: 0.4101  time: 0.3400  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10250/11297]  eta: 0:06:00  lr: 0.000045  loss: 0.6785  time: 0.3351  data: 0.0000  max mem: 21118
+[semantic] step=10300 L_rec=0.386376 L_corr=0.004875 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10300/11297]  eta: 0:05:43  lr: 0.000045  loss: 0.4730  time: 0.3435  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10350/11297]  eta: 0:05:26  lr: 0.000045  loss: 0.0493  time: 0.3483  data: 0.0000  max mem: 21118
+[semantic] step=10400 L_rec=0.909670 L_corr=0.004816 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10400/11297]  eta: 0:05:08  lr: 0.000045  loss: 0.1633  time: 0.3466  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10450/11297]  eta: 0:04:51  lr: 0.000045  loss: 0.8998  time: 0.3423  data: 0.0000  max mem: 21118
+[semantic] step=10500 L_rec=0.263007 L_corr=0.002281 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=10500 cosine_mse=0.845665 weighted=0.000423
+Train: data epoch: [0]  [10500/11297]  eta: 0:04:34  lr: 0.000045  loss: 0.4675  time: 0.3463  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10550/11297]  eta: 0:04:17  lr: 0.000044  loss: 0.9386  time: 0.3280  data: 0.0000  max mem: 21118
+[semantic] step=10600 L_rec=1.113790 L_corr=0.022868 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10600/11297]  eta: 0:03:59  lr: 0.000044  loss: 0.3499  time: 0.3481  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10650/11297]  eta: 0:03:42  lr: 0.000044  loss: 0.5941  time: 0.3416  data: 0.0000  max mem: 21118
+[semantic] step=10700 L_rec=0.329003 L_corr=0.003362 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10700/11297]  eta: 0:03:25  lr: 0.000044  loss: 0.3272  time: 0.3387  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10750/11297]  eta: 0:03:08  lr: 0.000044  loss: 0.9644  time: 0.3492  data: 0.0000  max mem: 21118
+[semantic] step=10800 L_rec=1.114653 L_corr=0.002874 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10800/11297]  eta: 0:02:51  lr: 0.000044  loss: 1.3626  time: 0.3399  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10850/11297]  eta: 0:02:33  lr: 0.000044  loss: 0.7134  time: 0.3321  data: 0.0000  max mem: 21118
+[semantic] step=10900 L_rec=0.522212 L_corr=0.004511 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [10900/11297]  eta: 0:02:16  lr: 0.000044  loss: 0.3642  time: 0.3588  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [10950/11297]  eta: 0:01:59  lr: 0.000044  loss: 1.2610  time: 0.3491  data: 0.0000  max mem: 21118
+[semantic] step=11000 L_rec=0.373311 L_corr=0.008144 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=11000 cosine_mse=0.848613 weighted=0.000424
+Train: data epoch: [0]  [11000/11297]  eta: 0:01:42  lr: 0.000044  loss: 0.8516  time: 0.3462  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [11050/11297]  eta: 0:01:25  lr: 0.000044  loss: 0.8998  time: 0.3513  data: 0.0000  max mem: 21118
+[semantic] step=11100 L_rec=0.409095 L_corr=0.003329 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [11100/11297]  eta: 0:01:07  lr: 0.000044  loss: 0.7356  time: 0.3290  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [11150/11297]  eta: 0:00:50  lr: 0.000044  loss: 0.1599  time: 0.3479  data: 0.0000  max mem: 21118
+[semantic] step=11200 L_rec=0.626908 L_corr=0.013908 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [0]  [11200/11297]  eta: 0:00:33  lr: 0.000044  loss: 0.0800  time: 0.3477  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [11250/11297]  eta: 0:00:16  lr: 0.000044  loss: 0.5699  time: 0.3473  data: 0.0000  max mem: 21118
+Train: data epoch: [0]  [11296/11297]  eta: 0:00:00  lr: 0.000044  loss: 0.3696  time: 0.3424  data: 0.0000  max mem: 21118
+Train: data epoch: [0] Total time: 1:04:49 (0.3443 s / it)
+2026-10-10 23:42:51,463 [INFO] Averaged stats: lr: 0.000047  loss: 0.568832
+2026-10-10 23:42:51,465 [INFO] Evaluating on valid.
+Evaluation  [   0/1300]  eta: 0:03:23  loss: 0.3359  acc: 0.5000  time: 0.1565  data: 0.0013  max mem: 21118
+Evaluation  [ 260/1300]  eta: 0:02:37  loss: 0.4538  acc: 0.2500  time: 0.1493  data: 0.0007  max mem: 21118
+Evaluation  [ 520/1300]  eta: 0:01:57  loss: 0.7855  acc: 0.2500  time: 0.1519  data: 0.0006  max mem: 21118
+Evaluation  [ 780/1300]  eta: 0:01:18  loss: 0.8011  acc: 0.5000  time: 0.1506  data: 0.0006  max mem: 21118
+Evaluation  [1040/1300]  eta: 0:00:39  loss: 0.3664  acc: 0.5000  time: 0.1510  data: 0.0006  max mem: 21118
+Evaluation  [1299/1300]  eta: 0:00:00  loss: 0.3804  acc: 0.0000  time: 0.1492  data: 0.0006  max mem: 21118
+Evaluation Total time: 0:03:16 (0.1512 s / it)
+2026-10-10 23:46:08,189 [INFO] Averaged stats: loss: 0.621715  acc: 0.367500 ***auc: 0.7296752596287361 ***uauc:(0.6841670211619721, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.6833333333333333, 0.5, 0.6342857142857143, 0.3333333333333333, 1.0, 0.326530612244898, 0.8956521739130434, 0.48809523809523814, 0.888888888888889, 0.625, 0.8487394957983193, 0.7777777777777778, 0.8444598578116872, 0.0, 0.6866883116883118, 0.33333333333333337, 0.5833333333333333, 0.8222222222222222, 0.7157894736842105, 0.7757142857142858, 0.33333333333333337, 0.3333333333333333, 1.0, 0.75, 0.7127525252525252, 0.761904761904762, 0.6666666666666667, 0.6875, 0.6666666666666666, 0.888888888888889, 0.8333333333333334, 0.578125, 1.0, 0.764367816091954, 0.7406015037593985, 0.748062015503876, 0.7361111111111112, 0.5, 0.625, 0.0, 0.4715384615384615, 1.0, 0.2, 1.0, 1.0, 0.5333333333333333, 1.0, 1.0, 0.0, 1.0, 0.7333333333333333, 0.8333333333333333, 0.808641975308642, 0.7777777777777778, 1.0, 0.5555555555555556, 0.6607142857142858, 0.5138888888888888, 0.45312500000000006, 0.39285714285714285, 1.0, 0.8395368072787428, 0.6060606060606061, 0.7777777777777777, 0.5, 0.75, 0.6666666666666666, 1.0, 0.5, 0.7878787878787878, 0.3333333333333333, 0.5, 0.6994444444444444, 0.5324675324675324, 0.5625, 0.8472222222222222, 0.6789473684210526, 0.8173913043478261, 0.8333333333333334, 0.4444444444444444, 0.5592592592592592, 0.6153846153846154, 0.8994708994708995, 0.6736111111111112, 0.5872549019607843, 0.5858974358974359, 0.7828571428571429, 0.8333333333333334, 0.9058823529411765, 0.9327731092436975, 0.38095238095238093, 0.8095238095238095, 1.0, 1.0, 0.8020833333333333, 0.0, 0.7, 0.3333333333333333, 0.875, 0.7692307692307692, 0.5625, 0.4444444444444444, 0.5, 0.5457516339869282, 0.7936507936507936, 0.6666666666666666, 0.75, 1.0, 0.7407407407407407, 0.7407407407407407, 0.3333333333333333, 0.541871921182266, 0.8, 0.575, 1.0, 1.0, 0.5333333333333334, 0.7467013888888888, 0.75, 0.6431372549019608, 1.0, 0.6770833333333334, 0.9642857142857143, 1.0, 1.0, 0.5616883116883116, 0.7934782608695652, 1.0, 0.35897435897435903, 1.0, 1.0, 0.8251748251748252, 1.0, 0.5, 0.25, 0.7999999999999999, 0.0, 0.6875, 0.0, 0.5, 0.8067226890756304, 1.0, 0.5416666666666667, 0.41666666666666663, 0.3555555555555555, 0.6417112299465241, 0.6666666666666667, 0.6111111111111112, 1.0, 0.5, 0.9523809523809524, 1.0, 0.5897435897435898, 0.5778611632270169, 0.6875, 0.8333333333333334, 1.0, 1.0, 0.9583333333333334, 1.0, 0.5, 0.7333333333333334, 0.5830601092896175, 0.8214285714285714, 0.5119047619047619, 0.4444444444444444, 0.8333333333333333, 0.62, 0.6767676767676768, 0.6666666666666666, 0.7672598763094787, 0.46153846153846156, 0.6296296296296297, 0.75, 0.5494645588985212, 0.625, 1.0, 1.0, 0.8333333333333334, 1.0, 0.6153846153846154, 0.6136363636363635, 1.0, 0.5535714285714286, 0.75, 1.0, 0.4799999999999999, 1.0, 0.0, 0.9090909090909091, 1.0, 0.670940170940171, 1.0, 1.0, 0.33333333333333337, 0.6666666666666666, 0.7502304147465437, 0.4, 0.5779411764705882, 0.5189210950080515, 0.38095238095238093, 0.42647058823529416, 0.7090909090909091, 0.5833333333333334, 0.33333333333333337, 0.6666666666666667, 0.6153846153846154, 0.6363636363636364, 0.0, 0.8333333333333333, 0.33333333333333337, 0.78125, 0.75, 0.0, 0.6571428571428571, 1.0, 1.0, 1.0, 0.6641025641025641, 0.989795918367347, 0.8484848484848485, 0.9111111111111112, 1.0, 0.8333333333333334, 0.6666666666666667, 0.2857142857142857, 1.0, 0.7051282051282051, 0.8194444444444444, 1.0, 0.6785948247625286, 0.0, 0.5, 0.8666666666666667, 0.5882352941176471, 0.875, 0.6875])
+rank_0 auc: 0.7296752596287361
+2026-10-10 23:46:08,199 [INFO] Saving checkpoint at epoch 0 to /home/bbx/user_lx/GraphLoRA/output/S2_groups_acc3/20261010223/checkpoint_best.pth.
+2026-10-10 23:46:08,358 [INFO] Saving checkpoint at epoch 0 to /home/bbx/user_lx/GraphLoRA/output/S2_groups_acc3/20261010223/checkpoint_0.pth.
+2026-10-10 23:46:08,512 [INFO] Start training
+2026-10-10 23:46:08,525 [INFO] Start training epoch 1, 11297 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:225: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1080: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [1]  [    0/11297]  eta: 7:20:50  lr: 0.000044  loss: 0.4078  time: 2.3414  data: 0.0000  max mem: 21118
+[semantic] step=11300 L_rec=0.409998 L_corr=0.003045 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [   50/11297]  eta: 1:11:51  lr: 0.000044  loss: 1.1409  time: 0.3468  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  100/11297]  eta: 1:07:54  lr: 0.000044  loss: 0.0512  time: 0.3463  data: 0.0000  max mem: 21118
+[semantic] step=11400 L_rec=0.045261 L_corr=0.002072 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  150/11297]  eta: 1:06:23  lr: 0.000044  loss: 0.2697  time: 0.3504  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  200/11297]  eta: 1:05:27  lr: 0.000044  loss: 0.6375  time: 0.3417  data: 0.0000  max mem: 21118
+[semantic] step=11500 L_rec=0.431879 L_corr=0.001259 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=11500 cosine_mse=0.838048 weighted=0.000419
+Train: data epoch: [1]  [  250/11297]  eta: 1:04:51  lr: 0.000043  loss: 0.2067  time: 0.3553  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  300/11297]  eta: 1:04:18  lr: 0.000043  loss: 0.3118  time: 0.3465  data: 0.0000  max mem: 21118
+[semantic] step=11600 L_rec=0.918947 L_corr=0.004174 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  350/11297]  eta: 1:03:54  lr: 0.000043  loss: 0.8267  time: 0.3453  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  400/11297]  eta: 1:03:29  lr: 0.000043  loss: 0.1533  time: 0.3423  data: 0.0000  max mem: 21118
+[semantic] step=11700 L_rec=0.644771 L_corr=0.002904 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  450/11297]  eta: 1:03:12  lr: 0.000043  loss: 0.1719  time: 0.3515  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  500/11297]  eta: 1:02:49  lr: 0.000043  loss: 0.1693  time: 0.3457  data: 0.0000  max mem: 21118
+[semantic] step=11800 L_rec=1.538873 L_corr=0.007001 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  550/11297]  eta: 1:02:29  lr: 0.000043  loss: 0.4928  time: 0.3501  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  600/11297]  eta: 1:02:10  lr: 0.000043  loss: 0.4850  time: 0.3497  data: 0.0000  max mem: 21118
+[semantic] step=11900 L_rec=0.475039 L_corr=0.004501 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  650/11297]  eta: 1:01:47  lr: 0.000043  loss: 0.3664  time: 0.3489  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  700/11297]  eta: 1:01:25  lr: 0.000043  loss: 0.2910  time: 0.3418  data: 0.0000  max mem: 21118
+[semantic] step=12000 L_rec=0.135747 L_corr=0.005920 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=12000 cosine_mse=0.843620 weighted=0.000422
+Train: data epoch: [1]  [  750/11297]  eta: 1:01:03  lr: 0.000043  loss: 0.5474  time: 0.3375  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  800/11297]  eta: 1:00:45  lr: 0.000043  loss: 0.5549  time: 0.3459  data: 0.0000  max mem: 21118
+[semantic] step=12100 L_rec=0.237117 L_corr=0.007387 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  850/11297]  eta: 1:00:27  lr: 0.000043  loss: 0.3286  time: 0.3393  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [  900/11297]  eta: 1:00:11  lr: 0.000043  loss: 0.3079  time: 0.3477  data: 0.0000  max mem: 21118
+[semantic] step=12200 L_rec=0.173688 L_corr=0.003779 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [  950/11297]  eta: 0:59:53  lr: 0.000043  loss: 0.3846  time: 0.3424  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1000/11297]  eta: 0:59:34  lr: 0.000043  loss: 1.2489  time: 0.3489  data: 0.0000  max mem: 21118
+[semantic] step=12300 L_rec=0.774019 L_corr=0.003536 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1050/11297]  eta: 0:59:16  lr: 0.000043  loss: 0.4477  time: 0.3514  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1100/11297]  eta: 0:58:58  lr: 0.000043  loss: 0.9863  time: 0.3460  data: 0.0000  max mem: 21118
+[semantic] step=12400 L_rec=1.101628 L_corr=0.009008 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1150/11297]  eta: 0:58:40  lr: 0.000043  loss: 0.2080  time: 0.3386  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1200/11297]  eta: 0:58:21  lr: 0.000043  loss: 0.9416  time: 0.3437  data: 0.0000  max mem: 21118
+[semantic] step=12500 L_rec=0.339926 L_corr=0.008008 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=12500 cosine_mse=0.868661 weighted=0.000434
+Train: data epoch: [1]  [ 1250/11297]  eta: 0:58:01  lr: 0.000042  loss: 0.8192  time: 0.3452  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1300/11297]  eta: 0:57:43  lr: 0.000042  loss: 0.2228  time: 0.3438  data: 0.0000  max mem: 21118
+[semantic] step=12600 L_rec=0.931680 L_corr=0.002377 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1350/11297]  eta: 0:57:23  lr: 0.000042  loss: 0.5226  time: 0.3412  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1400/11297]  eta: 0:57:06  lr: 0.000042  loss: 0.2190  time: 0.3519  data: 0.0000  max mem: 21118
+[semantic] step=12700 L_rec=0.378025 L_corr=0.002704 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1450/11297]  eta: 0:56:50  lr: 0.000042  loss: 0.4142  time: 0.3482  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1500/11297]  eta: 0:56:32  lr: 0.000042  loss: 1.3790  time: 0.3467  data: 0.0000  max mem: 21118
+[semantic] step=12800 L_rec=0.451800 L_corr=0.001440 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1550/11297]  eta: 0:56:13  lr: 0.000042  loss: 0.3101  time: 0.3413  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1600/11297]  eta: 0:55:55  lr: 0.000042  loss: 0.2983  time: 0.3478  data: 0.0000  max mem: 21118
+[semantic] step=12900 L_rec=1.145524 L_corr=0.007446 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1650/11297]  eta: 0:55:35  lr: 0.000042  loss: 0.8983  time: 0.3385  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1700/11297]  eta: 0:55:18  lr: 0.000042  loss: 1.0796  time: 0.3479  data: 0.0000  max mem: 21118
+[semantic] step=13000 L_rec=0.515872 L_corr=0.001559 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=13000 cosine_mse=0.845720 weighted=0.000423
+Train: data epoch: [1]  [ 1750/11297]  eta: 0:55:00  lr: 0.000042  loss: 0.3615  time: 0.3373  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1800/11297]  eta: 0:54:43  lr: 0.000042  loss: 0.2093  time: 0.3381  data: 0.0000  max mem: 21118
+[semantic] step=13100 L_rec=0.457614 L_corr=0.002232 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1850/11297]  eta: 0:54:25  lr: 0.000042  loss: 0.4375  time: 0.3470  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 1900/11297]  eta: 0:54:08  lr: 0.000042  loss: 0.2298  time: 0.3520  data: 0.0000  max mem: 21118
+[semantic] step=13200 L_rec=0.467378 L_corr=0.001773 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 1950/11297]  eta: 0:53:49  lr: 0.000042  loss: 0.2029  time: 0.3379  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2000/11297]  eta: 0:53:32  lr: 0.000042  loss: 0.3283  time: 0.3425  data: 0.0000  max mem: 21118
+[semantic] step=13300 L_rec=0.347637 L_corr=0.004016 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2050/11297]  eta: 0:53:14  lr: 0.000042  loss: 0.4311  time: 0.3424  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2100/11297]  eta: 0:52:57  lr: 0.000042  loss: 0.9380  time: 0.3482  data: 0.0000  max mem: 21118
+[semantic] step=13400 L_rec=0.235396 L_corr=0.002823 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2150/11297]  eta: 0:52:39  lr: 0.000041  loss: 0.7798  time: 0.3342  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2200/11297]  eta: 0:52:21  lr: 0.000041  loss: 0.8255  time: 0.3391  data: 0.0000  max mem: 21118
+[semantic] step=13500 L_rec=0.762363 L_corr=0.004026 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=13500 cosine_mse=0.777533 weighted=0.000389
+Train: data epoch: [1]  [ 2250/11297]  eta: 0:52:04  lr: 0.000041  loss: 0.3409  time: 0.3485  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2300/11297]  eta: 0:51:47  lr: 0.000041  loss: 0.1519  time: 0.3510  data: 0.0000  max mem: 21118
+[semantic] step=13600 L_rec=0.347694 L_corr=0.008896 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2350/11297]  eta: 0:51:30  lr: 0.000041  loss: 0.2541  time: 0.3452  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2400/11297]  eta: 0:51:12  lr: 0.000041  loss: 0.3144  time: 0.3439  data: 0.0000  max mem: 21118
+[semantic] step=13700 L_rec=0.370688 L_corr=0.001381 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2450/11297]  eta: 0:50:55  lr: 0.000041  loss: 0.0744  time: 0.3460  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2500/11297]  eta: 0:50:37  lr: 0.000041  loss: 0.4863  time: 0.3453  data: 0.0000  max mem: 21118
+[semantic] step=13800 L_rec=0.135475 L_corr=0.002117 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2550/11297]  eta: 0:50:19  lr: 0.000041  loss: 0.2408  time: 0.3446  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2600/11297]  eta: 0:50:02  lr: 0.000041  loss: 0.2751  time: 0.3466  data: 0.0000  max mem: 21118
+[semantic] step=13900 L_rec=1.042765 L_corr=0.002306 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2650/11297]  eta: 0:49:45  lr: 0.000041  loss: 0.5837  time: 0.3451  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2700/11297]  eta: 0:49:27  lr: 0.000041  loss: 0.1745  time: 0.3350  data: 0.0000  max mem: 21118
+[semantic] step=14000 L_rec=0.206726 L_corr=0.006878 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=14000 cosine_mse=0.804994 weighted=0.000402
+Train: data epoch: [1]  [ 2750/11297]  eta: 0:49:10  lr: 0.000041  loss: 0.0718  time: 0.3448  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2800/11297]  eta: 0:48:53  lr: 0.000041  loss: 0.1312  time: 0.3431  data: 0.0000  max mem: 21118
+[semantic] step=14100 L_rec=0.343364 L_corr=0.001753 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2850/11297]  eta: 0:48:35  lr: 0.000041  loss: 0.5871  time: 0.3329  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 2900/11297]  eta: 0:48:17  lr: 0.000041  loss: 0.6715  time: 0.3382  data: 0.0000  max mem: 21118
+[semantic] step=14200 L_rec=1.104952 L_corr=0.003793 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 2950/11297]  eta: 0:48:00  lr: 0.000041  loss: 0.4413  time: 0.3444  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3000/11297]  eta: 0:47:43  lr: 0.000041  loss: 0.5244  time: 0.3426  data: 0.0000  max mem: 21118
+[semantic] step=14300 L_rec=0.446300 L_corr=0.002103 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3050/11297]  eta: 0:47:26  lr: 0.000040  loss: 0.4497  time: 0.3515  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3100/11297]  eta: 0:47:09  lr: 0.000040  loss: 0.3763  time: 0.3470  data: 0.0000  max mem: 21118
+[semantic] step=14400 L_rec=0.199423 L_corr=0.003889 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3150/11297]  eta: 0:46:51  lr: 0.000040  loss: 0.3541  time: 0.3395  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3200/11297]  eta: 0:46:34  lr: 0.000040  loss: 0.6949  time: 0.3467  data: 0.0000  max mem: 21118
+[semantic] step=14500 L_rec=0.150656 L_corr=0.006340 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=14500 cosine_mse=0.790451 weighted=0.000395
+Train: data epoch: [1]  [ 3250/11297]  eta: 0:46:16  lr: 0.000040  loss: 0.2546  time: 0.3362  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3300/11297]  eta: 0:45:59  lr: 0.000040  loss: 0.2527  time: 0.3451  data: 0.0000  max mem: 21118
+[semantic] step=14600 L_rec=1.707460 L_corr=0.002299 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3350/11297]  eta: 0:45:42  lr: 0.000040  loss: 0.4331  time: 0.3498  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3400/11297]  eta: 0:45:24  lr: 0.000040  loss: 0.6042  time: 0.3382  data: 0.0000  max mem: 21118
+[semantic] step=14700 L_rec=0.276989 L_corr=0.003710 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3450/11297]  eta: 0:45:08  lr: 0.000040  loss: 0.1001  time: 0.3514  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3500/11297]  eta: 0:44:50  lr: 0.000040  loss: 0.3172  time: 0.3451  data: 0.0000  max mem: 21118
+[semantic] step=14800 L_rec=0.236025 L_corr=0.008024 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3550/11297]  eta: 0:44:33  lr: 0.000040  loss: 0.4046  time: 0.3443  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3600/11297]  eta: 0:44:16  lr: 0.000040  loss: 0.4691  time: 0.3379  data: 0.0000  max mem: 21118
+[semantic] step=14900 L_rec=0.381842 L_corr=0.001324 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3650/11297]  eta: 0:43:58  lr: 0.000040  loss: 0.1386  time: 0.3434  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3700/11297]  eta: 0:43:41  lr: 0.000040  loss: 0.6146  time: 0.3418  data: 0.0000  max mem: 21118
+[semantic] step=15000 L_rec=0.212383 L_corr=0.002097 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=15000 cosine_mse=0.844236 weighted=0.000422
+Train: data epoch: [1]  [ 3750/11297]  eta: 0:43:24  lr: 0.000040  loss: 0.4912  time: 0.3460  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3800/11297]  eta: 0:43:07  lr: 0.000040  loss: 0.6423  time: 0.3460  data: 0.0000  max mem: 21118
+[semantic] step=15100 L_rec=0.430226 L_corr=0.001904 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3850/11297]  eta: 0:42:50  lr: 0.000040  loss: 0.0856  time: 0.3470  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 3900/11297]  eta: 0:42:32  lr: 0.000040  loss: 0.0974  time: 0.3482  data: 0.0000  max mem: 21118
+[semantic] step=15200 L_rec=0.562963 L_corr=0.003222 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 3950/11297]  eta: 0:42:15  lr: 0.000039  loss: 0.7575  time: 0.3524  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 4000/11297]  eta: 0:41:57  lr: 0.000039  loss: 1.2368  time: 0.3449  data: 0.0000  max mem: 21118
+[semantic] step=15300 L_rec=0.122104 L_corr=0.002382 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4050/11297]  eta: 0:41:41  lr: 0.000039  loss: 1.2389  time: 0.3472  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 4100/11297]  eta: 0:41:24  lr: 0.000039  loss: 0.0976  time: 0.3508  data: 0.0000  max mem: 21118
+[semantic] step=15400 L_rec=0.069873 L_corr=0.001642 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4150/11297]  eta: 0:41:06  lr: 0.000039  loss: 0.0674  time: 0.3348  data: 0.0000  max mem: 21118
+Train: data epoch: [1]  [ 4200/11297]  eta: 0:40:49  lr: 0.000039  loss: 0.1025  time: 0.3449  data: 0.0000  max mem: 21118
+[semantic] step=15500 L_rec=1.064303 L_corr=0.002602 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=15500 cosine_mse=0.823156 weighted=0.000412
+Train: data epoch: [1]  [ 4250/11297]  eta: 0:40:31  lr: 0.000039  loss: 0.3289  time: 0.3441  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4300/11297]  eta: 0:40:14  lr: 0.000039  loss: 0.7077  time: 0.3468  data: 0.0000  max mem: 21125
+[semantic] step=15600 L_rec=0.289876 L_corr=0.004496 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4350/11297]  eta: 0:39:57  lr: 0.000039  loss: 0.1182  time: 0.3401  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4400/11297]  eta: 0:39:39  lr: 0.000039  loss: 0.5332  time: 0.3414  data: 0.0000  max mem: 21125
+[semantic] step=15700 L_rec=0.445067 L_corr=0.002448 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4450/11297]  eta: 0:39:22  lr: 0.000039  loss: 0.4056  time: 0.3500  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4500/11297]  eta: 0:39:05  lr: 0.000039  loss: 0.4927  time: 0.3503  data: 0.0000  max mem: 21125
+[semantic] step=15800 L_rec=0.133545 L_corr=0.005405 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4550/11297]  eta: 0:38:48  lr: 0.000039  loss: 0.1178  time: 0.3412  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4600/11297]  eta: 0:38:31  lr: 0.000039  loss: 0.7145  time: 0.3460  data: 0.0000  max mem: 21125
+[semantic] step=15900 L_rec=0.779536 L_corr=0.003585 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4650/11297]  eta: 0:38:14  lr: 0.000039  loss: 0.2740  time: 0.3461  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4700/11297]  eta: 0:37:56  lr: 0.000039  loss: 1.1246  time: 0.3410  data: 0.0000  max mem: 21125
+[semantic] step=16000 L_rec=0.445036 L_corr=0.001822 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=16000 cosine_mse=0.784152 weighted=0.000392
+Train: data epoch: [1]  [ 4750/11297]  eta: 0:37:39  lr: 0.000039  loss: 0.3490  time: 0.3495  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4800/11297]  eta: 0:37:21  lr: 0.000038  loss: 0.0921  time: 0.3406  data: 0.0000  max mem: 21125
+[semantic] step=16100 L_rec=0.150013 L_corr=0.002729 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4850/11297]  eta: 0:37:04  lr: 0.000038  loss: 0.4681  time: 0.3509  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 4900/11297]  eta: 0:36:47  lr: 0.000038  loss: 0.3912  time: 0.3481  data: 0.0000  max mem: 21125
+[semantic] step=16200 L_rec=0.565429 L_corr=0.002921 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 4950/11297]  eta: 0:36:30  lr: 0.000038  loss: 0.5154  time: 0.3434  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5000/11297]  eta: 0:36:13  lr: 0.000038  loss: 0.8841  time: 0.3569  data: 0.0000  max mem: 21125
+[semantic] step=16300 L_rec=0.547761 L_corr=0.001891 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5050/11297]  eta: 0:35:55  lr: 0.000038  loss: 0.5699  time: 0.3409  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5100/11297]  eta: 0:35:38  lr: 0.000038  loss: 0.2348  time: 0.3440  data: 0.0000  max mem: 21125
+[semantic] step=16400 L_rec=0.925749 L_corr=0.004108 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5150/11297]  eta: 0:35:21  lr: 0.000038  loss: 0.2861  time: 0.3435  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5200/11297]  eta: 0:35:03  lr: 0.000038  loss: 0.6065  time: 0.3473  data: 0.0000  max mem: 21125
+[semantic] step=16500 L_rec=0.144614 L_corr=0.007521 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=16500 cosine_mse=0.815186 weighted=0.000408
+Train: data epoch: [1]  [ 5250/11297]  eta: 0:34:46  lr: 0.000038  loss: 0.1937  time: 0.3370  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5300/11297]  eta: 0:34:29  lr: 0.000038  loss: 0.5616  time: 0.3436  data: 0.0000  max mem: 21125
+[semantic] step=16600 L_rec=0.533518 L_corr=0.003746 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5350/11297]  eta: 0:34:12  lr: 0.000038  loss: 0.4109  time: 0.3474  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5400/11297]  eta: 0:33:55  lr: 0.000038  loss: 0.0949  time: 0.3452  data: 0.0000  max mem: 21125
+[semantic] step=16700 L_rec=0.112471 L_corr=0.008153 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5450/11297]  eta: 0:33:37  lr: 0.000038  loss: 0.8930  time: 0.3511  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5500/11297]  eta: 0:33:20  lr: 0.000038  loss: 0.1478  time: 0.3507  data: 0.0000  max mem: 21125
+[semantic] step=16800 L_rec=0.369834 L_corr=0.001732 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5550/11297]  eta: 0:33:03  lr: 0.000038  loss: 0.8231  time: 0.3390  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5600/11297]  eta: 0:32:46  lr: 0.000038  loss: 0.2279  time: 0.3543  data: 0.0000  max mem: 21125
+[semantic] step=16900 L_rec=1.027195 L_corr=0.001774 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5650/11297]  eta: 0:32:28  lr: 0.000037  loss: 0.4137  time: 0.3462  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5700/11297]  eta: 0:32:11  lr: 0.000037  loss: 0.7493  time: 0.3466  data: 0.0000  max mem: 21125
+[semantic] step=17000 L_rec=0.289721 L_corr=0.001661 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=17000 cosine_mse=0.825446 weighted=0.000413
+Train: data epoch: [1]  [ 5750/11297]  eta: 0:31:54  lr: 0.000037  loss: 0.2077  time: 0.3418  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5800/11297]  eta: 0:31:37  lr: 0.000037  loss: 1.0342  time: 0.3410  data: 0.0000  max mem: 21125
+[semantic] step=17100 L_rec=0.207271 L_corr=0.003088 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5850/11297]  eta: 0:31:19  lr: 0.000037  loss: 0.4175  time: 0.3436  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 5900/11297]  eta: 0:31:02  lr: 0.000037  loss: 0.5243  time: 0.3527  data: 0.0000  max mem: 21125
+[semantic] step=17200 L_rec=0.763750 L_corr=0.001859 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 5950/11297]  eta: 0:30:45  lr: 0.000037  loss: 0.3467  time: 0.3448  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6000/11297]  eta: 0:30:28  lr: 0.000037  loss: 0.2689  time: 0.3458  data: 0.0000  max mem: 21125
+[semantic] step=17300 L_rec=0.582063 L_corr=0.002957 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6050/11297]  eta: 0:30:11  lr: 0.000037  loss: 1.0358  time: 0.3452  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6100/11297]  eta: 0:29:53  lr: 0.000037  loss: 0.3609  time: 0.3373  data: 0.0000  max mem: 21125
+[semantic] step=17400 L_rec=0.485699 L_corr=0.005182 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6150/11297]  eta: 0:29:36  lr: 0.000037  loss: 0.4533  time: 0.3440  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6200/11297]  eta: 0:29:19  lr: 0.000037  loss: 0.6782  time: 0.3403  data: 0.0000  max mem: 21125
+[semantic] step=17500 L_rec=0.100607 L_corr=0.001211 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=17500 cosine_mse=0.797430 weighted=0.000399
+Train: data epoch: [1]  [ 6250/11297]  eta: 0:29:02  lr: 0.000037  loss: 0.3581  time: 0.3480  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6300/11297]  eta: 0:28:44  lr: 0.000037  loss: 0.1188  time: 0.3340  data: 0.0000  max mem: 21125
+[semantic] step=17600 L_rec=0.465622 L_corr=0.003581 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6350/11297]  eta: 0:28:27  lr: 0.000037  loss: 0.1879  time: 0.3471  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6400/11297]  eta: 0:28:10  lr: 0.000037  loss: 0.3377  time: 0.3464  data: 0.0000  max mem: 21125
+[semantic] step=17700 L_rec=0.119556 L_corr=0.001634 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6450/11297]  eta: 0:27:52  lr: 0.000037  loss: 0.9641  time: 0.3462  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6500/11297]  eta: 0:27:35  lr: 0.000037  loss: 0.0864  time: 0.3409  data: 0.0000  max mem: 21125
+[semantic] step=17800 L_rec=0.177730 L_corr=0.003060 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6550/11297]  eta: 0:27:18  lr: 0.000036  loss: 0.6007  time: 0.3384  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6600/11297]  eta: 0:27:00  lr: 0.000036  loss: 0.2835  time: 0.3436  data: 0.0000  max mem: 21125
+[semantic] step=17900 L_rec=0.181392 L_corr=0.002675 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6650/11297]  eta: 0:26:43  lr: 0.000036  loss: 0.2382  time: 0.3461  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6700/11297]  eta: 0:26:26  lr: 0.000036  loss: 0.9892  time: 0.3437  data: 0.0000  max mem: 21125
+[semantic] step=18000 L_rec=0.399135 L_corr=0.003018 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=18000 cosine_mse=0.835861 weighted=0.000418
+Train: data epoch: [1]  [ 6750/11297]  eta: 0:26:09  lr: 0.000036  loss: 0.2497  time: 0.3458  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6800/11297]  eta: 0:25:52  lr: 0.000036  loss: 0.4603  time: 0.3523  data: 0.0000  max mem: 21125
+[semantic] step=18100 L_rec=0.570997 L_corr=0.004746 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6850/11297]  eta: 0:25:34  lr: 0.000036  loss: 0.2198  time: 0.3482  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 6900/11297]  eta: 0:25:17  lr: 0.000036  loss: 0.6853  time: 0.3529  data: 0.0000  max mem: 21125
+[semantic] step=18200 L_rec=0.676538 L_corr=0.004045 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 6950/11297]  eta: 0:25:00  lr: 0.000036  loss: 0.5260  time: 0.3442  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7000/11297]  eta: 0:24:43  lr: 0.000036  loss: 0.4088  time: 0.3387  data: 0.0000  max mem: 21125
+[semantic] step=18300 L_rec=0.332670 L_corr=0.003503 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7050/11297]  eta: 0:24:25  lr: 0.000036  loss: 0.1988  time: 0.3455  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7100/11297]  eta: 0:24:08  lr: 0.000036  loss: 0.5519  time: 0.3398  data: 0.0000  max mem: 21125
+[semantic] step=18400 L_rec=1.025831 L_corr=0.003136 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7150/11297]  eta: 0:23:51  lr: 0.000036  loss: 0.4993  time: 0.3445  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7200/11297]  eta: 0:23:33  lr: 0.000036  loss: 0.7356  time: 0.3388  data: 0.0000  max mem: 21125
+[semantic] step=18500 L_rec=0.399228 L_corr=0.001401 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=18500 cosine_mse=0.781425 weighted=0.000391
+Train: data epoch: [1]  [ 7250/11297]  eta: 0:23:16  lr: 0.000036  loss: 0.1907  time: 0.3484  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7300/11297]  eta: 0:22:59  lr: 0.000036  loss: 0.2706  time: 0.3459  data: 0.0000  max mem: 21125
+[semantic] step=18600 L_rec=0.295345 L_corr=0.002580 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7350/11297]  eta: 0:22:42  lr: 0.000036  loss: 0.1619  time: 0.3479  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7400/11297]  eta: 0:22:24  lr: 0.000035  loss: 0.5147  time: 0.3483  data: 0.0000  max mem: 21125
+[semantic] step=18700 L_rec=0.689507 L_corr=0.003459 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7450/11297]  eta: 0:22:07  lr: 0.000035  loss: 0.1020  time: 0.3343  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7500/11297]  eta: 0:21:50  lr: 0.000035  loss: 0.5349  time: 0.3474  data: 0.0000  max mem: 21125
+[semantic] step=18800 L_rec=0.495070 L_corr=0.001814 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7550/11297]  eta: 0:21:33  lr: 0.000035  loss: 0.3212  time: 0.3518  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7600/11297]  eta: 0:21:15  lr: 0.000035  loss: 0.3541  time: 0.3416  data: 0.0000  max mem: 21125
+[semantic] step=18900 L_rec=0.630819 L_corr=0.002604 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7650/11297]  eta: 0:20:58  lr: 0.000035  loss: 0.4610  time: 0.3482  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7700/11297]  eta: 0:20:41  lr: 0.000035  loss: 0.9689  time: 0.3450  data: 0.0000  max mem: 21125
+[semantic] step=19000 L_rec=0.957968 L_corr=0.001504 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=19000 cosine_mse=0.799486 weighted=0.000400
+Train: data epoch: [1]  [ 7750/11297]  eta: 0:20:24  lr: 0.000035  loss: 0.3035  time: 0.3466  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7800/11297]  eta: 0:20:06  lr: 0.000035  loss: 0.2205  time: 0.3493  data: 0.0000  max mem: 21125
+[semantic] step=19100 L_rec=1.327201 L_corr=0.002354 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7850/11297]  eta: 0:19:49  lr: 0.000035  loss: 0.7040  time: 0.3516  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 7900/11297]  eta: 0:19:32  lr: 0.000035  loss: 0.4554  time: 0.3514  data: 0.0000  max mem: 21125
+[semantic] step=19200 L_rec=0.489768 L_corr=0.001337 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 7950/11297]  eta: 0:19:15  lr: 0.000035  loss: 0.2509  time: 0.3421  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8000/11297]  eta: 0:18:58  lr: 0.000035  loss: 0.0855  time: 0.3498  data: 0.0000  max mem: 21125
+[semantic] step=19300 L_rec=0.554236 L_corr=0.005199 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8050/11297]  eta: 0:18:40  lr: 0.000035  loss: 1.3935  time: 0.3402  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8100/11297]  eta: 0:18:23  lr: 0.000035  loss: 0.3938  time: 0.3385  data: 0.0000  max mem: 21125
+[semantic] step=19400 L_rec=0.802354 L_corr=0.001556 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8150/11297]  eta: 0:18:06  lr: 0.000035  loss: 0.4956  time: 0.3508  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8200/11297]  eta: 0:17:48  lr: 0.000035  loss: 0.7211  time: 0.3444  data: 0.0000  max mem: 21125
+[semantic] step=19500 L_rec=0.344177 L_corr=0.001860 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=19500 cosine_mse=0.815021 weighted=0.000408
+Train: data epoch: [1]  [ 8250/11297]  eta: 0:17:31  lr: 0.000035  loss: 0.7163  time: 0.3511  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8300/11297]  eta: 0:17:14  lr: 0.000034  loss: 0.5401  time: 0.3449  data: 0.0000  max mem: 21125
+[semantic] step=19600 L_rec=0.355028 L_corr=0.004586 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8350/11297]  eta: 0:16:57  lr: 0.000034  loss: 0.9101  time: 0.3425  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8400/11297]  eta: 0:16:39  lr: 0.000034  loss: 0.5343  time: 0.3453  data: 0.0000  max mem: 21125
+[semantic] step=19700 L_rec=0.299936 L_corr=0.001722 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8450/11297]  eta: 0:16:22  lr: 0.000034  loss: 0.0825  time: 0.3518  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8500/11297]  eta: 0:16:05  lr: 0.000034  loss: 0.2382  time: 0.3487  data: 0.0000  max mem: 21125
+[semantic] step=19800 L_rec=0.404674 L_corr=0.002271 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8550/11297]  eta: 0:15:48  lr: 0.000034  loss: 0.5274  time: 0.3430  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8600/11297]  eta: 0:15:30  lr: 0.000034  loss: 0.2274  time: 0.3459  data: 0.0000  max mem: 21125
+[semantic] step=19900 L_rec=0.348445 L_corr=0.006130 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8650/11297]  eta: 0:15:13  lr: 0.000034  loss: 0.3234  time: 0.3517  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8700/11297]  eta: 0:14:56  lr: 0.000034  loss: 0.9743  time: 0.3488  data: 0.0000  max mem: 21125
+[semantic] step=20000 L_rec=0.346029 L_corr=0.008144 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=20000 cosine_mse=0.823056 weighted=0.000412
+Train: data epoch: [1]  [ 8750/11297]  eta: 0:14:39  lr: 0.000034  loss: 0.3502  time: 0.3347  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8800/11297]  eta: 0:14:21  lr: 0.000034  loss: 0.0589  time: 0.3420  data: 0.0000  max mem: 21125
+[semantic] step=20100 L_rec=0.989030 L_corr=0.005256 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8850/11297]  eta: 0:14:04  lr: 0.000034  loss: 0.5837  time: 0.3460  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 8900/11297]  eta: 0:13:47  lr: 0.000034  loss: 0.3492  time: 0.3420  data: 0.0000  max mem: 21125
+[semantic] step=20200 L_rec=0.607658 L_corr=0.002785 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 8950/11297]  eta: 0:13:30  lr: 0.000034  loss: 0.4673  time: 0.3424  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9000/11297]  eta: 0:13:12  lr: 0.000034  loss: 0.0319  time: 0.3350  data: 0.0000  max mem: 21125
+[semantic] step=20300 L_rec=0.134674 L_corr=0.002535 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9050/11297]  eta: 0:12:55  lr: 0.000034  loss: 0.6033  time: 0.3433  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9100/11297]  eta: 0:12:38  lr: 0.000034  loss: 0.0910  time: 0.3537  data: 0.0000  max mem: 21125
+[semantic] step=20400 L_rec=0.069745 L_corr=0.006024 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9150/11297]  eta: 0:12:21  lr: 0.000034  loss: 0.2254  time: 0.3418  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9200/11297]  eta: 0:12:03  lr: 0.000033  loss: 0.3787  time: 0.3496  data: 0.0000  max mem: 21125
+[semantic] step=20500 L_rec=1.034486 L_corr=0.001759 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=20500 cosine_mse=0.792916 weighted=0.000396
+Train: data epoch: [1]  [ 9250/11297]  eta: 0:11:46  lr: 0.000033  loss: 0.1071  time: 0.3430  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9300/11297]  eta: 0:11:29  lr: 0.000033  loss: 0.5014  time: 0.3384  data: 0.0000  max mem: 21125
+[semantic] step=20600 L_rec=1.207626 L_corr=0.002413 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9350/11297]  eta: 0:11:12  lr: 0.000033  loss: 0.5920  time: 0.3404  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9400/11297]  eta: 0:10:54  lr: 0.000033  loss: 0.2687  time: 0.3489  data: 0.0000  max mem: 21125
+[semantic] step=20700 L_rec=0.793140 L_corr=0.001532 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9450/11297]  eta: 0:10:37  lr: 0.000033  loss: 0.6029  time: 0.3502  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9500/11297]  eta: 0:10:20  lr: 0.000033  loss: 0.3583  time: 0.3428  data: 0.0000  max mem: 21125
+[semantic] step=20800 L_rec=0.564772 L_corr=0.001165 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9550/11297]  eta: 0:10:03  lr: 0.000033  loss: 0.3262  time: 0.3442  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9600/11297]  eta: 0:09:45  lr: 0.000033  loss: 0.0439  time: 0.3396  data: 0.0000  max mem: 21125
+[semantic] step=20900 L_rec=0.493478 L_corr=0.005855 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9650/11297]  eta: 0:09:28  lr: 0.000033  loss: 0.6568  time: 0.3372  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9700/11297]  eta: 0:09:11  lr: 0.000033  loss: 0.3390  time: 0.3384  data: 0.0000  max mem: 21125
+[semantic] step=21000 L_rec=0.323190 L_corr=0.002170 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=21000 cosine_mse=0.814108 weighted=0.000407
+Train: data epoch: [1]  [ 9750/11297]  eta: 0:08:53  lr: 0.000033  loss: 1.0472  time: 0.3402  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9800/11297]  eta: 0:08:36  lr: 0.000033  loss: 0.8393  time: 0.3468  data: 0.0000  max mem: 21125
+[semantic] step=21100 L_rec=0.568284 L_corr=0.001584 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9850/11297]  eta: 0:08:19  lr: 0.000033  loss: 0.3139  time: 0.3425  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [ 9900/11297]  eta: 0:08:02  lr: 0.000033  loss: 0.7460  time: 0.3465  data: 0.0000  max mem: 21125
+[semantic] step=21200 L_rec=0.298526 L_corr=0.001571 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [ 9950/11297]  eta: 0:07:44  lr: 0.000033  loss: 0.8319  time: 0.3536  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10000/11297]  eta: 0:07:27  lr: 0.000033  loss: 0.5688  time: 0.3453  data: 0.0000  max mem: 21125
+[semantic] step=21300 L_rec=0.896327 L_corr=0.000938 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10050/11297]  eta: 0:07:10  lr: 0.000033  loss: 0.3948  time: 0.3415  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10100/11297]  eta: 0:06:53  lr: 0.000032  loss: 0.5393  time: 0.3517  data: 0.0000  max mem: 21125
+[semantic] step=21400 L_rec=0.712768 L_corr=0.001155 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10150/11297]  eta: 0:06:35  lr: 0.000032  loss: 0.4052  time: 0.3497  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10200/11297]  eta: 0:06:18  lr: 0.000032  loss: 0.3448  time: 0.3442  data: 0.0000  max mem: 21125
+[semantic] step=21500 L_rec=0.465501 L_corr=0.001576 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=21500 cosine_mse=0.866537 weighted=0.000433
+Train: data epoch: [1]  [10250/11297]  eta: 0:06:01  lr: 0.000032  loss: 0.2324  time: 0.3474  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10300/11297]  eta: 0:05:44  lr: 0.000032  loss: 0.4029  time: 0.3478  data: 0.0000  max mem: 21125
+[semantic] step=21600 L_rec=0.258720 L_corr=0.003897 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10350/11297]  eta: 0:05:26  lr: 0.000032  loss: 0.5227  time: 0.3454  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10400/11297]  eta: 0:05:09  lr: 0.000032  loss: 0.7728  time: 0.3406  data: 0.0000  max mem: 21125
+[semantic] step=21700 L_rec=0.575157 L_corr=0.003500 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10450/11297]  eta: 0:04:52  lr: 0.000032  loss: 0.1447  time: 0.3366  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10500/11297]  eta: 0:04:35  lr: 0.000032  loss: 0.0721  time: 0.3474  data: 0.0000  max mem: 21125
+[semantic] step=21800 L_rec=0.946741 L_corr=0.004253 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10550/11297]  eta: 0:04:17  lr: 0.000032  loss: 0.2575  time: 0.3404  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10600/11297]  eta: 0:04:00  lr: 0.000032  loss: 0.6625  time: 0.3506  data: 0.0000  max mem: 21125
+[semantic] step=21900 L_rec=0.505880 L_corr=0.003297 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10650/11297]  eta: 0:03:43  lr: 0.000032  loss: 0.1357  time: 0.3400  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10700/11297]  eta: 0:03:26  lr: 0.000032  loss: 0.9259  time: 0.3511  data: 0.0000  max mem: 21125
+[semantic] step=22000 L_rec=0.728090 L_corr=0.002542 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=22000 cosine_mse=0.819336 weighted=0.000410
+Train: data epoch: [1]  [10750/11297]  eta: 0:03:08  lr: 0.000032  loss: 1.4871  time: 0.3375  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10800/11297]  eta: 0:02:51  lr: 0.000032  loss: 0.9543  time: 0.3519  data: 0.0000  max mem: 21125
+[semantic] step=22100 L_rec=0.735410 L_corr=0.001898 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10850/11297]  eta: 0:02:34  lr: 0.000032  loss: 0.2469  time: 0.3433  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [10900/11297]  eta: 0:02:16  lr: 0.000032  loss: 0.3743  time: 0.3513  data: 0.0000  max mem: 21125
+[semantic] step=22200 L_rec=0.804137 L_corr=0.000741 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [10950/11297]  eta: 0:01:59  lr: 0.000032  loss: 0.4068  time: 0.3447  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [11000/11297]  eta: 0:01:42  lr: 0.000032  loss: 1.2446  time: 0.3360  data: 0.0000  max mem: 21125
+[semantic] step=22300 L_rec=0.096003 L_corr=0.002398 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [11050/11297]  eta: 0:01:25  lr: 0.000031  loss: 0.3170  time: 0.3475  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [11100/11297]  eta: 0:01:07  lr: 0.000031  loss: 0.3162  time: 0.3477  data: 0.0000  max mem: 21125
+[semantic] step=22400 L_rec=0.465027 L_corr=0.002348 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [1]  [11150/11297]  eta: 0:00:50  lr: 0.000031  loss: 0.7214  time: 0.3418  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [11200/11297]  eta: 0:00:33  lr: 0.000031  loss: 0.2938  time: 0.3505  data: 0.0000  max mem: 21125
+[semantic] step=22500 L_rec=1.630363 L_corr=0.002160 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=22500 cosine_mse=0.845933 weighted=0.000423
+Train: data epoch: [1]  [11250/11297]  eta: 0:00:16  lr: 0.000031  loss: 0.3889  time: 0.3435  data: 0.0000  max mem: 21125
+Train: data epoch: [1]  [11296/11297]  eta: 0:00:00  lr: 0.000031  loss: 0.5184  time: 0.3548  data: 0.0000  max mem: 21125
+Train: data epoch: [1] Total time: 1:04:58 (0.3451 s / it)
+2026-10-11 00:51:07,359 [INFO] Averaged stats: lr: 0.000038  loss: 0.489142
+2026-10-11 00:51:07,359 [INFO] Evaluating on valid.
+Evaluation  [   0/1300]  eta: 0:03:20  loss: 0.2360  acc: 0.2500  time: 0.1542  data: 0.0012  max mem: 21125
+Evaluation  [ 260/1300]  eta: 0:02:36  loss: 0.3703  acc: 0.2500  time: 0.1483  data: 0.0006  max mem: 21125
+Evaluation  [ 520/1300]  eta: 0:01:57  loss: 0.7107  acc: 0.2500  time: 0.1519  data: 0.0006  max mem: 21125
+Evaluation  [ 780/1300]  eta: 0:01:18  loss: 0.5622  acc: 0.5000  time: 0.1507  data: 0.0006  max mem: 21125
+Evaluation  [1040/1300]  eta: 0:00:39  loss: 0.2540  acc: 0.5000  time: 0.1508  data: 0.0006  max mem: 21125
+Evaluation  [1299/1300]  eta: 0:00:00  loss: 0.3351  acc: 0.0000  time: 0.1493  data: 0.0006  max mem: 21125
+Evaluation Total time: 0:03:16 (0.1513 s / it)
+2026-10-11 00:54:24,131 [INFO] Averaged stats: loss: 0.630798  acc: 0.322500 ***auc: 0.7328835632321707 ***uauc:(0.6879526108156818, [20, 26, 33, 36, 37, 39, 40, 41, 49, 57, 72, 73, 79, 83, 85, 87, 93, 95, 104, 107, 108, 109, 110, 112, 119, 121, 124, 139, 142, 145, 147, 149, 155, 159, 164, 165, 170, 171, 173, 174, 175, 177, 178, 180, 185, 186, 193, 195, 197, 200, 204, 205, 207, 208, 210, 212, 214, 215, 221, 222, 226, 227, 228, 230, 231, 237, 242, 246, 247, 249, 250, 255, 260, 261, 264, 271, 273, 275, 277, 279, 282, 286, 291, 292, 296, 297, 298, 300, 304, 308, 309, 312, 314, 325, 327, 329, 336, 338, 340, 341, 345, 350, 353, 356, 364, 367, 368, 370, 377, 381, 382, 384, 389, 402, 426, 427, 428, 433, 434, 436, 441, 444, 446, 449, 451, 453, 458, 462, 466, 470, 472, 474, 475, 482, 484, 490, 494, 496, 498, 500, 512, 516, 521, 522, 529, 530, 531, 550, 558, 561, 562, 563, 566, 568, 569, 575, 576, 577, 581, 583, 598, 604, 607, 608, 609, 613, 617, 624, 626, 627, 628, 629, 630, 632, 633, 643, 645, 649, 650, 658, 664, 665, 669, 670, 671, 672, 676, 686, 690, 695, 696, 697, 698, 699, 700, 701, 702, 706, 707, 709, 712, 714, 718, 720, 725, 727, 728, 733, 744, 748, 752, 753, 758, 760, 761, 762, 767, 769, 772, 773, 774, 779, 784, 786, 788, 789, 793, 795, 797, 798, 799, 802, 803, 804, 809, 814, 818, 833], [1.0, 0.6499999999999999, 0.6666666666666666, 0.68, 0.8333333333333333, 1.0, 0.34693877551020413, 0.9130434782608695, 0.4285714285714286, 1.0, 0.6458333333333333, 0.8571428571428571, 0.7936507936507937, 0.8339691347320964, 0.125, 0.711038961038961, 1.0, 0.5833333333333333, 0.7666666666666667, 0.7263157894736842, 0.7885714285714286, 0.33333333333333337, 0.4666666666666667, 0.0, 0.75, 0.6868686868686869, 0.7857142857142858, 0.8666666666666667, 0.625, 0.6666666666666666, 0.8472222222222222, 0.8333333333333334, 0.578125, 1.0, 0.7691570881226053, 0.7443609022556391, 0.7625968992248062, 0.6805555555555556, 0.5, 0.625, 1.0, 0.4757692307692307, 1.0, 0.30000000000000004, 1.0, 1.0, 0.49696969696969706, 0.9, 1.0, 0.0, 1.0, 0.7757575757575759, 1.0, 0.8148148148148149, 0.8, 1.0, 0.5555555555555556, 0.6785714285714286, 0.48611111111111116, 0.44270833333333337, 0.3571428571428571, 1.0, 0.8329197684036393, 0.6166666666666667, 0.7891737891737892, 1.0, 0.75, 0.3333333333333333, 0.5, 0.5289256198347108, 0.7727272727272727, 0.3333333333333333, 0.5, 0.6861111111111111, 0.5714285714285714, 0.625, 0.8015873015873015, 0.6157894736842106, 0.8248447204968944, 0.8333333333333334, 0.5555555555555556, 0.5592592592592592, 0.6538461538461539, 0.9109347442680776, 0.5763888888888888, 0.5418300653594771, 0.5871794871794872, 0.6685714285714286, 0.8421052631578947, 0.9294117647058824, 0.9747899159663864, 0.3492063492063492, 0.8333333333333334, 1.0, 1.0, 0.75, 0.0, 0.7, 0.6666666666666666, 0.875, 0.6615384615384616, 0.6875, 0.4444444444444444, 0.5, 0.5718954248366013, 0.7142857142857143, 0.6666666666666666, 0.8, 1.0, 0.6296296296296297, 0.7222222222222223, 0.3333333333333333, 0.603448275862069, 0.8, 0.675, 0.6666666666666666, 1.0, 0.6000000000000001, 0.7243055555555555, 0.875, 0.6274509803921569, 1.0, 0.6701388888888888, 0.9642857142857143, 1.0, 0.8333333333333334, 0.5556586270871986, 0.8369565217391304, 1.0, 0.4102564102564103, 1.0, 1.0, 0.8041958041958043, 1.0, 0.0, 0.375, 0.8125, 0.0, 0.46875, 0.0, 0.625, 0.838655462184874, 1.0, 0.5416666666666667, 0.5833333333333334, 0.5333333333333333, 0.6791443850267379, 0.6666666666666667, 0.625, 0.0, 0.5, 0.8928571428571429, 1.0, 0.5811965811965812, 0.5356472795497186, 0.6875, 0.75, 1.0, 1.0, 0.9583333333333334, 0.9375, 0.0, 0.7607843137254902, 0.5715846994535518, 0.6607142857142857, 0.4523809523809524, 0.4444444444444444, 0.8333333333333333, 0.6, 0.7373737373737373, 0.5, 0.7634734317808911, 0.7179487179487181, 0.5555555555555556, 0.75, 0.5441101478837328, 0.75, 1.0, 1.0, 0.8333333333333334, 1.0, 0.6025641025641026, 0.75, 1.0, 0.5625, 0.75, 1.0, 0.42, 1.0, 0.0, 0.9090909090909091, 1.0, 0.6837606837606838, 1.0, 1.0, 0.33333333333333337, 0.7777777777777778, 0.7655913978494624, 0.36, 0.6088235294117648, 0.4887278582930757, 0.35714285714285715, 0.6470588235294117, 0.6727272727272727, 0.6111111111111112, 0.33333333333333337, 0.6666666666666667, 0.6346153846153846, 0.8181818181818181, 0.0, 0.5, 0.4, 0.8125, 0.75, 0.0, 0.7428571428571428, 1.0, 1.0, 1.0, 0.6487179487179487, 0.9081632653061225, 0.8787878787878788, 0.9333333333333333, 1.0, 0.8333333333333334, 0.6666666666666667, 0.2857142857142857, 1.0, 0.717948717948718, 0.8368055555555556, 0.9166666666666666, 0.6812151981657385, 0.0, 0.803030303030303, 0.8333333333333334, 0.6218487394957983, 0.8125, 0.7095588235294118])
+rank_0 auc: 0.7328835632321707
+2026-10-11 00:54:24,141 [INFO] Saving checkpoint at epoch 1 to /home/bbx/user_lx/GraphLoRA/output/S2_groups_acc3/20261010223/checkpoint_best.pth.
+2026-10-11 00:54:24,365 [INFO] Saving checkpoint at epoch 1 to /home/bbx/user_lx/GraphLoRA/output/S2_groups_acc3/20261010223/checkpoint_1.pth.
+2026-10-11 00:54:24,522 [INFO] Start training
+2026-10-11 00:54:24,534 [INFO] Start training epoch 2, 11297 iters per inner epoch.
+/home/bbx/user_lx/GraphLoRA/minigpt4/tasks/base_task.py:225: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=use_amp):
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/rec_model.py:48: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  return torch.cuda.amp.autocast(dtype=dtype)
+/home/bbx/user_lx/GraphLoRA/minigpt4/models/minigpt4rec_v2.py:1080: FutureWarning: `torch.cuda.amp.autocast(args...)` is deprecated. Please use `torch.amp.autocast('cuda', args...)` instead.
+  with torch.cuda.amp.autocast(enabled=False):
+Train: data epoch: [2]  [    0/11297]  eta: 7:30:25  lr: 0.000031  loss: 0.2144  time: 2.3923  data: 0.0000  max mem: 21125
+[semantic] step=22600 L_rec=0.936962 L_corr=0.001501 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [   50/11297]  eta: 1:13:01  lr: 0.000031  loss: 0.1571  time: 0.3497  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  100/11297]  eta: 1:08:48  lr: 0.000031  loss: 0.2935  time: 0.3475  data: 0.0000  max mem: 21125
+[semantic] step=22700 L_rec=0.595717 L_corr=0.002060 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  150/11297]  eta: 1:07:08  lr: 0.000031  loss: 1.3844  time: 0.3466  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  200/11297]  eta: 1:06:11  lr: 0.000031  loss: 0.1446  time: 0.3511  data: 0.0000  max mem: 21125
+[semantic] step=22800 L_rec=0.301130 L_corr=0.001474 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  250/11297]  eta: 1:05:14  lr: 0.000031  loss: 0.2191  time: 0.3380  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  300/11297]  eta: 1:04:43  lr: 0.000031  loss: 0.4710  time: 0.3438  data: 0.0000  max mem: 21125
+[semantic] step=22900 L_rec=0.678328 L_corr=0.002178 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  350/11297]  eta: 1:04:05  lr: 0.000031  loss: 0.3342  time: 0.3404  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  400/11297]  eta: 1:03:38  lr: 0.000031  loss: 0.4067  time: 0.3453  data: 0.0000  max mem: 21125
+[semantic] step=23000 L_rec=0.389237 L_corr=0.003556 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=23000 cosine_mse=0.796537 weighted=0.000398
+Train: data epoch: [2]  [  450/11297]  eta: 1:03:15  lr: 0.000031  loss: 0.3711  time: 0.3472  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  500/11297]  eta: 1:02:53  lr: 0.000031  loss: 0.7210  time: 0.3457  data: 0.0000  max mem: 21125
+[semantic] step=23100 L_rec=0.449031 L_corr=0.000950 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  550/11297]  eta: 1:02:29  lr: 0.000031  loss: 0.3776  time: 0.3390  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  600/11297]  eta: 1:02:09  lr: 0.000031  loss: 0.7221  time: 0.3440  data: 0.0000  max mem: 21125
+[semantic] step=23200 L_rec=0.144513 L_corr=0.001626 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  650/11297]  eta: 1:01:42  lr: 0.000031  loss: 0.6064  time: 0.3371  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  700/11297]  eta: 1:01:18  lr: 0.000031  loss: 0.9020  time: 0.3427  data: 0.0000  max mem: 21125
+[semantic] step=23300 L_rec=0.035164 L_corr=0.001338 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  750/11297]  eta: 1:00:58  lr: 0.000031  loss: 0.2325  time: 0.3404  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  800/11297]  eta: 1:00:39  lr: 0.000030  loss: 0.5245  time: 0.3414  data: 0.0000  max mem: 21125
+[semantic] step=23400 L_rec=0.264515 L_corr=0.001474 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [  850/11297]  eta: 1:00:20  lr: 0.000030  loss: 0.6680  time: 0.3486  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [  900/11297]  eta: 1:00:03  lr: 0.000030  loss: 0.4476  time: 0.3487  data: 0.0000  max mem: 21125
+[semantic] step=23500 L_rec=0.336236 L_corr=0.001454 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=23500 cosine_mse=0.797471 weighted=0.000399
+Train: data epoch: [2]  [  950/11297]  eta: 0:59:46  lr: 0.000030  loss: 0.2754  time: 0.3510  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1000/11297]  eta: 0:59:27  lr: 0.000030  loss: 0.5025  time: 0.3479  data: 0.0000  max mem: 21125
+[semantic] step=23600 L_rec=1.197861 L_corr=0.002092 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1050/11297]  eta: 0:59:08  lr: 0.000030  loss: 0.6052  time: 0.3402  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1100/11297]  eta: 0:58:49  lr: 0.000030  loss: 0.2629  time: 0.3385  data: 0.0000  max mem: 21125
+[semantic] step=23700 L_rec=0.165264 L_corr=0.006068 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1150/11297]  eta: 0:58:31  lr: 0.000030  loss: 0.1382  time: 0.3477  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1200/11297]  eta: 0:58:12  lr: 0.000030  loss: 0.0671  time: 0.3448  data: 0.0000  max mem: 21125
+[semantic] step=23800 L_rec=0.712911 L_corr=0.004153 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1250/11297]  eta: 0:57:54  lr: 0.000030  loss: 1.1143  time: 0.3420  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1300/11297]  eta: 0:57:34  lr: 0.000030  loss: 0.7114  time: 0.3439  data: 0.0000  max mem: 21125
+[semantic] step=23900 L_rec=0.526956 L_corr=0.001102 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1350/11297]  eta: 0:57:16  lr: 0.000030  loss: 0.2883  time: 0.3440  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1400/11297]  eta: 0:57:00  lr: 0.000030  loss: 0.5188  time: 0.3471  data: 0.0000  max mem: 21125
+[semantic] step=24000 L_rec=0.121239 L_corr=0.001883 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=24000 cosine_mse=0.830780 weighted=0.000415
+Train: data epoch: [2]  [ 1450/11297]  eta: 0:56:42  lr: 0.000030  loss: 0.3350  time: 0.3462  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1500/11297]  eta: 0:56:25  lr: 0.000030  loss: 0.8825  time: 0.3466  data: 0.0000  max mem: 21125
+[semantic] step=24100 L_rec=1.199543 L_corr=0.001519 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1550/11297]  eta: 0:56:07  lr: 0.000030  loss: 0.0593  time: 0.3447  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1600/11297]  eta: 0:55:50  lr: 0.000030  loss: 0.7601  time: 0.3505  data: 0.0000  max mem: 21125
+[semantic] step=24200 L_rec=0.224012 L_corr=0.002347 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1650/11297]  eta: 0:55:32  lr: 0.000030  loss: 0.4045  time: 0.3445  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1700/11297]  eta: 0:55:15  lr: 0.000030  loss: 0.3640  time: 0.3479  data: 0.0000  max mem: 21125
+[semantic] step=24300 L_rec=0.295052 L_corr=0.002100 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1750/11297]  eta: 0:54:58  lr: 0.000030  loss: 0.8287  time: 0.3476  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1800/11297]  eta: 0:54:41  lr: 0.000030  loss: 0.2817  time: 0.3449  data: 0.0000  max mem: 21125
+[semantic] step=24400 L_rec=0.388945 L_corr=0.003242 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 1850/11297]  eta: 0:54:23  lr: 0.000029  loss: 0.0633  time: 0.3457  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 1900/11297]  eta: 0:54:05  lr: 0.000029  loss: 0.6005  time: 0.3392  data: 0.0000  max mem: 21125
+[semantic] step=24500 L_rec=0.204762 L_corr=0.001506 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=24500 cosine_mse=0.751938 weighted=0.000376
+Train: data epoch: [2]  [ 1950/11297]  eta: 0:53:48  lr: 0.000029  loss: 0.2533  time: 0.3487  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2000/11297]  eta: 0:53:31  lr: 0.000029  loss: 0.5622  time: 0.3469  data: 0.0000  max mem: 21125
+[semantic] step=24600 L_rec=0.334939 L_corr=0.002744 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 2050/11297]  eta: 0:53:14  lr: 0.000029  loss: 0.3066  time: 0.3486  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2100/11297]  eta: 0:52:56  lr: 0.000029  loss: 0.1543  time: 0.3466  data: 0.0000  max mem: 21125
+[semantic] step=24700 L_rec=0.335011 L_corr=0.002819 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 2150/11297]  eta: 0:52:39  lr: 0.000029  loss: 0.3977  time: 0.3495  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2200/11297]  eta: 0:52:22  lr: 0.000029  loss: 0.1998  time: 0.3482  data: 0.0000  max mem: 21125
+[semantic] step=24800 L_rec=0.096567 L_corr=0.002322 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 2250/11297]  eta: 0:52:05  lr: 0.000029  loss: 0.4410  time: 0.3438  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2300/11297]  eta: 0:51:48  lr: 0.000029  loss: 0.0819  time: 0.3480  data: 0.0000  max mem: 21125
+[semantic] step=24900 L_rec=0.119366 L_corr=0.001778 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 2350/11297]  eta: 0:51:31  lr: 0.000029  loss: 0.0377  time: 0.3451  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2400/11297]  eta: 0:51:13  lr: 0.000029  loss: 1.4142  time: 0.3467  data: 0.0000  max mem: 21125
+[semantic] step=25000 L_rec=0.648400 L_corr=0.002102 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+[projector-reg] step=25000 cosine_mse=0.817713 weighted=0.000409
+Train: data epoch: [2]  [ 2450/11297]  eta: 0:50:57  lr: 0.000029  loss: 0.7831  time: 0.3420  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2500/11297]  eta: 0:50:40  lr: 0.000029  loss: 0.3751  time: 0.3459  data: 0.0000  max mem: 21125
+[semantic] step=25100 L_rec=0.143973 L_corr=0.001806 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 2550/11297]  eta: 0:50:21  lr: 0.000029  loss: 0.3993  time: 0.3413  data: 0.0000  max mem: 21125
+Train: data epoch: [2]  [ 2600/11297]  eta: 0:50:03  lr: 0.000029  loss: 0.1974  time: 0.3413  data: 0.0000  max mem: 21125
+[semantic] step=25200 L_rec=0.458637 L_corr=0.001225 corr_w=0.000100 alpha=0.0 rho=0.05 in_path=True trunk_grad=False rec->gnn=True
+Train: data epoch: [2]  [ 2650/11297]  eta: 0:49:45  lr: 0.000029  loss: 0.4162  time: 0.3382  data: 0.0000  max mem: 21125

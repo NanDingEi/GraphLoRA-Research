@@ -87,6 +87,7 @@ class LinearWarmupCosineLRScheduler:
                 max_step=self.warmup_steps,
                 init_lr=self.warmup_start_lr,
                 max_lr=self.init_lr,
+                total_step=total_cur_step,
             )
         else:
             cosine_lr_schedule(
@@ -98,24 +99,35 @@ class LinearWarmupCosineLRScheduler:
             )
 
 
+def _effective_scale(param_group, total_step=None):
+    """Per-group lr multiplier (FX2/FX4). Groups without "lr_scale" behave
+    exactly as before. An optional "lr_scale_start_step" keeps the multiplier
+    at 0 until the global step reaches it (delayed capacity activation)."""
+    s = param_group.get("lr_scale", 1.0)
+    t0 = param_group.get("lr_scale_start_step")
+    if t0 is not None and (total_step is None or total_step < t0):
+        return 0.0
+    return s
+
+
 def cosine_lr_schedule(optimizer, epoch, max_epoch, init_lr, min_lr):
     """Decay the learning rate"""
     lr = (init_lr - min_lr) * 0.5 * (
         1.0 + math.cos(math.pi * epoch / max_epoch)
     ) + min_lr
     for param_group in optimizer.param_groups:
-        param_group["lr"] = lr
+        param_group["lr"] = lr * param_group.get("lr_scale", 1.0)  # graphlora-train-controls-v1 * _effective_scale(param_group, total_step=epoch)
 
 
-def warmup_lr_schedule(optimizer, step, max_step, init_lr, max_lr):
+def warmup_lr_schedule(optimizer, step, max_step, init_lr, max_lr, total_step=None):
     """Warmup the learning rate"""
     lr = min(max_lr, init_lr + (max_lr - init_lr) * step / max(max_step, 1))
     for param_group in optimizer.param_groups:
-        param_group["lr"] = lr
+        param_group["lr"] = lr * param_group.get("lr_scale", 1.0)  # graphlora-train-controls-v1 * _effective_scale(param_group, total_step=total_step)
 
 
 def step_lr_schedule(optimizer, epoch, init_lr, min_lr, decay_rate):
     """Decay the learning rate"""
     lr = max(min_lr, init_lr * (decay_rate**epoch))
     for param_group in optimizer.param_groups:
-        param_group["lr"] = lr
+        param_group["lr"] = lr * param_group.get("lr_scale", 1.0)  # graphlora-train-controls-v1 * _effective_scale(param_group, total_step=epoch)

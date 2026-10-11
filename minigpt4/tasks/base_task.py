@@ -176,6 +176,10 @@ class BaseTask:
         training stops after #iters_per_epoch iterations.
         """
         use_amp = scaler is not None
+        # graphlora-train-controls-v1: valid accumulation factor.
+        accum_grad_iters = int(accum_grad_iters)
+        if accum_grad_iters < 1:
+            raise ValueError("accum_grad_iters must be >= 1")
 
         if not hasattr(data_loader, "__next__"):
             # convert to iterator if not already
@@ -222,24 +226,51 @@ class BaseTask:
                 loss = self.train_step(model=model, samples=samples)
 
             # after_train_step()
+            # Average each accumulation window, including the final shorter one.
+            # graphlora-train-controls-v1: no extra optimizer step is introduced.
+            window_size = min(
+                accum_grad_iters,
+                iters_per_epoch - (i // accum_grad_iters) * accum_grad_iters,
+            )
+            backward_loss = loss / window_size
             if use_amp:
-                scaler.scale(loss).backward()
+                scaler.scale(backward_loss).backward()
             else:
-                loss.backward()
+                backward_loss.backward()
             
             
 
             # update gradients every accum_grad_iters iterations
-            if (i + 1) % accum_grad_iters == 0:
+            if (i + 1) % accum_grad_iters == 0 or (i + 1) == iters_per_epoch:
                 if use_amp:
+                    # optional global grad-norm clipping (stabilization S1);
+                    # read from the model so any task can opt in via config
+                    gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
+                    if gc > 0:
+                        scaler.unscale_(optimizer)
+                        params = [p for g in optimizer.param_groups
+                                  for p in g["params"] if p.grad is not None]
+                        torch.nn.utils.clip_grad_norm_(params, gc)
                     scaler.step(optimizer)
-                    scaler.update()                     
-                else:    
+                    scaler.update()
+                else:
+                    gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
+                    if gc > 0:
+                        params = [p for g in optimizer.param_groups
+                                  for p in g["params"] if p.grad is not None]
+                        torch.nn.utils.clip_grad_norm_(params, gc)
                     optimizer.step()
                 optimizer.zero_grad()
 
             metric_logger.update(loss=loss.item())
             metric_logger.update(lr=optimizer.param_groups[0]["lr"])
+            # optional mid-epoch evaluation hook (set by the runner via
+            # run.mid_epoch_eval_iters): runs a validation pass at specific
+            # intra-epoch steps. The hook snapshots/restores every RNG state
+            # itself, so the training trajectory is untouched (bitwise).
+            _mid_hook = getattr(self, "mid_epoch_hook", None)
+            if _mid_hook is not None:
+                _mid_hook(cur_epoch=inner_epoch, cur_step=i, model=model)
             torch.cuda.empty_cache()
 
         # after train_epoch()
