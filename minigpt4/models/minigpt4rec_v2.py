@@ -1,6 +1,7 @@
 import logging
 import random
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
+from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion
 import torch
 from torch.cuda.amp import autocast as autocast
 import torch.nn as nn
@@ -336,6 +337,7 @@ class MyLinear(OriginalLinear):
         self.batch_indices = None
         self.token_positions = None
         self.local_node_ids = None
+        self.candidate_history_delta = None  # [N_ID, rank], target rows only
         # rank-wise pair modulation (optional): per-batch-row gate in R^r,
         # zero-init MLP => sigmoid(0)*2 = 1 => identity at start
         self.rel_pair_gate = None
@@ -430,6 +432,17 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor)
                         )
 
+                    # A1: sample-specific candidate-history evidence, applied at
+                    # the TARGET ID token only (never shared by node_id).
+                    # The candidate module is zero-init: initially delta == 0.
+                    if self.candidate_history_delta is not None:
+                        cand = self.candidate_history_delta[valid_mask].to(
+                            lora_a_output.dtype)
+                        lora_a_output[batch_indices, token_positions] = (
+                            lora_a_output[batch_indices, token_positions]
+                            + self.gnn_scale * self.warmup_factor * cand
+                        )
+
             if self.rel_pair_gate is not None:
                 # rank-wise pair modulation: g = 2*sigmoid(W c_ui) in (0,2),
                 # zero-init W => g == 1 (identity). Modulates the LoRA-A
@@ -489,6 +502,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             rel_inject=False,
             rel_gate=False,
             rel_rank_mod=False,
+            candidate_history_fusion=False,
+            candidate_hist_tau=0.2,
             sem_structural_skip=False,
             grad_clip=0.0,
             inj_warmup_start=0,
@@ -527,6 +542,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.gnn_semantic_align = bool(gnn_semantic_align)
         self.gnn_semantic_weight = float(gnn_semantic_weight)
         self.train_gnn_with_rec_loss = bool(train_gnn_with_rec_loss)
+        self.candidate_history_fusion = bool(candidate_history_fusion)
+        self.candidate_hist_tau = float(candidate_hist_tau)
+        self._candidate_hist_step = 0
 
         # Preference-level G->L distillation (v12 recipe): the GNN's group-wise
         # preference distribution is distilled into the LLM Yes-probability.
@@ -735,6 +753,17 @@ class MiniGPT4Rec_v2(Rec2Base):
 
             self.num_users = rec_config.user_num
             self.num_items = rec_config.item_num
+
+            if self.candidate_history_fusion:
+                if not isinstance(self.gcn, NGCF):
+                    raise ValueError("candidate_history_fusion currently requires NGCF")
+                self.candidate_fusion = CandidateHistoryFusion(
+                    dim=rec_config.embedding_size,
+                    rank=lora_config.r,
+                    temperature=self.candidate_hist_tau,
+                )
+                print("[candA] Candidate-history fusion ON; rank={} tau={} target-only"
+                      .format(lora_config.r, self.candidate_hist_tau), flush=True)
 
             if self.gnn_semantic_align and lora_gnn not in ("ngcf", "lightgcn"):
                 raise ValueError(
@@ -988,6 +1017,73 @@ class MiniGPT4Rec_v2(Rec2Base):
         sub_node_ids = torch.tensor(sub_nodes, dtype=torch.long, device=self.device)
         return sub_adj_matrix, sub_node_ids
 
+
+    def _candidate_history_residual(self, samples, samples_encode, sub_node_ids,
+                                    gcn_penult, batch_indices):
+        """Return per-ID-token rank residual, nonzero only for target tokens.
+
+        Uses the NGCF penultimate embeddings already computed for GraphLoRA.
+        The historical item IDs are the ones already present in the input.
+        Explicitly excludes PAD and target-item duplicates from the history.
+        """
+        num_rows = batch_indices.numel()
+        rank = self.candidate_fusion.encoder[-1].out_features
+        delta_rows = gcn_penult.new_zeros((num_rows, rank))
+        hist_ids = samples.get("InteractedItemIDs_pad")
+        target_rows = samples_encode.get("target_row_indices")
+        if hist_ids is None or target_rows is None or num_rows == 0:
+            return delta_rows
+
+        device = sub_node_ids.device
+        hist_ids = hist_ids.to(device=device, dtype=torch.long)
+        target_rows = target_rows.to(device=device, dtype=torch.long)
+        user_global = samples["UserID"].to(device=device, dtype=torch.long)
+        item_ids = samples["TargetItemID"].to(device=device, dtype=torch.long)
+        target_global = item_ids + self.num_users
+        hist_global = hist_ids + self.num_users
+        n_nodes = sub_node_ids.numel()
+
+        # get_subgraph() sorts node IDs, allowing vectorized lookup.
+        def locate(global_ids):
+            ix = torch.searchsorted(sub_node_ids, global_ids.contiguous())
+            hit = (ix < n_nodes) & (sub_node_ids[ix.clamp(max=n_nodes - 1)] == global_ids)
+            return ix.clamp(max=n_nodes - 1), hit
+
+        u_loc, u_found = locate(user_global)
+        t_loc, t_found = locate(target_global)
+        h_loc, h_found = locate(hist_global)
+
+        valid_hist = (hist_ids != 0) & (hist_ids != item_ids.unsqueeze(1)) & h_found
+        good_row = (target_rows >= 0) & (target_rows < num_rows)
+        good_row = good_row & (
+            batch_indices[target_rows.clamp(min=0, max=num_rows - 1)]
+            == torch.arange(user_global.numel(), device=device)
+        )
+        active = u_found & t_found & good_row & valid_hist.any(dim=1)
+        if not bool(active.any()):
+            return delta_rows
+
+        residual, weights = self.candidate_fusion(
+            gcn_penult[u_loc].float(),
+            gcn_penult[t_loc].float(),
+            gcn_penult[h_loc].float(),
+            valid_hist,
+        )
+        valid_b = active.nonzero(as_tuple=True)[0]
+        delta_rows = delta_rows.index_add(
+            0, target_rows[valid_b], residual[valid_b]
+        )
+
+        if self.training:
+            self._candidate_hist_step += 1
+            if self._candidate_hist_step % 500 == 0:
+                with torch.no_grad():
+                    norm = residual[valid_b].float().norm(dim=-1).mean().item()
+                    print("[candA] step={} active={}/{} residual_norm={:.6f}"
+                          .format(self._candidate_hist_step, valid_b.numel(),
+                                  user_global.numel(), norm), flush=True)
+        return delta_rows
+
     def compute_feedback_gcn(self, samples, samples_encode, replaced_idx,
                              inputs_embeds, attention_mask):
         """
@@ -1024,7 +1120,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         need_semantic = self.training and self.gnn_semantic_align
         need_pref = self.training and self.pref_distill
         need_gnn_view = need_semantic or need_pref \
-            or self.rel_inject or self.rel_rank_mod
+            or self.rel_inject or self.rel_rank_mod or self.candidate_history_fusion
 
         if need_semantic:
             # LLM is the semantic teacher for this auxiliary objective.
@@ -1142,6 +1238,11 @@ class MiniGPT4Rec_v2(Rec2Base):
             "step": int(samples.get('epoch', 0)) * int(samples.get('num_iters_per_epoch', 0))
                     + int(samples.get('iters', 0)),
         }
+
+        if self.candidate_history_fusion:
+            ret["candidate_history_delta"] = self._candidate_history_residual(
+                samples, samples_encode, sub_node_ids, gcn_penult, batch_indices
+            )
 
         if need_gnn_view:
             valid = local_node_ids >= 0
@@ -1455,6 +1556,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                                                                                 hidden_size)
             num_users = self.rec_encoder.config.user_num
             node_ids = []
+            target_row_indices = [-1] * batch_size
             if 'InteractedItemIDs_pad' in sample.keys() and len(ids_order) == 3:
                 interactedItem_embeds = self.rec_encoder.item_encoder(sample['InteractedItemIDs_pad'],
                                                                       all_items=all_item_embeds)
@@ -1495,6 +1597,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                             if item_id != self.rec_encoder.padding_index:
                                 node_ids.append(item_id + num_users)
                         else:  # TargetItemID
+                            target_row_indices[b] = len(node_ids)
                             node_ids.append(sample['TargetItemID'][b].item() + num_users)
                 node_ids = torch.tensor(node_ids, device=device, dtype=torch.long)
                 mf_user_embeds = self.rec_encoder.user_embedding.weight
@@ -1506,6 +1609,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     'InteractedItems_embs': interactedItem_embeds_llama.reshape(batch_size, -1, hidden_size),
                     'merged_embs': merged_embeds[idx_nopad[:, 0], idx_nopad[:, 1]].reshape(-1, hidden_size),
                     'node_ids': node_ids,
+                    'target_row_indices': torch.tensor(target_row_indices, dtype=torch.long, device=device),
                     'mf_embeddings': mf_embeddings,
                 }
             else:
@@ -1522,6 +1626,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     'InteractedItems_embs': None,
                     'merged_embs': None,
                     'node_ids': node_ids,
+                    'target_row_indices': torch.arange(batch_size, 2 * batch_size, dtype=torch.long, device=device),
                     'mf_embeddings': mf_embeddings,
                 }
         sample_atts_llama = None
@@ -1686,6 +1791,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         samples_encode_out = {
             'node_ids': samples_encode['node_ids'],
             'replaced_idx': replaced_idx,
+            'target_row_indices': samples_encode['target_row_indices'],
             'mf_embeddings': samples_encode['mf_embeddings'] if 'mf_embeddings' in samples_encode else None
         }
 
@@ -1841,6 +1947,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = batch_indices
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
+                    my_linear.candidate_history_delta = fb.get('candidate_history_delta')
                     my_linear.rel_pair_gate = pair_gate['g_raw'] if pair_gate is not None else None
                     my_linear.warmup_factor = warmup_factor
 
@@ -1865,6 +1972,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = None
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
+                    my_linear.candidate_history_delta = None
 
         pos_ans_id = self.llama_tokenizer(ans_[1], add_special_tokens=False).input_ids[0]
         logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2055,6 +2163,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = batch_indices
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
+                    my_linear.candidate_history_delta = fb.get('candidate_history_delta')
                     # eval protocol must stay identical to I3 regardless of
                     # the training-side warm-up schedule
                     my_linear.warmup_factor = 1.0
@@ -2085,6 +2194,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = None
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
+                    my_linear.candidate_history_delta = None
 
             pos_ans_id = self.llama_tokenizer(pos_ans, add_special_tokens=False).input_ids[0]
             logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2262,6 +2372,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         rel_inject = cfg.get("rel_inject", False)
         rel_gate = cfg.get("rel_gate", False)
         rel_rank_mod = cfg.get("rel_rank_mod", False)
+        candidate_history_fusion = cfg.get("candidate_history_fusion", False)
+        candidate_hist_tau = cfg.get("candidate_hist_tau", 0.2)
         sem_adapter = cfg.get("sem_adapter", False)
         sem_alpha = cfg.get("sem_alpha", 0.0)
         sem_rho = cfg.get("sem_rho", 0.05)
@@ -2323,6 +2435,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             rel_inject=rel_inject,
             rel_gate=rel_gate,
             rel_rank_mod=rel_rank_mod,
+            candidate_history_fusion=candidate_history_fusion,
+            candidate_hist_tau=candidate_hist_tau,
             sem_adapter=sem_adapter,
             sem_alpha=sem_alpha,
             sem_rho=sem_rho,
