@@ -59,6 +59,52 @@ class TestCandidateHistoryFusion(unittest.TestCase):
                                     delta * 5.0))
         self.assertIsNone(scale_candidate_delta_for_eval(None, 5.0))
 
+    def test_A2_gate_identity_padding_and_grad(self):
+        from minigpt4.models.candidate_history_fusion import CandidateHistoryGate
+        torch.manual_seed(17)
+        m = CandidateHistoryGate(dim=16, rank=4, attention="cosine")
+        user = torch.randn(3, 16)
+        target = torch.randn(3, 16)
+        hist = torch.randn(3, 5, 16)
+        valid = torch.tensor([
+            [True, True, False, False, False],
+            [False, False, False, False, False],
+            [True, True, True, False, False]
+        ])
+        gate, weights = m(user, target, hist, valid)
+        self.assertEqual(tuple(gate.shape), (3, 4))
+        self.assertTrue(torch.equal(gate, torch.ones_like(gate)))
+        self.assertTrue(torch.equal(weights[1], torch.zeros_like(weights[1])))
+        self.assertEqual(float(weights[0].sum()), 1.0)
+        self.assertTrue(torch.equal(weights[0, 2:], torch.zeros_like(weights[0, 2:])))
+
+        # Zero-init outputs identity but last-layer weights receive gradient;
+        # first-layer gradients can start on subsequent optimizer steps.
+        (gate[0].sum()).backward()
+        self.assertIsNotNone(m.gate_encoder[-1].weight.grad)
+        self.assertGreater(float(m.gate_encoder[-1].weight.grad.abs().sum()), 0)
+
+        with torch.no_grad():
+            torch.nn.init.normal_(m.gate_encoder[-1].weight, std=0.1)
+        hist.requires_grad_(True)
+        gate, _ = m(user, target, hist, valid)
+        (gate[0].sum()).backward()
+        self.assertGreater(float(m.gate_encoder[0].weight.grad.abs().sum()), 0)
+        self.assertGreater(float(hist.grad.abs().sum()), 0)
+        self.assertTrue(torch.equal(gate[1], torch.ones_like(gate[1])))
+
+    def test_A2_identity_rows_accumulation(self):
+        from minigpt4.models.candidate_history_fusion import (
+            accumulate_target_residuals,
+        )
+        rows = torch.ones(5, 4, dtype=torch.float32)
+        gates = torch.tensor([[1.2, 0.8, 1.0, 1.1]], requires_grad=True)
+        got = accumulate_target_residuals(rows, torch.tensor([3]), gates - 1)
+        self.assertTrue(torch.allclose(got[3], gates[0]))
+        self.assertTrue(torch.equal(got[2], torch.ones(4)))
+        got.sum().backward()
+        self.assertTrue(torch.equal(gates.grad, torch.ones_like(gates)))
+
     def test_trainable_candidate_specific(self):
         torch.manual_seed(17)
         m = CandidateHistoryFusion(dim=16, rank=4)
