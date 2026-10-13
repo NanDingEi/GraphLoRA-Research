@@ -13,9 +13,9 @@ from collections import deque
 ROOT = Path(__file__).resolve().parent
 EXPERIMENTS = [("A1-Off", 0), ("A1-Original", 1),
                ("A1-Scale2", 2), ("A1-Scale5", 5)]
-NUM = r"[+-]?(?:\\d+(?:\\.\\d*)?|\\.\\d+)(?:[eE][+-]?\\d+)?"
+NUM = r"[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?"
 PATTERN = re.compile(
-    r"\\*\\*\\*auc:\\s*(" + NUM + r")\\s+\\*\\*\\*uauc:\\s*\\(\\s*(" + NUM + r")"
+    r"\*\*\*auc:\s*(" + NUM + r")\s+\*\*\*uauc:\s*\(\s*(" + NUM + r")"
 )
 
 
