@@ -1,7 +1,7 @@
 import logging
 import random
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
-from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion
+from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion, accumulate_target_residuals
 import torch
 from torch.cuda.amp import autocast as autocast
 import torch.nn as nn
@@ -1074,8 +1074,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             valid_hist,
         )
         valid_b = active.nonzero(as_tuple=True)[0]
-        delta_rows = delta_rows.index_add(
-            0, target_rows[valid_b], residual[valid_b]
+        delta_rows = accumulate_target_residuals(
+            delta_rows, target_rows[valid_b], residual[valid_b]
         )
 
         if self.training:
