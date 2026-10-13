@@ -757,11 +757,15 @@ class MiniGPT4Rec_v2(Rec2Base):
             if self.candidate_history_fusion:
                 if not isinstance(self.gcn, NGCF):
                     raise ValueError("candidate_history_fusion currently requires NGCF")
-                self.candidate_fusion = CandidateHistoryFusion(
-                    dim=rec_config.embedding_size,
-                    rank=lora_config.r,
-                    temperature=self.candidate_hist_tau,
-                )
+                # Preserve the original RNG stream for llama_proj and all
+                # remaining baseline modules; this extra module is zero-init.
+                with torch.random.fork_rng(devices=[]):
+                    torch.random.default_generator.manual_seed(20261013)
+                    self.candidate_fusion = CandidateHistoryFusion(
+                        dim=rec_config.embedding_size,
+                        rank=lora_config.r,
+                        temperature=self.candidate_hist_tau,
+                    )
                 print("[candA] Candidate-history fusion ON; rank={} tau={} target-only"
                       .format(lora_config.r, self.candidate_hist_tau), flush=True)
 
