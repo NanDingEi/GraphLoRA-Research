@@ -46,6 +46,19 @@ class TestCandidateHistoryFusion(unittest.TestCase):
         self.assertIsNotNone(residual.grad)
         self.assertTrue(torch.equal(residual.grad, torch.ones_like(residual)))
 
+    def test_inference_residual_multiplier(self):
+        from minigpt4.models.candidate_history_fusion import scale_candidate_delta_for_eval
+
+        delta = torch.tensor([[0.01, -0.02]], dtype=torch.float32)
+        self.assertIs(scale_candidate_delta_for_eval(delta, 1.0), delta)
+        self.assertTrue(torch.equal(scale_candidate_delta_for_eval(delta, 0.0),
+                                    torch.zeros_like(delta)))
+        self.assertTrue(torch.equal(scale_candidate_delta_for_eval(delta, 2.0),
+                                    delta * 2.0))
+        self.assertTrue(torch.equal(scale_candidate_delta_for_eval(delta, 5.0),
+                                    delta * 5.0))
+        self.assertIsNone(scale_candidate_delta_for_eval(None, 5.0))
+
     def test_trainable_candidate_specific(self):
         torch.manual_seed(17)
         m = CandidateHistoryFusion(dim=16, rank=4)
