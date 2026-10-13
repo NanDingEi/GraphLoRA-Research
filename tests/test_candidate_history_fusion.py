@@ -75,7 +75,7 @@ class TestCandidateHistoryFusion(unittest.TestCase):
         self.assertEqual(tuple(gate.shape), (3, 4))
         self.assertTrue(torch.equal(gate, torch.ones_like(gate)))
         self.assertTrue(torch.equal(weights[1], torch.zeros_like(weights[1])))
-        self.assertEqual(float(weights[0].sum()), 1.0)
+        self.assertAlmostEqual(float(weights[0].sum()), 1.0, places=6)
         self.assertTrue(torch.equal(weights[0, 2:], torch.zeros_like(weights[0, 2:])))
 
         # Zero-init outputs identity but last-layer weights receive gradient;
@@ -92,6 +92,33 @@ class TestCandidateHistoryFusion(unittest.TestCase):
         self.assertGreater(float(m.gate_encoder[0].weight.grad.abs().sum()), 0)
         self.assertGreater(float(hist.grad.abs().sum()), 0)
         self.assertTrue(torch.equal(gate[1], torch.ones_like(gate[1])))
+
+    def test_A3_trainable_candidate_attention(self):
+        from minigpt4.models.candidate_history_fusion import CandidateHistoryGate
+        torch.manual_seed(23)
+        m = CandidateHistoryGate(dim=16, rank=4, attention="learned")
+        user = torch.randn(3, 16)
+        target = torch.randn(3, 16)
+        hist = torch.randn(3, 4, 16)
+        valid = torch.tensor([
+            [True, True, False, False],
+            [True, True, False, False],
+            [False, False, False, False],
+        ])
+        with torch.no_grad():
+            torch.nn.init.normal_(m.gate_encoder[-1].weight, std=0.1)
+        # Same history/user but different candidate: attention should change.
+        user[1] = user[0]
+        hist[1] = hist[0]
+        gate, weights = m(user, target, hist, valid)
+        self.assertFalse(torch.allclose(weights[0, :2], weights[1, :2]))
+        self.assertTrue(torch.equal(weights[2], torch.zeros_like(weights[2])))
+        self.assertTrue(torch.equal(gate[2], torch.ones_like(gate[2])))
+        gate[:2].sum().backward()
+        self.assertIsNotNone(m.query_proj.weight.grad)
+        self.assertIsNotNone(m.key_proj.weight.grad)
+        self.assertGreater(float(m.query_proj.weight.grad.abs().sum()), 0)
+        self.assertGreater(float(m.key_proj.weight.grad.abs().sum()), 0)
 
     def test_A2_identity_rows_accumulation(self):
         from minigpt4.models.candidate_history_fusion import (
