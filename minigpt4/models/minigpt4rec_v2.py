@@ -1,7 +1,7 @@
 import logging
 import random
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
-from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion, accumulate_target_residuals
+from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion, accumulate_target_residuals, scale_candidate_delta_for_eval
 import torch
 from torch.cuda.amp import autocast as autocast
 import torch.nn as nn
@@ -544,6 +544,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.train_gnn_with_rec_loss = bool(train_gnn_with_rec_loss)
         self.candidate_history_fusion = bool(candidate_history_fusion)
         self.candidate_hist_tau = float(candidate_hist_tau)
+        self.candidate_hist_eval_multiplier = 1.0  # inference-only; preserves A1 training
         self._candidate_hist_step = 0
 
         # Preference-level G->L distillation (v12 recipe): the GNN's group-wise
@@ -2162,12 +2163,17 @@ class MiniGPT4Rec_v2(Rec2Base):
                     inc = torch.cat([pa['c'], pa['c']], dim=0).to(gcn_output.dtype)
                     gcn_output = gcn_output.index_add_(0, idx, inc).to(dtype=torch.float16)
 
+                # Inference-only A1 ablation: 0=Off, 1=Original, 2/5=scaled.
+                # Keep the standard GraphLoRA GNN injection at gnn_scale=0.1.
+                candidate_delta_eval = scale_candidate_delta_for_eval(
+                    fb.get('candidate_history_delta'), self.candidate_hist_eval_multiplier
+                )
                 for my_linear in self.my_linears:
                     my_linear.gcn_output = gcn_output
                     my_linear.batch_indices = batch_indices
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
-                    my_linear.candidate_history_delta = fb.get('candidate_history_delta')
+                    my_linear.candidate_history_delta = candidate_delta_eval
                     # eval protocol must stay identical to I3 regardless of
                     # the training-side warm-up schedule
                     my_linear.warmup_factor = 1.0
@@ -2378,6 +2384,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         rel_rank_mod = cfg.get("rel_rank_mod", False)
         candidate_history_fusion = cfg.get("candidate_history_fusion", False)
         candidate_hist_tau = cfg.get("candidate_hist_tau", 0.2)
+        candidate_hist_eval_multiplier = float(cfg.get("candidate_hist_eval_multiplier", 1.0))
+        if not np.isfinite(candidate_hist_eval_multiplier) or candidate_hist_eval_multiplier < 0:
+            raise ValueError("candidate_hist_eval_multiplier must be finite and non-negative")
         sem_adapter = cfg.get("sem_adapter", False)
         sem_alpha = cfg.get("sem_alpha", 0.0)
         sem_rho = cfg.get("sem_rho", 0.05)
@@ -2464,6 +2473,10 @@ class MiniGPT4Rec_v2(Rec2Base):
             fix_autocast_cache=fix_autocast_cache,
             dataset=dataset,
         )
+        model.candidate_hist_eval_multiplier = candidate_hist_eval_multiplier
+        if model.candidate_history_fusion:
+            print("[candA-eval] residual multiplier={} (training is always 1.0)"
+                  .format(candidate_hist_eval_multiplier), flush=True)
 
         ckpt_path = cfg.get("ckpt", "")
         if ckpt_path:
