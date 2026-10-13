@@ -23,6 +23,29 @@ class TestCandidateHistoryFusion(unittest.TestCase):
         self.assertTrue(torch.allclose(attn[0, :2].sum(), torch.tensor(1.)))
         self.assertTrue(torch.equal(attn[0, 2:], torch.zeros_like(attn[0, 2:])))
 
+    def test_mixed_precision_accumulation_and_backward(self):
+        # Mimic FP32 GNN output with an FP16 AMP fusion residual.
+        from minigpt4.models.candidate_history_fusion import accumulate_target_residuals
+
+        delta_rows = torch.zeros(5, 4, dtype=torch.float32)
+        residual = torch.tensor([[1., 2., 3., 4.],
+                                 [2., 3., 4., 5.],
+                                 [4., 3., 2., 1.]], dtype=torch.float16,
+                                requires_grad=True)
+        indices = torch.tensor([1, 1, 4], dtype=torch.long)
+        result = accumulate_target_residuals(delta_rows, indices, residual)
+
+        self.assertEqual(result.dtype, torch.float32)
+        self.assertTrue(torch.equal(
+            result[1], torch.tensor([3., 5., 7., 9.], dtype=torch.float32)))
+        self.assertTrue(torch.equal(result[0], torch.zeros(4)))
+        self.assertTrue(torch.equal(
+            result[4], torch.tensor([4., 3., 2., 1.], dtype=torch.float32)))
+
+        result.sum().backward()
+        self.assertIsNotNone(residual.grad)
+        self.assertTrue(torch.equal(residual.grad, torch.ones_like(residual)))
+
     def test_trainable_candidate_specific(self):
         torch.manual_seed(17)
         m = CandidateHistoryFusion(dim=16, rank=4)
