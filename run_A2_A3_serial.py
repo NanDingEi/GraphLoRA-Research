@@ -156,7 +156,7 @@ def main():
     print("Preflight: CPU unit tests (A1/A2/A3 fusion, masks, gradients)", flush=True)
     subprocess.run(
         [sys.executable, "-m", "unittest",
-         "tests.test_candidate_history_fusion", "-v"],
+         "tests/test_candidate_history_fusion.py", "-v"],
         cwd=str(ROOT), check=True,
     )
     (ROOT / "log").mkdir(parents=True, exist_ok=True)
