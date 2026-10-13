@@ -63,3 +63,61 @@ class CandidateHistoryFusion(nn.Module):
         residual = 0.1 * torch.tanh(self.encoder(features))
         residual = residual * history_mask.any(dim=-1, keepdim=True).to(residual.dtype)
         return residual, weights
+
+
+class CandidateHistoryGate(nn.Module):
+    """Candidate-aware, target-token-only modulation of GraphLoRA GNN injection.
+
+    Returns an r-dimensional gate centered at exactly 1.0. A2 uses the
+    original cosine(u+target, history) attention, while A3 learns candidate
+    query/history key projections, keeping all other components identical.
+    """
+    def __init__(self, dim=256, rank=8, temperature=0.2,
+                 attention="cosine"):
+        super().__init__()
+        if temperature <= 0:
+            raise ValueError("temperature must be positive")
+        if attention not in ("cosine", "learned"):
+            raise ValueError("attention must be 'cosine' or 'learned'")
+        self.temperature = float(temperature)
+        self.attention = attention
+        if attention == "learned":
+            self.query_proj = nn.Linear(dim, dim, bias=False)
+            self.key_proj = nn.Linear(dim, dim, bias=False)
+            nn.init.eye_(self.query_proj.weight)
+            nn.init.eye_(self.key_proj.weight)
+        self.gate_encoder = nn.Sequential(
+            nn.Linear(4 * dim, dim),
+            nn.ReLU(),
+            nn.Linear(dim, rank),
+        )
+        nn.init.zeros_(self.gate_encoder[-1].weight)
+        nn.init.zeros_(self.gate_encoder[-1].bias)
+
+    def forward(self, user, target, history, history_mask):
+        user = user.float()
+        target = target.float()
+        history = history.float()
+        mask = history_mask.bool()
+        if self.attention == "learned":
+            # A3: explicit candidate-to-history matching; identity
+            # initialization avoids an arbitrary random rotation.
+            query = F.normalize(self.query_proj(target), dim=-1)
+            keys = F.normalize(self.key_proj(history), dim=-1)
+        else:
+            # A2: retain A1's fixed user+candidate cosine attention.
+            query = F.normalize(user + target, dim=-1)
+            keys = F.normalize(history, dim=-1)
+        scores = torch.einsum('bd,bkd->bk', query, keys) / self.temperature
+        scores = scores.masked_fill(~mask, -1e4)
+        weights = torch.softmax(scores.float(), dim=-1) * mask.float()
+        weights = weights / weights.sum(dim=-1, keepdim=True).clamp_min(1e-8)
+        evidence = torch.einsum('bk,bkd->bd', weights, history)
+        features = torch.cat(
+            [user, target, evidence, target * evidence], dim=-1
+        )
+        gate = 1.0 + 0.5 * torch.tanh(self.gate_encoder(features).float())
+        # No history must not affect the original GNN injection.
+        gate = torch.where(mask.any(dim=-1, keepdim=True), gate,
+                           torch.ones_like(gate))
+        return gate, weights
