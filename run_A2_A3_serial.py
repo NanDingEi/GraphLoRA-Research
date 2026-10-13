@@ -153,6 +153,12 @@ def main():
     parser.add_argument("--train-only", action="store_true",
                         help="Skip test-set evaluation, collect Valid only")
     args = parser.parse_args()
+    print("Preflight: CPU unit tests (A1/A2/A3 fusion, masks, gradients)", flush=True)
+    subprocess.run(
+        [sys.executable, "-m", "unittest",
+         "tests.test_candidate_history_fusion", "-v"],
+        cwd=str(ROOT), check=True,
+    )
     (ROOT / "log").mkdir(parents=True, exist_ok=True)
     (ROOT / "out").mkdir(parents=True, exist_ok=True)
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
