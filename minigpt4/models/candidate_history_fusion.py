@@ -8,6 +8,19 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
+def accumulate_target_residuals(delta_rows, target_rows, residual):
+    """Accumulate rank residuals into ID-token rows under mixed precision.
+
+    GNN representations and delta_rows are FP32, while AMP may produce FP16
+    residuals. index_add requires both operands to have identical dtype.
+    Casting the residual to the accumulator dtype preserves gradients and
+    performs the accumulation in FP32.
+    """
+    return delta_rows.index_add(
+        0, target_rows, residual.to(dtype=delta_rows.dtype)
+    )
+
+
 class CandidateHistoryFusion(nn.Module):
     def __init__(self, dim=256, rank=8, temperature=0.2):
         super().__init__()
