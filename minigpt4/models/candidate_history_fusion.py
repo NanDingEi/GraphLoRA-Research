@@ -21,6 +21,13 @@ def accumulate_target_residuals(delta_rows, target_rows, residual):
     )
 
 
+def scale_candidate_delta_for_eval(delta, multiplier):
+    """Scale A1's target-only residual at inference without changing GNN injection."""
+    if delta is None or multiplier == 1.0:
+        return delta
+    return delta * multiplier
+
+
 class CandidateHistoryFusion(nn.Module):
     def __init__(self, dim=256, rank=8, temperature=0.2):
         super().__init__()
