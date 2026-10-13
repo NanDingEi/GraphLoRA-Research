@@ -1,7 +1,10 @@
 import logging
 import random
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
-from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion, accumulate_target_residuals, scale_candidate_delta_for_eval
+from minigpt4.models.candidate_history_fusion import (
+    CandidateHistoryFusion, CandidateHistoryGate,
+    accumulate_target_residuals, scale_candidate_delta_for_eval,
+)
 import torch
 from torch.cuda.amp import autocast as autocast
 import torch.nn as nn
@@ -337,7 +340,8 @@ class MyLinear(OriginalLinear):
         self.batch_indices = None
         self.token_positions = None
         self.local_node_ids = None
-        self.candidate_history_delta = None  # [N_ID, rank], target rows only
+        self.candidate_history_delta = None  # A1 legacy additive residual
+        self.candidate_history_gate = None  # A2/A3: [N_ID, rank], target rows only
         # rank-wise pair modulation (optional): per-batch-row gate in R^r,
         # zero-init MLP => sigmoid(0)*2 = 1 => identity at start
         self.rel_pair_gate = None
@@ -415,6 +419,15 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor),
                         )
 
+                    # A2/A3: gate ONLY target item rows of the original GNN
+                    # injection. Other ID tokens keep the original z_GNN.
+                    # The gate is 1.0 at initialization (zero-init head).
+                    gnn_to_inject = self.gcn_output[local_node_ids]
+                    if self.candidate_history_gate is not None:
+                        history_gate = self.candidate_history_gate[valid_mask].to(
+                            dtype=gnn_to_inject.dtype)
+                        gnn_to_inject = gnn_to_inject * history_gate
+
                     # Original GraphLoRA injection:
                     # r' = lora_scale * r + gnn_scale * z_GNN
                     # A1 warm-up: effective gnn_scale = gnn_scale * warmup_factor.
@@ -423,12 +436,12 @@ class MyLinear(OriginalLinear):
                     if self.warmup_factor == 1.0:
                         lora_a_output[batch_indices, token_positions] = (
                             lora_a_output[batch_indices, token_positions] * self.lora_scale
-                            + self.gcn_output[local_node_ids] * self.gnn_scale
+                            + gnn_to_inject * self.gnn_scale
                         )
                     else:
                         lora_a_output[batch_indices, token_positions] = (
                             lora_a_output[batch_indices, token_positions] * self.lora_scale
-                            + self.gcn_output[local_node_ids]
+                            + gnn_to_inject
                             * (self.gnn_scale * self.warmup_factor)
                         )
 
@@ -504,6 +517,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             rel_rank_mod=False,
             candidate_history_fusion=False,
             candidate_hist_tau=0.2,
+            candidate_history_mode="add",
+            candidate_hist_attention="cosine",
             sem_structural_skip=False,
             grad_clip=0.0,
             inj_warmup_start=0,
@@ -545,6 +560,12 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.candidate_history_fusion = bool(candidate_history_fusion)
         self.candidate_hist_tau = float(candidate_hist_tau)
         self.candidate_hist_eval_multiplier = 1.0  # inference-only; preserves A1 training
+        self.candidate_history_mode = str(candidate_history_mode)
+        if self.candidate_history_mode not in ("add", "gate"):
+            raise ValueError("candidate_history_mode must be 'add' or 'gate'")
+        self.candidate_hist_attention = str(candidate_hist_attention)
+        if self.candidate_hist_attention not in ("cosine", "learned"):
+            raise ValueError("candidate_hist_attention must be 'cosine' or 'learned'")
         self._candidate_hist_step = 0
 
         # Preference-level G->L distillation (v12 recipe): the GNN's group-wise
@@ -762,13 +783,22 @@ class MiniGPT4Rec_v2(Rec2Base):
                 # remaining baseline modules; this extra module is zero-init.
                 with torch.random.fork_rng(devices=[]):
                     torch.random.default_generator.manual_seed(20261013)
-                    self.candidate_fusion = CandidateHistoryFusion(
-                        dim=rec_config.embedding_size,
-                        rank=lora_config.r,
-                        temperature=self.candidate_hist_tau,
-                    )
-                print("[candA] Candidate-history fusion ON; rank={} tau={} target-only"
-                      .format(lora_config.r, self.candidate_hist_tau), flush=True)
+                    if self.candidate_history_mode == "gate":
+                        self.candidate_fusion = CandidateHistoryGate(
+                            dim=rec_config.embedding_size,
+                            rank=lora_config.r,
+                            temperature=self.candidate_hist_tau,
+                            attention=self.candidate_hist_attention,
+                        )
+                    else:
+                        self.candidate_fusion = CandidateHistoryFusion(
+                            dim=rec_config.embedding_size,
+                            rank=lora_config.r,
+                            temperature=self.candidate_hist_tau,
+                        )
+                print("[cand] mode={} attention={} rank={} tau={} target-only"
+                      .format(self.candidate_history_mode, self.candidate_hist_attention,
+                              lora_config.r, self.candidate_hist_tau), flush=True)
 
             if self.gnn_semantic_align and lora_gnn not in ("ngcf", "lightgcn"):
                 raise ValueError(
@@ -1032,8 +1062,13 @@ class MiniGPT4Rec_v2(Rec2Base):
         Explicitly excludes PAD and target-item duplicates from the history.
         """
         num_rows = batch_indices.numel()
-        rank = self.candidate_fusion.encoder[-1].out_features
-        delta_rows = gcn_penult.new_zeros((num_rows, rank))
+        if self.candidate_history_mode == "gate":
+            rank = self.candidate_fusion.gate_encoder[-1].out_features
+            default_value = 1.0
+        else:
+            rank = self.candidate_fusion.encoder[-1].out_features
+            default_value = 0.0
+        delta_rows = gcn_penult.new_full((num_rows, rank), default_value)
         hist_ids = samples.get("InteractedItemIDs_pad")
         target_rows = samples_encode.get("target_row_indices")
         if hist_ids is None or target_rows is None or num_rows == 0:
@@ -1075,18 +1110,21 @@ class MiniGPT4Rec_v2(Rec2Base):
             valid_hist,
         )
         valid_b = active.nonzero(as_tuple=True)[0]
+        # For gates, only accumulate deviations from identity. Unmatched
+        # rows remain exactly 1 and cannot perturb the S2 path.
+        correction = residual[valid_b] - default_value
         delta_rows = accumulate_target_residuals(
-            delta_rows, target_rows[valid_b], residual[valid_b]
+            delta_rows, target_rows[valid_b], correction
         )
 
         if self.training:
             self._candidate_hist_step += 1
             if self._candidate_hist_step % 500 == 0:
                 with torch.no_grad():
-                    norm = residual[valid_b].float().norm(dim=-1).mean().item()
-                    print("[candA] step={} active={}/{} residual_norm={:.6f}"
-                          .format(self._candidate_hist_step, valid_b.numel(),
-                                  user_global.numel(), norm), flush=True)
+                    norm = correction.float().norm(dim=-1).mean().item()
+                    print("[cand] mode={} step={} active={}/{} correction_norm={:.6f}"
+                          .format(self.candidate_history_mode, self._candidate_hist_step,
+                                  valid_b.numel(), user_global.numel(), norm), flush=True)
         return delta_rows
 
     def compute_feedback_gcn(self, samples, samples_encode, replaced_idx,
@@ -1245,9 +1283,13 @@ class MiniGPT4Rec_v2(Rec2Base):
         }
 
         if self.candidate_history_fusion:
-            ret["candidate_history_delta"] = self._candidate_history_residual(
+            candidate_value = self._candidate_history_residual(
                 samples, samples_encode, sub_node_ids, gcn_penult, batch_indices
             )
+            if self.candidate_history_mode == "gate":
+                ret["candidate_history_gate"] = candidate_value
+            else:
+                ret["candidate_history_delta"] = candidate_value
 
         if need_gnn_view:
             valid = local_node_ids >= 0
@@ -1953,6 +1995,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
                     my_linear.candidate_history_delta = fb.get('candidate_history_delta')
+                    my_linear.candidate_history_gate = fb.get('candidate_history_gate')
                     my_linear.rel_pair_gate = pair_gate['g_raw'] if pair_gate is not None else None
                     my_linear.warmup_factor = warmup_factor
 
@@ -1978,6 +2021,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
                     my_linear.candidate_history_delta = None
+                    my_linear.candidate_history_gate = None
 
         pos_ans_id = self.llama_tokenizer(ans_[1], add_special_tokens=False).input_ids[0]
         logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2174,6 +2218,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
                     my_linear.candidate_history_delta = candidate_delta_eval
+                    my_linear.candidate_history_gate = fb.get('candidate_history_gate')
                     # eval protocol must stay identical to I3 regardless of
                     # the training-side warm-up schedule
                     my_linear.warmup_factor = 1.0
@@ -2205,6 +2250,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
                     my_linear.candidate_history_delta = None
+                    my_linear.candidate_history_gate = None
 
             pos_ans_id = self.llama_tokenizer(pos_ans, add_special_tokens=False).input_ids[0]
             logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2384,6 +2430,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         rel_rank_mod = cfg.get("rel_rank_mod", False)
         candidate_history_fusion = cfg.get("candidate_history_fusion", False)
         candidate_hist_tau = cfg.get("candidate_hist_tau", 0.2)
+        candidate_history_mode = cfg.get("candidate_history_mode", "add")
+        candidate_hist_attention = cfg.get("candidate_hist_attention", "cosine")
         candidate_hist_eval_multiplier = float(cfg.get("candidate_hist_eval_multiplier", 1.0))
         if not np.isfinite(candidate_hist_eval_multiplier) or candidate_hist_eval_multiplier < 0:
             raise ValueError("candidate_hist_eval_multiplier must be finite and non-negative")
@@ -2450,6 +2498,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             rel_rank_mod=rel_rank_mod,
             candidate_history_fusion=candidate_history_fusion,
             candidate_hist_tau=candidate_hist_tau,
+            candidate_history_mode=candidate_history_mode,
+            candidate_hist_attention=candidate_hist_attention,
             sem_adapter=sem_adapter,
             sem_alpha=sem_alpha,
             sem_rho=sem_rho,
