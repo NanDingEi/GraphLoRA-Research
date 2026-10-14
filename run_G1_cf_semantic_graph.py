@@ -37,8 +37,6 @@ def check_config():
         raise RuntimeError("G1 graph path must be supplied by runner, not stale YAML")
     if cfg.model.gcn_layer != 31 or float(cfg.model.gnn_scale) != 0.1:
         raise RuntimeError("G1 must keep S2 layer 31 scale 0.1")
-    if cfg.run.get("min_valid_auc_after_epoch0") != 0.72:
-        raise RuntimeError("Unexpected G1 early-stop threshold")
     return cfg
 
 
@@ -210,15 +208,10 @@ def main():
         write_report(stamp, info)
         print("Best Valid epoch={} AUC={:.8f} UAUC={}".format(
             epoch, valid[epoch][0], valid[epoch][1]), flush=True)
-        # Validation-only selection; don't spend another test run on a
-        # visibly collapsed method. This is not Test-based tuning.
-        if args.skip_test or float(valid[epoch][0]) < 0.72:
-            info["test_selection"] = (
-                "SKIPPED: --skip-test" if args.skip_test
-                else "SKIPPED: best Valid AUC below 0.72"
-            )
+        if args.skip_test:
+            info["test_selection"] = "SKIPPED by user"
         else:
-            info["test_selection"] = "Best-Valid checkpoint, same G1 graph"
+            info["test_selection"] = "Best-Valid checkpoint, same train-only G1 graph"
             test_cmd = [
                 sys.executable, "-u", "train_collm_mf_din.py",
                 "--cfg-path", CONFIG, "--options",
