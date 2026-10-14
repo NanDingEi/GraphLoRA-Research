@@ -1,6 +1,5 @@
-# G3: keep S2's binary CTR, layer-31 GraphLoRA injection and optimizer.
-# The only method change is a TRAIN-ONLY CF-supported title/genre fused graph.
-# A runner-generated absolute graph path is passed through CLI --options.
+# G3: keep exact S2 binary CTR and LoRA settings, reweight existing positive CF graph edges.
+# No new item-item edges, candidate gate, additional objective, or early termination.
 model:
   ans_type: v2
   arch: mini_gpt4rec_v2
@@ -73,7 +72,7 @@ run:
   min_lr: 5.0e-05
   mode: v2
   num_workers: 0
-  output_dir: /home/bbx/user_lx/GraphLoRA/output/G3_CF_SEMANTIC
+  output_dir: /home/bbx/user_lx/GraphLoRA/output/G3_POP_DEBIAS
   resume_ckpt_path: null
   save_checkpoint_every_n_epochs: 1
   seed: 42
