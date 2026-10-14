@@ -204,6 +204,16 @@ class BaseTask:
             inner_epoch = start_iters // iters_per_epoch
             header = header + "; inner epoch [{}]".format(inner_epoch)
 
+        g2_on = bool(getattr(model, "g2_task_priority", False))
+        if g2_on:
+            from minigpt4.tasks.g2_priority_grad import accumulate_, project_auxiliary
+            g2_params = [p for p in model.gcn.parameters() if p.requires_grad]
+            if not g2_params:
+                raise RuntimeError("G2 has no trainable GNN parameters")
+            g2_aux_acc = None
+            g2_updates = 0
+            g2_conflicts = 0
+
         for i in metric_logger.log_every(range(iters_per_epoch), log_freq, header):
             # if using iter-based runner, we stop after iters_per_epoch iterations.
             if i >= iters_per_epoch:
@@ -223,7 +233,11 @@ class BaseTask:
             lr_scheduler.step(cur_epoch=inner_epoch, cur_step=i)
 
             with torch.cuda.amp.autocast(enabled=use_amp):
-                loss = self.train_step(model=model, samples=samples)
+                if g2_on:
+                    output = model(samples)
+                    loss = output["loss"]
+                else:
+                    loss = self.train_step(model=model, samples=samples)
 
             # after_train_step()
             # Average each accumulation window, including the final shorter one.
@@ -233,6 +247,17 @@ class BaseTask:
                 iters_per_epoch - (i // accum_grad_iters) * accum_grad_iters,
             )
             backward_loss = loss / window_size
+            if g2_on:
+                if "loss_sem_live" not in output:
+                    raise RuntimeError("G2 needs live semantic loss in forward_v2")
+                # The original total backward gives (rec + weighted sem) on
+                # GNN. Extract weighted semantic gradient ONCE and recover
+                # rec by subtraction at the end of the accumulation window.
+                aux = output["loss_sem_live"] * model.gnn_semantic_weight / window_size
+                aux_grad = torch.autograd.grad(
+                    aux, g2_params, allow_unused=True, retain_graph=True
+                )
+                g2_aux_acc = accumulate_(g2_aux_acc, aux_grad, g2_params)
             if use_amp:
                 scaler.scale(backward_loss).backward()
             else:
@@ -242,6 +267,39 @@ class BaseTask:
 
             # update gradients every accum_grad_iters iterations
             if (i + 1) % accum_grad_iters == 0 or (i + 1) == iters_per_epoch:
+                if g2_on:
+                    if g2_aux_acc is None:
+                        raise RuntimeError("G2 missed semantic gradient window")
+                    # AMP-scaled optimizer.grad is unscaled ONLY conceptually;
+                    # write projected grads back at the same scale and let
+                    # GradScaler's original unscale/overflow behavior run.
+                    g2_amp_scale = float(scaler.get_scale()) if use_amp else 1.0
+                    total_grads = [
+                        (p.grad.detach().float() / g2_amp_scale)
+                        if p.grad is not None else torch.zeros_like(p, dtype=torch.float32)
+                        for p in g2_params
+                    ]
+                    if all(bool(torch.isfinite(g).all().item()) for g in total_grads):
+                        rec_grads = [total - sem
+                                     for total, sem in zip(total_grads, g2_aux_acc)]
+                        projected, conflict, grad_dot = project_auxiliary(
+                            rec_grads, g2_aux_acc
+                        )
+                        for p, g in zip(g2_params, projected):
+                            p.grad = (g * g2_amp_scale).to(p.dtype)
+                        g2_conflicts += int(conflict)
+                        g2_updates += 1
+                        if g2_updates % 500 == 0:
+                            print("[G2] update={} projected_conflicts={} "
+                                  "conflict_rate={:.4f} latest_dot={:.6g}".format(
+                                      g2_updates, g2_conflicts,
+                                      g2_conflicts / g2_updates, grad_dot
+                                  ), flush=True)
+                    else:
+                        # Let the original GradScaler safely skip any overflow.
+                        print("[G2] nonfinite scaled grads: preserve GradScaler skip",
+                              flush=True)
+                    g2_aux_acc = None
                 if use_amp:
                     # optional global grad-norm clipping (stabilization S1);
                     # read from the model so any task can opt in via config
@@ -272,6 +330,12 @@ class BaseTask:
             if _mid_hook is not None:
                 _mid_hook(cur_epoch=inner_epoch, cur_step=i, model=model)
             torch.cuda.empty_cache()
+
+        if g2_on:
+            print("[G2] EPOCH {} total_updates={} conflicts={} fraction={:.5f}".format(
+                epoch, g2_updates, g2_conflicts,
+                (g2_conflicts / g2_updates) if g2_updates else 0.0,
+            ), flush=True)
 
         # after train_epoch()
         # gather the stats from all processes
