@@ -571,6 +571,21 @@ class RunnerBase:
                     if not self.evaluate_only:
                         self._save_checkpoint(cur_epoch, is_best=False)
 
+                # Optional G1 stop-loss: after full epoch-0 validation and
+                # best-checkpoint saving, stop severely underperforming runs.
+                threshold = self.config.run_cfg.get(
+                    "min_valid_auc_after_epoch0", None
+                )
+                if (not self.evaluate_only and cur_epoch == 0 and
+                        threshold is not None and len(self.valid_splits) > 0 and
+                        best_agg_metric < float(threshold)):
+                    logging.warning(
+                        "[G1 early-stop] Epoch0 Valid AUC %.8f below %.8f; "
+                        "retain epoch0 best checkpoint and stop.",
+                        best_agg_metric, float(threshold),
+                    )
+                    break
+
                 if self.evaluate_only:
                     break
 
