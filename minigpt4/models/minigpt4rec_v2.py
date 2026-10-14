@@ -528,6 +528,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             proj_reg_weight=0.0,
             proj_reg_items=64,
             g1_graph_path="",
+            g2_task_priority=False,
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -538,6 +539,14 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._proj_reg_step = 0
         self._last_proj_reg_loss = None
         self.dataset = dataset
+        self.g2_task_priority = bool(g2_task_priority)
+        if self.g2_task_priority and not bool(gnn_semantic_align):
+            raise ValueError("G2 requires original semantic alignment supervision")
+        if self.g2_task_priority and bool(sem_adapter):
+            raise ValueError("G2 currently requires the original S2 semantic loss, not adapter correction")
+        if self.g2_task_priority:
+            print("[G2] PCGrad-type GNN semantic gradient conflict projection "
+                  "(rec preference, AMP+accum preserved)", flush=True)
         self.g1_graph_path = str(g1_graph_path or "")
         if self.g1_graph_path and self.dataset != "movie":
             raise ValueError("G1 fused graph supports only ml-1m/movie in this branch")
@@ -2021,6 +2030,10 @@ class MiniGPT4Rec_v2(Rec2Base):
                 ret["loss_sem"] = loss_corr.detach()
             else:
                 loss_sem = self._compute_gnn_semantic_loss(fb)
+                if self.g2_task_priority:
+                    # Actual differentiable auxiliary scalar used by BaseTask's
+                    # gradient accumulation, not the detached diagnostic copy.
+                    ret["loss_sem_live"] = loss_sem
                 loss = loss_rec + self.gnn_semantic_weight * loss_sem
                 ret["loss"] = loss
                 ret["loss_sem"] = loss_sem.detach()
@@ -2427,6 +2440,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         lora_rank_groups = cfg.get("lora_rank_groups", None)
         fix_autocast_cache = cfg.get("fix_autocast_cache", False)
         g1_graph_path = cfg.get("g1_graph_path", "")
+        g2_task_priority = cfg.get("g2_task_priority", False)
 
         model = cls(
             rec_model=rec_model,
@@ -2489,6 +2503,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             lora_rank_groups=lora_rank_groups,
             fix_autocast_cache=fix_autocast_cache,
             g1_graph_path=g1_graph_path,
+            g2_task_priority=g2_task_priority,
             dataset=dataset,
         )
         model.candidate_hist_eval_multiplier = candidate_hist_eval_multiplier
