@@ -4,6 +4,7 @@ from minigpt4.models.projector_structure_reg import projector_regularized_forwar
 from minigpt4.models.candidate_history_fusion import (
     CandidateHistoryFusion, CandidateHistoryGate,
     accumulate_target_residuals, scale_candidate_delta_for_eval,
+    scale_candidate_gate_for_eval,
 )
 import torch
 from torch.cuda.amp import autocast as autocast
@@ -2212,13 +2213,16 @@ class MiniGPT4Rec_v2(Rec2Base):
                 candidate_delta_eval = scale_candidate_delta_for_eval(
                     fb.get('candidate_history_delta'), self.candidate_hist_eval_multiplier
                 )
+                candidate_gate_eval = scale_candidate_gate_for_eval(
+                    fb.get('candidate_history_gate'), self.candidate_hist_eval_multiplier
+                )
                 for my_linear in self.my_linears:
                     my_linear.gcn_output = gcn_output
                     my_linear.batch_indices = batch_indices
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
                     my_linear.candidate_history_delta = candidate_delta_eval
-                    my_linear.candidate_history_gate = fb.get('candidate_history_gate')
+                    my_linear.candidate_history_gate = candidate_gate_eval
                     # eval protocol must stay identical to I3 regardless of
                     # the training-side warm-up schedule
                     my_linear.warmup_factor = 1.0
