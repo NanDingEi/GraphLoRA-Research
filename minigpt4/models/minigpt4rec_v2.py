@@ -2,6 +2,7 @@ import logging
 import random
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
 from minigpt4.models.binary_answer_score import binary_answer_score
+from minigpt4.models.history_preference_aux import history_target_preference_loss
 from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion, accumulate_target_residuals, scale_candidate_delta_for_eval
 import torch
 from torch.cuda.amp import autocast as autocast
@@ -529,6 +530,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             proj_reg_weight=0.0,
             proj_reg_items=64,
             answer_score_mode="yes",
+            history_pref_weight=0.0,
+            history_pref_scale=4.0,
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -539,6 +542,16 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._proj_reg_step = 0
         self._last_proj_reg_loss = None
         self.dataset = dataset
+        self.history_pref_weight = float(history_pref_weight)
+        self.history_pref_scale = float(history_pref_scale)
+        if (not np.isfinite(self.history_pref_weight) or self.history_pref_weight < 0 or
+                not np.isfinite(self.history_pref_scale) or self.history_pref_scale <= 0):
+            raise ValueError("H1 history preference weight/scale must be finite; weight>=0, scale>0")
+        self._history_pref_step = 0
+        if self.history_pref_weight:
+            print("[H1] historical preference BCE weight={} sim_scale={} "
+                  "(training only; inference = S2)".format(
+                      self.history_pref_weight, self.history_pref_scale), flush=True)
         self.answer_score_mode = str(answer_score_mode)
         if self.answer_score_mode not in ("yes", "margin"):
             raise ValueError("answer_score_mode must be 'yes' or 'margin'")
@@ -1131,8 +1144,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         h_semantic = None
         need_semantic = self.training and self.gnn_semantic_align
         need_pref = self.training and self.pref_distill
-        need_gnn_view = need_semantic or need_pref \
-            or self.rel_inject or self.rel_rank_mod or self.candidate_history_fusion
+        need_gnn_view = need_semantic or need_pref or (
+            self.training and self.history_pref_weight > 0
+        ) or self.rel_inject or self.rel_rank_mod or self.candidate_history_fusion
 
         if need_semantic:
             # LLM is the semantic teacher for this auxiliary objective.
@@ -2044,6 +2058,26 @@ class MiniGPT4Rec_v2(Rec2Base):
                 ret["loss"] = loss
                 ret["loss_conf"] = loss_conf.detach()
 
+        if self.training and self.history_pref_weight > 0:
+            history_loss, valid_rows, all_rows = history_target_preference_loss(
+                fb["token_gnn"], fb["token_node_ids"], fb["batch_indices"],
+                samples["TargetItemID"], samples["label"], self.num_users,
+                similarity_scale=self.history_pref_scale,
+            )
+            loss = loss + self.history_pref_weight * history_loss
+            ret["loss"] = loss
+            ret["loss_history_pref"] = history_loss.detach()
+            self._history_pref_step += 1
+            if self._history_pref_step % 500 == 0:
+                print(
+                    "[H1] step={} raw_bce={:.6f} weighted={:.6f} "
+                    "valid_history_rows={}/{}".format(
+                        self._history_pref_step, history_loss.detach().float().item(),
+                        (self.history_pref_weight * history_loss).detach().float().item(),
+                        valid_rows, all_rows,
+                    ), flush=True,
+                )
+
         return ret
 
 
@@ -2426,6 +2460,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         lora_rank_groups = cfg.get("lora_rank_groups", None)
         fix_autocast_cache = cfg.get("fix_autocast_cache", False)
         answer_score_mode = cfg.get("answer_score_mode", "yes")
+        history_pref_weight = cfg.get("history_pref_weight", 0.0)
+        history_pref_scale = cfg.get("history_pref_scale", 4.0)
 
         model = cls(
             rec_model=rec_model,
@@ -2488,6 +2524,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             lora_rank_groups=lora_rank_groups,
             fix_autocast_cache=fix_autocast_cache,
             answer_score_mode=answer_score_mode,
+            history_pref_weight=history_pref_weight,
+            history_pref_scale=history_pref_scale,
             dataset=dataset,
         )
         model.candidate_hist_eval_multiplier = candidate_hist_eval_multiplier
