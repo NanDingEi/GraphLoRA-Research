@@ -1,0 +1,93 @@
+# H1: train-only history-target collaborative preference auxiliary BCE.
+# Binary CTR task, original S2 Yes-only logit, original layer-31 GNN injection.
+# No candidate-history gate, pairwise ranking, distillation, or inference change.
+model:
+  ans_type: v2
+  arch: mini_gpt4rec_v2
+  ckpt: null
+  dataset: movie
+  end_sym: '###'
+  freeze_lora: false
+  freeze_proj: false
+  freeze_rec: false
+  gcn_layer: 31
+  gnn_scale: 0.1
+  gnn_semantic_align: true
+  gnn_semantic_weight: 0.0001
+  item_num: -100
+  llama_model: /home/bbx/user_lx/models/vicuna-7b-v0
+  lora_config:
+    alpha: 16
+    dropout: 0.05
+    r: 8
+    target_modules:
+    - q_proj
+    - v_proj
+    use_lora: true
+  lora_gnn: ngcf
+  lora_scale: 1.0
+  max_txt_len: 1024
+  model_type: pretrain_vicuna
+  proj_drop: 0
+  proj_mid_times: 10
+  proj_reg_items: 64
+  proj_reg_weight: 0.0005
+  proj_token_num: 1
+  prompt_path: prompts/collm_movie_idlist.txt
+  prompt_template: '{}'
+  rec_config:
+    embedding_size: 256
+    item_num: 3256
+    pretrained_path: /home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth
+    user_num: 839
+  rec_model: MF
+  train_gnn_with_rec_loss: true
+  candidate_history_fusion: false
+  answer_score_mode: yes
+  history_pref_weight: 0.01
+  history_pref_scale: 4.0
+  user_num: -100
+datasets:
+  amazon_ood:
+    build_info:
+      storage: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+    data_type: default
+    path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+    test_file: test_ood2.pkl
+    train_file: train_ood2.pkl
+    val_file: valid_ood2.pkl
+run:
+  accum_grad_iters: 3
+  amp: true
+  batch_size_eval: 4
+  batch_size_train: 3
+  device: cuda
+  dist_url: env://
+  distributed: false
+  evaluate: false
+  init_lr: 0.0001
+  lr_scale_gnn: 0.25
+  lr_scale_lora: 1.0
+  lr_scale_proj: 0.5
+  lr_scale_rec: 0.5
+  lr_sched: linear_warmup_cosine_lr
+  max_epoch: 3
+  min_lr: 5.0e-05
+  mode: v2
+  num_workers: 0
+  output_dir: /home/bbx/user_lx/GraphLoRA/output/H1_HISTORY_PREFERENCE
+  min_valid_auc_after_epoch0: 0.70
+  resume_ckpt_path: null
+  save_checkpoint_every_n_epochs: 1
+  seed: 42
+  task: rec_pretrain
+  test_splits:
+  - test
+  train_splits:
+  - train
+  valid_splits:
+  - valid
+  warmup_lr: 1.0e-05
+  warmup_steps: 200
+  weight_decay: 0.001
+  world_size: 1
