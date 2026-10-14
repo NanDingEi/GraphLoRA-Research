@@ -102,6 +102,8 @@ class RunnerBase:
                 "gnn": float(self.config.run_cfg.get("lr_scale_gnn", 1.0)),
                 "lora": float(self.config.run_cfg.get("lr_scale_lora", 1.0)),
                 "other": float(self.config.run_cfg.get("lr_scale_other", 1.0)),
+                "candidate": float(self.config.run_cfg.get(
+                    "lr_scale_candidate", self.config.run_cfg.get("lr_scale_other", 1.0))),
             }
             import math
             for key, scale in lr_scales.items():
@@ -116,7 +118,9 @@ class RunnerBase:
                 if not p.requires_grad:
                     continue
                 print(n)
-                if n.startswith("rec_encoder."):
+                if n.startswith("candidate_fusion."):
+                    part = "candidate"
+                elif n.startswith("rec_encoder."):
                     part = "rec"
                 elif n.startswith("llama_proj."):
                     part = "proj"
