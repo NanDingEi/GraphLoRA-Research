@@ -571,6 +571,22 @@ class RunnerBase:
                     if not self.evaluate_only:
                         self._save_checkpoint(cur_epoch, is_best=False)
 
+                # Optional experiment-level stop-loss: do not spend two more
+                # full training epochs on a collapse far below the S2 baseline.
+                # This is model selection on VALID only, never Test.
+                min_ep0_auc = self.config.run_cfg.get(
+                    "min_valid_auc_after_epoch0", None
+                )
+                if (not self.evaluate_only and cur_epoch == 0 and
+                        min_ep0_auc is not None and len(self.valid_splits) > 0 and
+                        best_agg_metric < float(min_ep0_auc)):
+                    logging.warning(
+                        "[H1 early-stop] Epoch 0 best Valid AUC %.8f below %.8f; "
+                        "retain epoch0 checkpoint and stop further training.",
+                        best_agg_metric, float(min_ep0_auc),
+                    )
+                    break
+
                 if self.evaluate_only:
                     break
 
