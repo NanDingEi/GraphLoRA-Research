@@ -1,6 +1,7 @@
 import logging
 import random
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
+from minigpt4.models.binary_answer_score import binary_answer_score
 from minigpt4.models.candidate_history_fusion import CandidateHistoryFusion, accumulate_target_residuals, scale_candidate_delta_for_eval
 import torch
 from torch.cuda.amp import autocast as autocast
@@ -527,6 +528,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             fix_autocast_cache=False,
             proj_reg_weight=0.0,
             proj_reg_items=64,
+            answer_score_mode="yes",
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -537,6 +539,11 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._proj_reg_step = 0
         self._last_proj_reg_loss = None
         self.dataset = dataset
+        self.answer_score_mode = str(answer_score_mode)
+        if self.answer_score_mode not in ("yes", "margin"):
+            raise ValueError("answer_score_mode must be 'yes' or 'margin'")
+        print("[M1] answer_score_mode={}; loss=BCEWithLogits (binary CTR)"
+              .format(self.answer_score_mode), flush=True)
 
         # Only the requested semantic-correction controls.
         self.gnn_semantic_align = bool(gnn_semantic_align)
@@ -1980,7 +1987,11 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.candidate_history_delta = None
 
         pos_ans_id = self.llama_tokenizer(ans_[1], add_special_tokens=False).input_ids[0]
-        logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
+        neg_ans_id = self.llama_tokenizer(ans_[0], add_special_tokens=False).input_ids[0]
+        logits = binary_answer_score(
+            outputs.logits, -t_posi, pos_ans_id, neg_ans_id,
+            mode=self.answer_score_mode,
+        )
         loss_rec = F.binary_cross_entropy_with_logits(
             logits,
             samples['label'].float()
@@ -2207,7 +2218,11 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.candidate_history_delta = None
 
             pos_ans_id = self.llama_tokenizer(pos_ans, add_special_tokens=False).input_ids[0]
-            logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
+            neg_ans_id = self.llama_tokenizer(neg_ans, add_special_tokens=False).input_ids[0]
+            logits = binary_answer_score(
+                outputs.logits, -t_posi, pos_ans_id, neg_ans_id,
+                mode=self.answer_score_mode,
+            )
             loss = F.binary_cross_entropy_with_logits(
                 logits,
                 samples['label'].float()
@@ -2410,6 +2425,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         sem_consensus_target = cfg.get("sem_consensus_target", "mean")
         lora_rank_groups = cfg.get("lora_rank_groups", None)
         fix_autocast_cache = cfg.get("fix_autocast_cache", False)
+        answer_score_mode = cfg.get("answer_score_mode", "yes")
 
         model = cls(
             rec_model=rec_model,
@@ -2471,6 +2487,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             sem_consensus_target=sem_consensus_target,
             lora_rank_groups=lora_rank_groups,
             fix_autocast_cache=fix_autocast_cache,
+            answer_score_mode=answer_score_mode,
             dataset=dataset,
         )
         model.candidate_hist_eval_multiplier = candidate_hist_eval_multiplier
