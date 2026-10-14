@@ -23,4 +23,6 @@ def binary_answer_score(logits, answer_position, yes_token_id,
     if int(yes_token_id) == int(no_token_id):
         raise ValueError("Yes and No must correspond to different token IDs")
     no_logit = selected[:, no_token_id]
-    return yes_logit - no_logit
+    # Compute BCE log-odds in FP32 when the Vicuna backbone emits FP16
+    # logits; keep the original "yes" branch dtype/path untouched.
+    return yes_logit.float() - no_logit.float()
