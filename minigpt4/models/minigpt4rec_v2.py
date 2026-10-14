@@ -520,6 +520,9 @@ class MiniGPT4Rec_v2(Rec2Base):
             candidate_hist_tau=0.2,
             candidate_history_mode="add",
             candidate_hist_attention="cosine",
+            candidate_hist_train_off=False,
+            candidate_hist_gate_reg_weight=0.0,
+            s2_init_verify=False,
             sem_structural_skip=False,
             grad_clip=0.0,
             inj_warmup_start=0,
@@ -567,6 +570,12 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.candidate_hist_attention = str(candidate_hist_attention)
         if self.candidate_hist_attention not in ("cosine", "learned"):
             raise ValueError("candidate_hist_attention must be 'cosine' or 'learned'")
+        self.candidate_hist_train_off = bool(candidate_hist_train_off)
+        self.candidate_hist_gate_reg_weight = float(candidate_hist_gate_reg_weight)
+        if self.candidate_hist_gate_reg_weight < 0 or not np.isfinite(self.candidate_hist_gate_reg_weight):
+            raise ValueError("candidate_hist_gate_reg_weight must be finite and nonnegative")
+        self.s2_init_verify = bool(s2_init_verify)
+        self._last_candidate_gate_reg = None
         self._candidate_hist_step = 0
 
         # Preference-level G->L distillation (v12 recipe): the GNN's group-wise
@@ -1283,7 +1292,9 @@ class MiniGPT4Rec_v2(Rec2Base):
                     + int(samples.get('iters', 0)),
         }
 
-        if self.candidate_history_fusion:
+        # TrainOff must match the S2 forward and backward graph, not merely
+        # zero the gate at evaluation. No candidate MLP forward or gradient.
+        if self.candidate_history_fusion and not self.candidate_hist_train_off:
             candidate_value = self._candidate_history_residual(
                 samples, samples_encode, sub_node_ids, gcn_penult, batch_indices
             )
@@ -1977,6 +1988,13 @@ class MiniGPT4Rec_v2(Rec2Base):
             batch_indices = fb['batch_indices']
             token_positions = fb['token_positions']
             local_node_ids = fb['local_node_ids']
+            self._last_candidate_gate_reg = None
+            if (self.training and self.candidate_hist_gate_reg_weight > 0
+                    and fb.get('candidate_history_gate') is not None):
+                # Penalize the mean squared gate deviation over ID rows.
+                # Non-target rows are identity, so the loss is zero there.
+                gate = fb['candidate_history_gate'].float()
+                self._last_candidate_gate_reg = (gate - 1.0).square().mean()
 
             if self.use_lora:
                 # A1 injection warm-up: training only, linear ramp of the
@@ -2436,6 +2454,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         candidate_hist_tau = cfg.get("candidate_hist_tau", 0.2)
         candidate_history_mode = cfg.get("candidate_history_mode", "add")
         candidate_hist_attention = cfg.get("candidate_hist_attention", "cosine")
+        candidate_hist_train_off = cfg.get("candidate_hist_train_off", False)
+        candidate_hist_gate_reg_weight = cfg.get("candidate_hist_gate_reg_weight", 0.0)
+        s2_init_verify = cfg.get("s2_init_verify", False)
         candidate_hist_eval_multiplier = float(cfg.get("candidate_hist_eval_multiplier", 1.0))
         if not np.isfinite(candidate_hist_eval_multiplier) or candidate_hist_eval_multiplier < 0:
             raise ValueError("candidate_hist_eval_multiplier must be finite and non-negative")
@@ -2504,6 +2525,9 @@ class MiniGPT4Rec_v2(Rec2Base):
             candidate_hist_tau=candidate_hist_tau,
             candidate_history_mode=candidate_history_mode,
             candidate_hist_attention=candidate_hist_attention,
+            candidate_hist_train_off=candidate_hist_train_off,
+            candidate_hist_gate_reg_weight=candidate_hist_gate_reg_weight,
+            s2_init_verify=s2_init_verify,
             sem_adapter=sem_adapter,
             sem_alpha=sem_alpha,
             sem_rho=sem_rho,
@@ -2539,7 +2563,41 @@ class MiniGPT4Rec_v2(Rec2Base):
                 ckpt = torch.load(ckpt_path, map_location="cpu", mmap=True)
             except TypeError:
                 ckpt = torch.load(ckpt_path, map_location="cpu")
+            if model.s2_init_verify:
+                # These trainable components must be restored from the S2
+                # checkpoint. New candidate gate parameters are deliberately
+                # absent; frozen Vicuna base weights come from the backbone.
+                source = ckpt['model']
+                target = model.state_dict()
+                expected = ("rec_encoder.", "gcn.", "llama_proj.", "llama_model.model.layers.")
+                for prefix in expected:
+                    names = [key for key in target if key.startswith(prefix)
+                             and (prefix != "llama_model.model.layers." or "lora_" in key)]
+                    restored = [key for key in names if key in source and
+                                source[key].shape == target[key].shape]
+                    print("[S2-init] {} restored={}/{}".format(
+                        prefix, len(restored), len(names)), flush=True)
+                    if not restored or (
+                        prefix in ("gcn.", "llama_proj.") and len(restored) != len(names)
+                    ):
+                        raise RuntimeError(
+                            "[S2-init] Incomplete {} checkpoint restoration".format(prefix))
+                if any(key.startswith("candidate_fusion.") for key in source):
+                    raise RuntimeError("[S2-init] Expected an S2 checkpoint, got candidate-fusion weights")
             msg = model.load_state_dict(ckpt['model'], strict=False)
+            if model.s2_init_verify and (
+                model.candidate_history_mode != "gate" or
+                not model.candidate_history_fusion or
+                model.candidate_hist_train_off
+            ):
+                raise RuntimeError("[S2-init] Expected active identity-initialized A2 gate")
+            if model.s2_init_verify:
+                gate_last = model.candidate_fusion.gate_encoder[-1]
+                if (torch.count_nonzero(gate_last.weight).item() != 0 or
+                    torch.count_nonzero(gate_last.bias).item() != 0):
+                    raise RuntimeError("[S2-init] Gate head is not zero-initialized")
+                print("[S2-init] Model weights restored, new gate identity verified, "
+                      "optimizer will be freshly initialized", flush=True)
             print("loading message, msg.... ", msg)
             del ckpt
             if os.path.exists(rec_config['pretrained_path']) and freeze_rec:
