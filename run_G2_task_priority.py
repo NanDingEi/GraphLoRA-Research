@@ -26,9 +26,9 @@ def check_config():
     from omegaconf import OmegaConf
     cfg = OmegaConf.load(ROOT / CONFIG)
     if cfg.model.candidate_history_fusion:
-        raise RuntimeError("G1 must preserve S2 (no A1/A2 candidate fusion)")
+        raise RuntimeError("G2 must preserve S2 (no A1/A2 candidate fusion)")
     if cfg.model.ckpt is not None or cfg.run.resume_ckpt_path is not None:
-        raise RuntimeError("G1 must train from scratch, not warm-start/resume")
+        raise RuntimeError("G2 must train from scratch, not warm-start/resume")
     if cfg.model.gnn_semantic_align is not True:
         raise RuntimeError("S2 semantic alignment must remain enabled")
     if cfg.model.get("g1_graph_path", ""):
@@ -36,7 +36,7 @@ def check_config():
     if cfg.model.get("g2_task_priority") is not True:
         raise RuntimeError("G2 gradient priority must be enabled")
     if cfg.model.gcn_layer != 31 or float(cfg.model.gnn_scale) != 0.1:
-        raise RuntimeError("G1 must keep S2 layer 31 scale 0.1")
+        raise RuntimeError("G2 must keep S2 layer 31 scale 0.1")
     return cfg
 
 
@@ -204,7 +204,7 @@ def main():
     except Exception as exc:
         info["status"] = "FAILED"
         info["error"] = str(exc)
-        print("G1 experiment failed:", str(exc)[:1500], flush=True)
+        print("G2 experiment failed:", str(exc)[:1500], flush=True)
     txt, csvf, summary = write_report(stamp, info)
     print("\n" + "="*65 + "\nG2 FINAL METRICS\n" + "="*65, flush=True)
     print(summary, flush=True)
