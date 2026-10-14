@@ -1,6 +1,5 @@
-# G2: keep S2's binary CTR, layer-31 GraphLoRA injection and optimizer.
-# The only method change is a TRAIN-ONLY CF-supported title/genre fused graph.
-# A runner-generated absolute graph path is passed through CLI --options.
+# G2: S2 original binary CTR / original graph, task-priority gradients for NGCF.
+# No added graph, extra model, new supervision or early termination.
 model:
   ans_type: v2
   arch: mini_gpt4rec_v2
@@ -44,6 +43,7 @@ model:
   train_gnn_with_rec_loss: true
   candidate_history_fusion: false
   g1_graph_path: ""
+  g2_task_priority: true
   user_num: -100
 datasets:
   amazon_ood:
