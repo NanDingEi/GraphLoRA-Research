@@ -120,6 +120,19 @@ class TestCandidateHistoryFusion(unittest.TestCase):
         self.assertGreater(float(m.query_proj.weight.grad.abs().sum()), 0)
         self.assertGreater(float(m.key_proj.weight.grad.abs().sum()), 0)
 
+    def test_inference_gate_ablation_identity(self):
+        from minigpt4.models.candidate_history_fusion import (
+            scale_candidate_gate_for_eval,
+        )
+        g = torch.tensor([[1.0, 1.25, 0.75], [1.0, 0.8, 1.2]])
+        self.assertIsNone(scale_candidate_gate_for_eval(None, 0.0))
+        self.assertIs(scale_candidate_gate_for_eval(g, 1.0), g)
+        self.assertTrue(torch.equal(
+            scale_candidate_gate_for_eval(g, 0.0), torch.ones_like(g)))
+        self.assertTrue(torch.allclose(
+            scale_candidate_gate_for_eval(g, 0.25),
+            1.0 + 0.25 * (g - 1.0)))
+
     def test_A2_identity_rows_accumulation(self):
         from minigpt4.models.candidate_history_fusion import (
             accumulate_target_residuals,
