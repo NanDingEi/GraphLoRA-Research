@@ -243,6 +243,26 @@ def build_graph(data_dir, out_path, num_users, num_items,
     if (df.uid.min() < 0 or df.uid.max() >= num_users or
             df.iid.min() < 0 or df.iid.max() >= num_items):
         raise ValueError("Training ID range exceeds configured CF node space")
+    # Confirm original S2 bipartite graph itself contains ONLY positive
+    # TRAIN interactions; no hidden valid/test edges or cached mixed graph.
+    expected_edges = set(
+        zip(df.loc[df.label > 0, "uid"].astype(int),
+            df.loc[df.label > 0, "iid"].astype(int))
+    )
+    cf = support[:num_users, num_users:].tocoo()
+    actual_edges = set(zip(cf.row.tolist(), cf.col.tolist()))
+    if (support[:num_users, :num_users].nnz != 0 or
+            support[num_users:, num_users:].nnz != 0 or
+            actual_edges != expected_edges):
+        raise ValueError(
+            "S2 graph must contain only positive TRAIN user-item edges. "
+            "CF graph edges={}, train-positive edges={}, differences "
+            "missing={} extra={}; abort to prevent data leakage".format(
+                len(actual_edges), len(expected_edges),
+                len(expected_edges - actual_edges),
+                len(actual_edges - expected_edges),
+            )
+        )
     titles, positives = titles_from_train(df, num_items)
     genres, has_movies = genres_from_movies_dat(
         movies_path if movies_path.is_file() else None
@@ -265,6 +285,7 @@ def build_graph(data_dir, out_path, num_users, num_items,
     sp.save_npz(out_path, fused)
     report.update({
         "baseline_nnz": int(baseline.nnz),
+        "verified_CF_edges_match_positive_train": True,
         "G1_nnz": int(fused.nnz),
         "baseline_max_reconstruction_err": base_err,
         "uses_movies_dat_genres": has_movies,
