@@ -527,6 +527,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             fix_autocast_cache=False,
             proj_reg_weight=0.0,
             proj_reg_items=64,
+            g1_graph_path="",
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -537,6 +538,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._proj_reg_step = 0
         self._last_proj_reg_loss = None
         self.dataset = dataset
+        self.g1_graph_path = str(g1_graph_path or "")
+        if self.g1_graph_path and self.dataset != "movie":
+            raise ValueError("G1 fused graph supports only ml-1m/movie in this branch")
 
         # Only the requested semantic-correction controls.
         self.gnn_semantic_align = bool(gnn_semantic_align)
@@ -941,6 +945,18 @@ class MiniGPT4Rec_v2(Rec2Base):
                 }
 
             adj_matrix_path = adj_matrix_paths.get(mode, adj_matrix_paths['train'])
+            if self.g1_graph_path:
+                # Strictly reuse ONE train-only fused graph for training,
+                # validation and test; no split-dependent graph construction.
+                adj_matrix_path = self.g1_graph_path
+                if not os.path.isfile(adj_matrix_path):
+                    raise FileNotFoundError("G1 graph not built: " + adj_matrix_path)
+                if not os.path.isfile(os.path.splitext(adj_matrix_path)[0] + ".json"):
+                    raise FileNotFoundError(
+                        "G1 provenance report missing: " + adj_matrix_path + ".json"
+                    )
+                print("[G1] train-only fused graph: {}".format(
+                    os.path.abspath(adj_matrix_path)), flush=True)
             # print(f"Loading adjacency matrix for {mode} from: {adj_matrix_path}")
 
             # 加载 .npz 文件
@@ -2410,6 +2426,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         sem_consensus_target = cfg.get("sem_consensus_target", "mean")
         lora_rank_groups = cfg.get("lora_rank_groups", None)
         fix_autocast_cache = cfg.get("fix_autocast_cache", False)
+        g1_graph_path = cfg.get("g1_graph_path", "")
 
         model = cls(
             rec_model=rec_model,
@@ -2471,6 +2488,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             sem_consensus_target=sem_consensus_target,
             lora_rank_groups=lora_rank_groups,
             fix_autocast_cache=fix_autocast_cache,
+            g1_graph_path=g1_graph_path,
             dataset=dataset,
         )
         model.candidate_hist_eval_multiplier = candidate_hist_eval_multiplier
