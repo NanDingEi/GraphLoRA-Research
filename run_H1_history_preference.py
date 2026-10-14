@@ -126,6 +126,7 @@ def write_report(stamp, info):
         "Test UAUC: " + fmt(info["test_uauc"]),
         "Train loss per epoch: " + info["train_loss_per_epoch"],
         "Valid AUC per epoch: " + info["valid_auc_per_epoch"],
+        "Valid UAUC per epoch: " + info["valid_uauc_per_epoch"],
         "Checkpoint: " + info["checkpoint"],
         "Training log: " + info["train_log"],
         "Error: " + info["error"],
@@ -156,7 +157,8 @@ def main():
     info = dict(
         status="RUNNING", best_epoch="", valid_auc=None, valid_uauc=None,
         test_auc=None, test_uauc=None, train_loss_per_epoch="",
-        valid_auc_per_epoch="", checkpoint="", train_log=str(logfile), error="",
+        valid_auc_per_epoch="", valid_uauc_per_epoch="",
+        checkpoint="", train_log=str(logfile), error="",
     )
     print("H1 history-preference auxiliary (CTR/BCE, no rank loss). Starting foreground training.", flush=True)
     try:
@@ -170,6 +172,9 @@ def main():
             valid_auc=valid[epoch][0], valid_uauc=valid[epoch][1],
             train_loss_per_epoch=";".join("{:.6f}".format(x) for x in losses),
             valid_auc_per_epoch=";".join("{:.8f}".format(x[0]) for x in valid),
+            valid_uauc_per_epoch=";".join(
+                "-" if x[1] is None else "{:.8f}".format(x[1]) for x in valid
+            ),
             checkpoint=str(ckpt),
         )
         write_report(stamp, info)
