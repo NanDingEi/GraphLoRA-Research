@@ -43,7 +43,7 @@ model:
   rec_model: MF
   train_gnn_with_rec_loss: true
   candidate_history_fusion: false
-  answer_score_mode: yes
+  answer_score_mode: "yes"
   history_pref_weight: 0.01
   history_pref_scale: 4.0
   user_num: -100
