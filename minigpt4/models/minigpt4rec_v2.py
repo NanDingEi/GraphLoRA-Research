@@ -2583,9 +2583,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                                 source[key].shape == target[key].shape]
                     print("[S2-init] {} restored={}/{}".format(
                         prefix, len(restored), len(names)), flush=True)
-                    if not restored or (
-                        prefix in ("gcn.", "llama_proj.") and len(restored) != len(names)
-                    ):
+                    if not names or len(restored) != len(names):
                         raise RuntimeError(
                             "[S2-init] Incomplete {} checkpoint restoration".format(prefix))
                 if any(key.startswith("candidate_fusion.") for key in source):
