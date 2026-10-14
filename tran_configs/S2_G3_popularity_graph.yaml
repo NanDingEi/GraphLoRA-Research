@@ -74,7 +74,6 @@ run:
   mode: v2
   num_workers: 0
   output_dir: /home/bbx/user_lx/GraphLoRA/output/G3_CF_SEMANTIC
-  min_valid_auc_after_epoch0: 0.70
   resume_ckpt_path: null
   save_checkpoint_every_n_epochs: 1
   seed: 42
