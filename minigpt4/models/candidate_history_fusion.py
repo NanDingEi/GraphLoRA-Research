@@ -28,6 +28,15 @@ def scale_candidate_delta_for_eval(delta, multiplier):
     return delta * multiplier
 
 
+def scale_candidate_gate_for_eval(gate, multiplier):
+    """Inference-only gate ablation; multiplier=0 makes the injection identity."""
+    if gate is None or multiplier == 1.0:
+        return gate
+    if multiplier == 0.0:
+        return torch.ones_like(gate)
+    return 1.0 + multiplier * (gate - 1.0)
+
+
 class CandidateHistoryFusion(nn.Module):
     def __init__(self, dim=256, rank=8, temperature=0.2):
         super().__init__()
