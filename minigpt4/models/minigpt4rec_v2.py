@@ -2096,6 +2096,12 @@ class MiniGPT4Rec_v2(Rec2Base):
                 ret["loss"] = loss
                 ret["loss_conf"] = loss_conf.detach()
 
+        if self.training and self._last_candidate_gate_reg is not None:
+            gate_reg = self._last_candidate_gate_reg
+            loss = loss + self.candidate_hist_gate_reg_weight * gate_reg
+            ret["loss"] = loss
+            ret["loss_gate"] = gate_reg.detach()
+
         return ret
 
 
