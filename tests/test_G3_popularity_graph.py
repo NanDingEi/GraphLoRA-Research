@@ -46,7 +46,12 @@ class G3Tests(unittest.TestCase):
     def test_reject_leaked_graph_edge(self):
         with TemporaryDirectory() as d:
             self.setup_graph(d)
-            g=sp.load_npz(Path(d)/"movie_graph_train.npz").tolil()
+            # Restore binary edge support BEFORE inserting a leaked edge.
+            # Renormalizing already normalized weights would fail the
+            # reconstruction check before reaching the intended leak check.
+            g=sp.load_npz(Path(d)/"movie_graph_train.npz").tocsr()
+            g.data[:] = 1.0
+            g = g.tolil()
             g[1,5]=1
             g[5,1]=1
             sp.save_npz(Path(d)/"movie_graph_train.npz",graph_normalize(g.tocsr()))
