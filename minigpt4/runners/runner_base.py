@@ -118,7 +118,9 @@ class RunnerBase:
                 print(n)
                 if n.startswith("rec_encoder."):
                     part = "rec"
-                elif n.startswith("llama_proj."):
+                elif n.startswith("llama_proj.") or n.startswith("d1_pair_proj."):
+                    # Both are LLM-side embedding/pair projection parameters.
+                    # The original S2 parameter groups remain unchanged.
                     part = "proj"
                 elif n.startswith("gcn.") or n.startswith("gnn.") or                      "Wneck" in n or "gnn_proj" in n or                      (".layers." + layer_id + "." in n and
                       (n.endswith(".q_proj.bias") or n.endswith(".v_proj.bias"))):
