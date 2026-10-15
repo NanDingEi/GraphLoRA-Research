@@ -66,14 +66,18 @@ PY
   BEST="$(find "$OUT" -type f -name checkpoint_best.pth -print -quit)"
   test -n "$BEST" || { echo "[D1] best checkpoint missing" >&2; exit 1; }
 
-  echo "[D1] ${TAG}: test best-Valid checkpoint $BEST"
+  # Retain frozen original S2 collaborative tensors when producing a
+  # checkpoint for standalone Test. The runner saves trainable-only state.
+  local COMPLETE="${BEST%.pth}_complete.pth"
+  python -u complete_D1_checkpoint.py --s2 "$S2" --d1 "$BEST" --out "$COMPLETE"
+  echo "[D1] ${TAG}: test best-Valid checkpoint $COMPLETE"
   python -u train_collm_mf_din.py --cfg-path "$CFG" --options \
-    model.ckpt="$(realpath "$BEST")" run.evaluate=true run.test_splits=[test] \
+    model.ckpt="$(realpath "$COMPLETE")" run.evaluate=true run.test_splits=[test] \
     run.output_dir="output/D1_${TAG}_test_${STAMP}" \
     2>&1 | tee "$TS_LOG"
 
   printf 'experiment=%s\ncheckpoint=%s\npreflight_log=%s\ntrain_log=%s\ntest_log=%s\n' \
-    "$TAG" "$BEST" "$PRE_LOG" "$TR_LOG" "$TS_LOG" \
+    "$TAG" "$COMPLETE" "$PRE_LOG" "$TR_LOG" "$TS_LOG" \
     > "out/D1_${TAG}_${STAMP}.txt"
   echo "[D1] ${TAG} completed: out/D1_${TAG}_${STAMP}.txt"
 }
