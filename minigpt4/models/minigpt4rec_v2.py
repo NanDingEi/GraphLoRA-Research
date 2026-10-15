@@ -18,7 +18,8 @@ import numpy as np
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, prepare_model_for_int8_training, \
     set_peft_model_state_dict
 from minigpt4.models.d1_decision_injection import (
-    build_decision_pair_features, decision_position, inject_decision_query
+    build_decision_pair_features, decision_position, inject_decision_query,
+    gate_decision_pair
 )
 
 
@@ -450,9 +451,9 @@ class MyLinear(OriginalLinear):
                     # D1-C: conditioned on the LLM's own query bottleneck.
                     # P(z_u,z_i) is zero-init so both choices have the exact
                     # same prediction before optimizer updates.
-                    semantic_q = lora_a_output[:, self.d1_decision_position, :]
-                    gate = 2.0 * torch.sigmoid(semantic_q.float())
-                    decision_pair = decision_pair * gate.to(decision_pair.dtype)
+                    decision_pair = gate_decision_pair(
+                        lora_a_output, decision_pair, self.d1_decision_position
+                    )
                 lora_a_output = inject_decision_query(
                     lora_a_output, decision_pair,
                     self.d1_decision_position, self.gnn_scale
