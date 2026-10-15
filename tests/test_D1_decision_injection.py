@@ -1,5 +1,7 @@
 """CPU tests: python -m unittest tests.test_D1_decision_injection -v."""
 import unittest
+import ast
+from pathlib import Path
 
 import torch
 import torch.nn.functional as F
@@ -69,6 +71,26 @@ class D1InjectionTests(unittest.TestCase):
         z[:, 6, :].sum().backward()
         self.assertIsNotNone(proj.weight.grad)
         self.assertGreater(proj.weight.grad.abs().sum().item(), 0)
+
+    def test_projector_regularization_wraps_only_forward_v2(self):
+        # Regression: adding a helper immediately before forward_v2 must not
+        # accidentally move the decorator onto that helper.
+        model_file = (Path(__file__).resolve().parents[1] /
+                      "minigpt4/models/minigpt4rec_v2.py")
+        module = ast.parse(model_file.read_text(encoding="utf-8"))
+        classes = [n for n in module.body
+                   if isinstance(n, ast.ClassDef) and n.name == "MiniGPT4Rec_v2"]
+        self.assertEqual(len(classes), 1)
+        methods = {n.name: n for n in classes[0].body
+                   if isinstance(n, ast.FunctionDef)}
+        self.assertIn("forward_v2", methods)
+        self.assertIn("_d1_query_from_feedback", methods)
+        decorated = lambda m: [
+            d.id for d in methods[m].decorator_list if isinstance(d, ast.Name)
+        ]
+        self.assertIn("projector_regularized_forward", decorated("forward_v2"))
+        self.assertNotIn("projector_regularized_forward",
+                         decorated("_d1_query_from_feedback"))
 
     def test_shape_mismatch_rejected(self):
         with self.assertRaisesRegex(ValueError, "shape"):
