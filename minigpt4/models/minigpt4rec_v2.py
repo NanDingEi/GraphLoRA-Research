@@ -17,6 +17,9 @@ import re
 import numpy as np
 from peft import LoraConfig, get_peft_model, get_peft_model_state_dict, prepare_model_for_int8_training, \
     set_peft_model_state_dict
+from minigpt4.models.d1_decision_injection import (
+    build_decision_pair_features, decision_position, inject_decision_query
+)
 
 
 def get_ids_order(prompt):
@@ -336,6 +339,11 @@ class MyLinear(OriginalLinear):
         self.batch_indices = None
         self.token_positions = None
         self.local_node_ids = None
+        # D1 disabled by default, so historical S2 behavior remains identical.
+        # q: decision token ONLY (B), v: original ID positions (A/B).
+        self.d1_mode = "baseline"
+        self.d1_decision_pair = None
+        self.d1_decision_position = None
         # rank-wise pair modulation (optional): per-batch-row gate in R^r,
         # zero-init MLP => sigmoid(0)*2 = 1 => identity at start
         self.rel_pair_gate = None
@@ -395,7 +403,9 @@ class MyLinear(OriginalLinear):
             x_lora = self.lora_dropout[self.active_adapter](x_lora)
             lora_a_output = self.lora_A[self.active_adapter](x_lora)
 
-            if self.layer_idx == self.gcn_layer and self.gcn_output is not None:
+            if (self.layer_idx == self.gcn_layer and
+                    self.gcn_output is not None and
+                    (self.d1_mode == "baseline" or self.module_tag == "v")):
                 valid_mask = self.local_node_ids != -1
                 if valid_mask.any():
                     batch_indices = self.batch_indices[valid_mask]
@@ -429,6 +439,15 @@ class MyLinear(OriginalLinear):
                             + self.gcn_output[local_node_ids]
                             * (self.gnn_scale * self.warmup_factor)
                         )
+
+            if (self.d1_mode == "decision_q_v" and self.module_tag == "q"
+                    and self.d1_decision_pair is not None):
+                if self.d1_decision_position is None:
+                    raise ValueError("D1 Query position missing")
+                lora_a_output = inject_decision_query(
+                    lora_a_output, self.d1_decision_pair,
+                    self.d1_decision_position, self.gnn_scale
+                )
 
             if self.rel_pair_gate is not None:
                 # rank-wise pair modulation: g = 2*sigmoid(W c_ui) in (0,2),
@@ -512,6 +531,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             fix_autocast_cache=False,
             proj_reg_weight=0.0,
             proj_reg_items=64,
+            d1_mode="baseline",
+            d1_freeze_small=False,
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -522,6 +543,19 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._proj_reg_step = 0
         self._last_proj_reg_loss = None
         self.dataset = dataset
+        self.d1_mode = str(d1_mode)
+        if self.d1_mode not in ("baseline", "v_only", "decision_q_v"):
+            raise ValueError("D1 mode must be baseline, v_only or decision_q_v")
+        self.d1_freeze_small = bool(d1_freeze_small)
+        if self.d1_mode != "baseline":
+            if not self.d1_freeze_small:
+                raise ValueError("D1 experiments require d1_freeze_small=true")
+            if int(gcn_layer) != 31 or float(gnn_scale) != 0.1:
+                raise ValueError("D1 requires S2 layer-31 and gnn_scale=0.1")
+            if bool(rel_inject) or bool(rel_rank_mod) or bool(rel_gate):
+                raise ValueError("D1 excludes prior relation-gate experiment variants")
+            print("[D1] mode={} small_model_frozen=True".format(self.d1_mode),
+                  flush=True)
 
         # Only the requested semantic-correction controls.
         self.gnn_semantic_align = bool(gnn_semantic_align)
@@ -757,6 +791,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                         )
                         new_module.inj_diag = self.inj_diag
                         new_module.module_tag = 'q' if 'q_proj' in name else 'v'
+                        new_module.d1_mode = self.d1_mode
 
                         parent_name = '.'.join(name.split('.')[:-1])
                         attr_name = name.split('.')[-1]
@@ -862,6 +897,17 @@ class MiniGPT4Rec_v2(Rec2Base):
             )
         else:
             self.llama_proj = None
+
+        # D1-B: 3*r -> r lightweight *LLM-side* projection. Zero-init and
+        # isolated RNG stream preserve S2 LoRA/projector initialization.
+        # No new network or gradient path is introduced on the GNN side.
+        self.d1_pair_proj = None
+        if self.d1_mode == "decision_q_v":
+            with torch.random.fork_rng(devices=[]):
+                self.d1_pair_proj = nn.Linear(
+                    3 * int(lora_config.r), int(lora_config.r), bias=False
+                )
+                nn.init.zeros_(self.d1_pair_proj.weight)
 
         if freeze_proj and self.llama_proj is not None:
             for name, param in self.llama_proj.named_parameters():
@@ -2285,6 +2331,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         sem_consensus_target = cfg.get("sem_consensus_target", "mean")
         lora_rank_groups = cfg.get("lora_rank_groups", None)
         fix_autocast_cache = cfg.get("fix_autocast_cache", False)
+        d1_mode = cfg.get("d1_mode", "baseline")
+        d1_freeze_small = cfg.get("d1_freeze_small", False)
 
         model = cls(
             rec_model=rec_model,
@@ -2344,16 +2392,25 @@ class MiniGPT4Rec_v2(Rec2Base):
             sem_consensus_target=sem_consensus_target,
             lora_rank_groups=lora_rank_groups,
             fix_autocast_cache=fix_autocast_cache,
+            d1_mode=d1_mode,
+            d1_freeze_small=d1_freeze_small,
             dataset=dataset,
         )
 
         ckpt_path = cfg.get("ckpt", "")
+        if model.d1_mode != "baseline" and not ckpt_path:
+            raise ValueError("D1 requires historical trained S2 checkpoint as warm start")
         if ckpt_path:
             print("Load MiniGPT4Rec Checkpoint: {}".format(ckpt_path))
             try:
                 ckpt = torch.load(ckpt_path, map_location="cpu", mmap=True)
             except TypeError:
                 ckpt = torch.load(ckpt_path, map_location="cpu")
+            if model.d1_mode != "baseline":
+                states = ckpt.get("model", {})
+                for prefix in ("gcn.", "rec_encoder.", "llama_proj.", "llama_model."):
+                    if not any(k.startswith(prefix) for k in states):
+                        raise ValueError("D1 warm-start checkpoint missing " + prefix)
             msg = model.load_state_dict(ckpt['model'], strict=False)
             print("loading message, msg.... ", msg)
             del ckpt
@@ -2361,6 +2418,16 @@ class MiniGPT4Rec_v2(Rec2Base):
                 model.rec_encoder.load_state_dict(
                     torch.load(rec_config['pretrained_path'], map_location="cpu")
                 )
+
+        if model.d1_freeze_small:
+            if model.gcn is None or model.rec_encoder is None:
+                raise ValueError("D1 expected both MF and NGCF to freeze")
+            for p in model.gcn.parameters():
+                p.requires_grad_(False)
+            for p in model.rec_encoder.parameters():
+                p.requires_grad_(False)
+            print("[D1] froze rec_encoder and gcn AFTER loading S2 checkpoint",
+                  flush=True)
 
         ans_type = cfg.get('ans_type')
         model.set_answer_type(mode=ans_type)
