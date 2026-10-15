@@ -67,3 +67,17 @@ def inject_decision_query(bottleneck, pair, position, scale):
         dtype=result.dtype, device=result.device
     ) * scale
     return result
+
+
+def gate_decision_pair(bottleneck, pair, position):
+    """LLM-query-conditioned rank-wise collaborative gate (D1-C).
+
+    Uses only already existing query features, no extra trainable weights.
+    """
+    if bottleneck.ndim != 3 or pair.ndim != 2:
+        raise ValueError("D1 gate expected [B,T,r] query and [B,r] pair")
+    b, t, r = bottleneck.shape
+    if pair.shape != (b, r) or not (0 <= position < t):
+        raise ValueError("D1 gate mismatched query or pair dimensions")
+    gate = 2.0 * torch.sigmoid(bottleneck[:, position, :].float())
+    return pair * gate.to(dtype=pair.dtype)
