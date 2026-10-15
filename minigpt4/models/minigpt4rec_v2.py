@@ -1788,6 +1788,33 @@ class MiniGPT4Rec_v2(Rec2Base):
         return {"loss": loss}
 
     @projector_regularized_forward
+    def _d1_query_from_feedback(self, samples, samples_encode,
+                                replaced_idx, fb, prompt_length, answer_length,
+                                total_length):
+        """Construct the LLM-side Q vector with EXACT target ID matching.
+
+        Both training and evaluation use the raw GNN features normalized by
+        the helper, preventing a new train/eval scaling mismatch for D1-Q.
+        Existing S2 V preprocessing is left untouched for controlled contrast.
+        """
+        if self.d1_mode != "decision_q_v":
+            return None, None
+        if self.d1_pair_proj is None:
+            raise RuntimeError("D1 projector missing")
+        batch_size = int(samples['UserID'].shape[0])
+        mask = replaced_idx[:, 0] < batch_size
+        node_ids = samples_encode['node_ids'][mask]
+        features = build_decision_pair_features(
+            fb['batch_indices'], fb['local_node_ids'], node_ids,
+            samples['UserID'], samples['TargetItemID'],
+            self.num_users, fb['gcn_output'],
+        )
+        decision_idx = decision_position(prompt_length, answer_length, total_length)
+        decision_q = self.d1_pair_proj(
+            features.to(dtype=self.d1_pair_proj.weight.dtype)
+        )
+        return decision_q, decision_idx
+
     def forward_v2(self, samples):
         user_selective_prompts = False
         if hasattr(samples, 'question_split'):
@@ -1869,6 +1896,11 @@ class MiniGPT4Rec_v2(Rec2Base):
             batch_indices = fb['batch_indices']
             token_positions = fb['token_positions']
             local_node_ids = fb['local_node_ids']
+            d1_query, d1_pos = self._d1_query_from_feedback(
+                samples, samples_encode, samples_encode['replaced_idx'],
+                fb, sample_embeds.shape[1],
+                to_regress_tokens.input_ids.shape[1], inputs_embeds.shape[1]
+            )
 
             if self.use_lora:
                 # A1 injection warm-up: training only, linear ramp of the
@@ -1889,6 +1921,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.local_node_ids = local_node_ids
                     my_linear.rel_pair_gate = pair_gate['g_raw'] if pair_gate is not None else None
                     my_linear.warmup_factor = warmup_factor
+                    my_linear.d1_decision_pair = d1_query if my_linear.module_tag == 'q' else None
+                    my_linear.d1_decision_position = d1_pos
 
             if not self.use_lora:
                 outputs = self.llama_model(
@@ -1911,6 +1945,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = None
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
+                    my_linear.d1_decision_pair = None
+                    my_linear.d1_decision_position = None
 
         pos_ans_id = self.llama_tokenizer(ans_[1], add_special_tokens=False).input_ids[0]
         logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2085,6 +2121,11 @@ class MiniGPT4Rec_v2(Rec2Base):
                 batch_indices = fb['batch_indices']
                 token_positions = fb['token_positions']
                 local_node_ids = fb['local_node_ids']
+                d1_query, d1_pos = self._d1_query_from_feedback(
+                    samples, samples_encode, replaced_idx,
+                    fb, sample_embeds.shape[1],
+                    to_regress_tokens.input_ids.shape[1], inputs_embeds.shape[1]
+                )
 
                 # relation-aware pair add (step 2/3) must apply at eval too,
                 # otherwise the eval-time injection distribution differs from
@@ -2101,6 +2142,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = batch_indices
                     my_linear.token_positions = token_positions
                     my_linear.local_node_ids = local_node_ids
+                    my_linear.d1_decision_pair = d1_query if my_linear.module_tag == 'q' else None
+                    my_linear.d1_decision_position = d1_pos
                     # eval protocol must stay identical to I3 regardless of
                     # the training-side warm-up schedule
                     my_linear.warmup_factor = 1.0
@@ -2131,6 +2174,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = None
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
+                    my_linear.d1_decision_pair = None
+                    my_linear.d1_decision_position = None
 
             pos_ans_id = self.llama_tokenizer(pos_ans, add_special_tokens=False).input_ids[0]
             logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
