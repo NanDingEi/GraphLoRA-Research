@@ -10,6 +10,7 @@ from minigpt4.models.d1_decision_injection import (
     build_decision_pair_features,
     decision_position,
     inject_decision_query,
+    gate_decision_pair,
 )
 
 
@@ -71,6 +72,22 @@ class D1InjectionTests(unittest.TestCase):
         z[:, 6, :].sum().backward()
         self.assertIsNotNone(proj.weight.grad)
         self.assertGreater(proj.weight.grad.abs().sum().item(), 0)
+
+    def test_semantic_gate_is_query_conditioned_and_zero_init_safe(self):
+        torch.manual_seed(17)
+        query = torch.randn(2, 5, 8, requires_grad=True)
+        projection = torch.nn.Linear(24, 8, bias=False)
+        torch.nn.init.zeros_(projection.weight)
+        raw = torch.randn(2, 24)
+        pair = projection(raw)
+        gated = gate_decision_pair(query, pair, 4)
+        out = inject_decision_query(query, gated, 4, 0.1)
+        self.assertTrue(torch.equal(out, query))
+        out[:, 4, :].sum().backward()
+        self.assertGreater(projection.weight.grad.abs().sum().item(), 0)
+        self.assertTrue(torch.isfinite(projection.weight.grad).all())
+        with self.assertRaises(ValueError):
+            gate_decision_pair(query, pair[:1], 4)
 
     def test_projector_regularization_wraps_only_forward_v2(self):
         # Regression: adding a helper immediately before forward_v2 must not
