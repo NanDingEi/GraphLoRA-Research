@@ -58,7 +58,7 @@ run:
   accum_grad_iters: 3
   amp: true
   batch_size_eval: 4
-  batch_size_train: 3
+  batch_size_train: 2
   device: cuda
   dist_url: env://
   distributed: false
