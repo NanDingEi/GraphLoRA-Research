@@ -440,12 +440,21 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor)
                         )
 
-            if (self.d1_mode == "decision_q_v" and self.module_tag == "q"
-                    and self.d1_decision_pair is not None):
+            if (self.d1_mode in ("decision_q_v", "decision_q_v_gated")
+                    and self.module_tag == "q" and
+                    self.d1_decision_pair is not None):
                 if self.d1_decision_position is None:
                     raise ValueError("D1 Query position missing")
+                decision_pair = self.d1_decision_pair
+                if self.d1_mode == "decision_q_v_gated":
+                    # D1-C: conditioned on the LLM's own query bottleneck.
+                    # P(z_u,z_i) is zero-init so both choices have the exact
+                    # same prediction before optimizer updates.
+                    semantic_q = lora_a_output[:, self.d1_decision_position, :]
+                    gate = 2.0 * torch.sigmoid(semantic_q.float())
+                    decision_pair = decision_pair * gate.to(decision_pair.dtype)
                 lora_a_output = inject_decision_query(
-                    lora_a_output, self.d1_decision_pair,
+                    lora_a_output, decision_pair,
                     self.d1_decision_position, self.gnn_scale
                 )
 
@@ -544,8 +553,12 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._last_proj_reg_loss = None
         self.dataset = dataset
         self.d1_mode = str(d1_mode)
-        if self.d1_mode not in ("baseline", "v_only", "decision_q_v"):
-            raise ValueError("D1 mode must be baseline, v_only or decision_q_v")
+        if self.d1_mode not in (
+                "baseline", "v_only", "decision_q_v", "decision_q_v_gated"):
+            raise ValueError(
+                "D1 mode must be baseline, v_only, decision_q_v, "
+                "or decision_q_v_gated"
+            )
         self.d1_freeze_small = bool(d1_freeze_small)
         if self.d1_mode != "baseline":
             if not self.d1_freeze_small:
@@ -902,7 +915,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         # isolated RNG stream preserve S2 LoRA/projector initialization.
         # No new network or gradient path is introduced on the GNN side.
         self.d1_pair_proj = None
-        if self.d1_mode == "decision_q_v":
+        if self.d1_mode in ("decision_q_v", "decision_q_v_gated"):
             with torch.random.fork_rng(devices=[]):
                 self.d1_pair_proj = nn.Linear(
                     3 * int(lora_config.r), int(lora_config.r), bias=False
@@ -1796,7 +1809,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         the helper, preventing a new train/eval scaling mismatch for D1-Q.
         Existing S2 V preprocessing is left untouched for controlled contrast.
         """
-        if self.d1_mode != "decision_q_v":
+        if self.d1_mode not in ("decision_q_v", "decision_q_v_gated"):
             return None, None
         if self.d1_pair_proj is None:
             raise RuntimeError("D1 projector missing")
@@ -1813,6 +1826,16 @@ class MiniGPT4Rec_v2(Rec2Base):
             features.to(dtype=self.d1_pair_proj.weight.dtype)
         )
         return decision_q, decision_idx
+
+    def train(self, mode=True):
+        """Frozen small models must not reactivate dropout after model.train()."""
+        super().train(mode)
+        if getattr(self, 'd1_freeze_small', False):
+            if self.rec_encoder is not None:
+                self.rec_encoder.eval()
+            if self.gcn is not None:
+                self.gcn.eval()
+        return self
 
     @projector_regularized_forward
     def forward_v2(self, samples):
