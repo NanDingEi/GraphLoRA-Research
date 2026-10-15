@@ -1787,7 +1787,6 @@ class MiniGPT4Rec_v2(Rec2Base):
         loss = outputs.loss
         return {"loss": loss}
 
-    @projector_regularized_forward
     def _d1_query_from_feedback(self, samples, samples_encode,
                                 replaced_idx, fb, prompt_length, answer_length,
                                 total_length):
@@ -1815,6 +1814,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         )
         return decision_q, decision_idx
 
+    @projector_regularized_forward
     def forward_v2(self, samples):
         user_selective_prompts = False
         if hasattr(samples, 'question_split'):
