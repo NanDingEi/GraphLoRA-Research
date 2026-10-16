@@ -112,8 +112,17 @@ def main():
     if torch.count_nonzero(state).item() == 0:
         raise RuntimeError("D1 projector is zero, no trained Q signal")
 
-    loader = runner.dataloaders["valid"]
-    batch = prepare_sample(next(iter(loader)), cuda_enabled=True)
+    # Runner's split loader is MultiIterLoader, which defines __next__
+    # but NOT __iter__. Its .loaders entries are PrefetchLoader instances,
+    # exactly the same objects traversed by RecBaseTask.evaluation().
+    multi_loader = runner.dataloaders["valid"]
+    if not hasattr(multi_loader, "loaders") or len(multi_loader.loaders) != 1:
+        raise RuntimeError("Expected one underlying Valid PrefetchLoader")
+    batch = prepare_sample(
+        next(iter(multi_loader.loaders[0])), cuda_enabled=True
+    )
+    print("[Q-PROBE] fixed Valid batch size:",
+          int(batch["UserID"].shape[0]), flush=True)
     first_rng = rng_states()
     original_mode = qmods[0].d1_mode
     try:
