@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Overnight 8 new single-layer GraphLoRA ID-Q/V experiments; STRICTLY SERIAL.
-# Baseline anchors: P2 L31 AUC 0.714338 / UAUC 0.677975; L24 0.623100 / 0.582282.
+# Historical P2 anchors (batch1 accum9): L31 AUC 0.714338 / UAUC 0.677975; L24 0.623100 / 0.582282.
+# P3 now uses batch2 accum4 (effective8); P2 scores are contextual, not strict matched controls.
 # nohup env GPU=0 bash run_layer_P3_overnight8.sh > logs/LAYER_P3_launcher.log 2>&1 < /dev/null &
 set -euo pipefail
 cd /home/bbx/user_lx/GraphLoRA
@@ -17,15 +18,22 @@ LAYERS=(30 29 28 27 26 20 16 8)
 printf 'layer\tvalid_auc\tvalid_uauc\ttrain_loss\tvalid_loss\tq_R_med\tv_R_med\tq_C_med\tv_C_med\tq_loraA_norm\tv_loraA_norm\tlog\n' > "$SUMMARY"
 echo "[P3] GPU=${CUDA_VISIBLE_DEVICES}  stamp=$STAMP  sequence=${LAYERS[*]}  commit=$(git rev-parse --short HEAD)"
 echo "[P3] Strictly serial: one FULL epoch per layer; Valid only, no Test."
+echo "[P3] Train batch=2 accum=4 effective=8; eval batch=4; warmup_steps=268"
 echo "[P3] Result file: $SUMMARY"
 python -m py_compile minigpt4/models/minigpt4rec_v2.py minigpt4/runners/runner_base.py
 
-# Preflight asserts only location/output-dir differ from already checked P2-L31.
+# Preflight compares P3 against P2-L31 with JUST three deliberate recipe changes:
+# batch_size_train=2, accum_grad_iters=4, warmup_steps=268.
+# All eight P3 layer configs must be IDENTICAL to each other aside from location/output.
 python - <<'PY'
 import copy,yaml
 from pathlib import Path
 layers=[30,29,28,27,26,20,16,8]
 r=yaml.safe_load(Path("tran_configs/LAYER_P2_L31.yaml").read_text())
+expected=copy.deepcopy(r)
+expected["run"]["batch_size_train"]=2
+expected["run"]["accum_grad_iters"]=4
+expected["run"]["warmup_steps"]=268
 def normalized(x):
     x=copy.deepcopy(x)
     x["model"]["gcn_layer"]=-1
@@ -36,20 +44,21 @@ for layer in layers:
     p=Path(f"tran_configs/LAYER_P3_L{layer}.yaml")
     x=yaml.safe_load(p.read_text())
     assert x["model"]["gcn_layer"]==layer,p
-    assert normalized(x)==normalized(r),f"Unexpected differences from P2-L31 in {p}"
+    assert normalized(x)==normalized(expected),f"Unexpected differences from batch2 P2-derived recipe in {p}"
     assert x["model"].get("d1_mode","baseline")=="baseline"
     assert x["model"]["preserve_source_qv_bias"] is True
     assert x["model"]["gnn_semantic_align"] is True
     assert x["model"]["train_gnn_with_rec_loss"] is True
-    assert x["run"]["batch_size_train"]==1
+    assert x["run"]["batch_size_train"]==2
     assert x["run"]["batch_size_eval"]==4
-    assert x["run"]["accum_grad_iters"]==9
+    assert x["run"]["accum_grad_iters"]==4
     assert x["run"]["max_epoch"]==3
     assert x["run"]["stop_after_epoch"]==1
     assert x["run"]["seed"]==42
+    assert x["run"]["warmup_steps"]==268
     assert abs(x["run"]["init_lr"]-1e-4)<1e-12
     assert abs(x["model"]["gnn_scale"]-0.1)<1e-12
-print("[P3-STATIC] PASS: 8 matched P2 configs, location/output-dir only",flush=True)
+print("[P3-STATIC] PASS: all 8 matched bs2/accum4 configs, only layer/output-dir differ; P2-L31 differed in bs/accum/warmup",flush=True)
 PY
 
 for i in "${!LAYERS[@]}"; do
@@ -115,5 +124,5 @@ print("[P3-RANKED] By Valid AUC:")
 for r in sorted(rows,key=lambda x:float(x["valid_auc"]),reverse=True):
     print("L{:>2} AUC={:.6f} UAUC={:.6f} ValidLoss={:.6f}".format(
         r["layer"],float(r["valid_auc"]),float(r["valid_uauc"]),float(r["valid_loss"])))
-print("[P3-ANCHORS] P2 L31 AUC 0.714338 UAUC 0.677975; P2 L24 AUC 0.623100 UAUC 0.582282")
+print("[P3-ANCHORS] Historical bs1/accum9 P2 L31 AUC 0.714338 UAUC 0.677975; P2 L24 AUC 0.623100 UAUC 0.582282 (NOT strict bs2/accum4 controls)")
 PY
