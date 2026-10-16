@@ -807,7 +807,13 @@ class MiniGPT4Rec_v2(Rec2Base):
             print(f"Preparing to inject GCN into: {target_layer_str} with gnn_scale: {gnn_scale}")
 
             for name, module in self.llama_model_lora.named_modules():
-                if target_layer_str in name and any(t in name for t in ['q_proj', 'v_proj']):
+                # Exact decoder-layer match. Substring matching wrongly selects
+                # layer 20-29 when gcn_layer=2 and layer 30-31 for layer=3.
+                # Restrict to attention Q/V leaves; do not rewrite unrelated
+                # LoRA modules or multiple decoder blocks.
+                _target_attn = f".{target_layer_str}.self_attn."
+                if (_target_attn in f".{name}" and
+                        name.endswith((".q_proj", ".v_proj"))):
                     if isinstance(module, OriginalLinear):
                         new_module = MyLinear(
                             original_linear=module,
@@ -829,6 +835,16 @@ class MiniGPT4Rec_v2(Rec2Base):
                         setattr(parent_module, attr_name, new_module)
                         self.my_linears.append(new_module)
 
+            tags = sorted(m.module_tag for m in self.my_linears)
+            if tags != ["q", "v"]:
+                raise RuntimeError(
+                    f"Layer {gcn_layer} expected exactly q/v replacements; "
+                    f"found {len(self.my_linears)} modules: {tags}"
+                )
+            print(
+                f"[LAYER-EXACT] decoder layer {gcn_layer}: q_proj and v_proj "
+                f"replaced exactly once; gnn_scale={gnn_scale}", flush=True
+            )
             print(
                 f"Setting LoRA, GCN, and MyLinear for layer {gcn_layer} Done. "
                 f"Replaced {len(self.my_linears)} modules."
