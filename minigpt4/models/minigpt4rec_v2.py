@@ -2466,9 +2466,36 @@ class MiniGPT4Rec_v2(Rec2Base):
             dataset=dataset,
         )
 
+        # Fresh LLM-side initialization: load ONLY the pretrained collaborative
+        # small model. Keep Vicuna base pretrained; LoRA and llama_proj are
+        # randomly initialized with the shared experiment seed.
+        # IMPORTANT: model.ckpt is independent and retains its normal meaning
+        # when loading a trained adapter for validation/test.
+        d1_small_ckpt = cfg.get("d1_small_ckpt", "")
+        if d1_small_ckpt:
+            print("[D1-FRESH] loading ONLY frozen rec_encoder+gcn from:",
+                  d1_small_ckpt, flush=True)
+            try:
+                pretrained = torch.load(d1_small_ckpt, map_location="cpu", mmap=True)
+            except TypeError:
+                pretrained = torch.load(d1_small_ckpt, map_location="cpu")
+            small = {k: v for k, v in pretrained["model"].items()
+                     if k.startswith(("rec_encoder.", "gcn."))}
+            if not any(k.startswith("rec_encoder.") for k in small):
+                raise ValueError("D1 fresh small checkpoint has no rec_encoder")
+            if not any(k.startswith("gcn.") for k in small):
+                raise ValueError("D1 fresh small checkpoint has no gcn")
+            model.load_state_dict(small, strict=False)
+            print("[D1-FRESH] restored small-model state tensors:", len(small),
+                  "| LLM LoRA and Projector NOT restored", flush=True)
+            del pretrained, small
+
         ckpt_path = cfg.get("ckpt", "")
-        if model.d1_mode != "baseline" and not ckpt_path:
-            raise ValueError("D1 requires historical trained S2 checkpoint as warm start")
+        if model.d1_mode != "baseline" and not (ckpt_path or d1_small_ckpt):
+            raise ValueError(
+                "D1 requires either model.ckpt for continuation "
+                "or model.d1_small_ckpt for fresh-LLM training"
+            )
         if ckpt_path:
             print("Load MiniGPT4Rec Checkpoint: {}".format(ckpt_path))
             try:
@@ -2495,7 +2522,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                 p.requires_grad_(False)
             for p in model.rec_encoder.parameters():
                 p.requires_grad_(False)
-            print("[D1] froze rec_encoder and gcn AFTER loading S2 checkpoint",
+            print("[D1] froze rec_encoder and gcn AFTER loading pretrained state",
                   flush=True)
 
         ans_type = cfg.get('ans_type')
