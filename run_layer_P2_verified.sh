@@ -26,7 +26,7 @@ for x in [a,b]:
     assert x["model"]["ckpt"] is None
     assert x["model"]["lora_gnn"] == "ngcf"
     assert x["run"]["batch_size_train"] == 1
-    assert x["run"]["batch_size_eval"] == 1
+    assert x["run"]["batch_size_eval"] == 4
     assert x["run"]["accum_grad_iters"] == 9
     assert x["run"]["max_epoch"] == 3
     assert x["run"]["stop_after_epoch"] == 1
@@ -65,7 +65,7 @@ S2_LOG="logs/LAYER_P2_${STAMP}_S2_ckpt_valid.log"
 echo "[P2] 0/2: verifying historic S2 on Valid only, expect AUC around 0.73288"
 python -u train_collm_mf_din.py --cfg-path "$S2_CFG" --options \
   "model.ckpt=${S2}" "run.evaluate=true" "run.test_splits=[valid]" \
-  "run.batch_size_eval=1" "run.output_dir=output/LAYER_P2_${STAMP}_S2_verify" \
+  "run.batch_size_eval=4" "run.output_dir=output/LAYER_P2_${STAMP}_S2_verify" \
   2>&1 | tee "$S2_LOG"
 extract_and_check "$S2_LOG" "historical-S2" 0.70 0.7328835632
 
