@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Audit D1's *actual* Yes logits on one identical Valid batch, NO training.
+"""Audit D1's *actual* Yes logits on identical Valid batches, NO training.
 
 Loads a trained N2 or N3 checkpoint. Holds all data, model, random states,
 and network parameters fixed while switching ONLY decision-Q injection:
   1) OFF  (ID-V only)
   2) ON   (trained decision-Q projection, as used in original test)
-  3) 20x  (sensitivity control, NOT an experiment/Test metric).
+  3) Scales 1x, 10x, 20x, 50x (sensitivity checks, NOT Test metrics).
 
 Run: CUDA_VISIBLE_DEVICES=0 python audit_D1_logits.py --ckpt <N2 complete checkpoint>
 """
@@ -61,11 +61,20 @@ def main():
     ap.add_argument("--ckpt", required=True)
     ap.add_argument("--cfg-path",
                     default="tran_configs/NIGHT4_N2_DECISION_Q_ID_V.yaml")
-    ap.add_argument("--scale-check", type=float, default=20.0)
+    ap.add_argument("--scale-check", type=float, default=20.0,
+                    help="Legacy single amplified scale (default 20x)")
+    ap.add_argument("--scales", default=None,
+                    help="Comma-separated evaluation multipliers, e.g. 1,10,20,50")
+    ap.add_argument("--num-batches", type=int, default=1)
     ap.add_argument("--batch-size", type=int, default=2)
     args = ap.parse_args()
-    if args.scale_check <= 1:
-        raise ValueError("Scale check must be greater than one")
+    if args.num_batches < 1:
+        raise ValueError("num-batches must be positive")
+    scales = ([1.0, args.scale_check] if args.scales is None else
+              [float(x.strip()) for x in args.scales.split(",")])
+    if not scales or any(not np.isfinite(x) or x <= 0 for x in scales):
+        raise ValueError("Every multiplier must be finite and positive")
+    scales = list(dict.fromkeys(scales))
 
     opts = [
         "model.ckpt=" + args.ckpt,
@@ -118,43 +127,76 @@ def main():
     multi_loader = runner.dataloaders["valid"]
     if not hasattr(multi_loader, "loaders") or len(multi_loader.loaders) != 1:
         raise RuntimeError("Expected one underlying Valid PrefetchLoader")
-    batch = prepare_sample(
-        next(iter(multi_loader.loaders[0])), cuda_enabled=True
-    )
-    print("[Q-PROBE] fixed Valid batch size:",
-          int(batch["UserID"].shape[0]), flush=True)
-    first_rng = rng_states()
+    valid_iter = iter(multi_loader.loaders[0])
     original_mode = qmods[0].d1_mode
+    stats = {scale: {"n": 0, "changed": 0, "sum_abs": 0.0,
+                     "max_abs": 0.0, "signed_sum": 0.0}
+             for scale in scales}
+    batches_done = 0
     try:
         with torch.no_grad():
-            qmods[0].d1_mode = "v_only"
-            restore_rng(first_rng)
-            off = model.generate_for_samples_v2(batch)["logits"].detach().float().cpu()
-            qmods[0].d1_mode = original_mode
-            restore_rng(first_rng)
-            on = model.generate_for_samples_v2(batch)["logits"].detach().float().cpu()
-            with torch.no_grad():
-                model.d1_pair_proj.weight.mul_(args.scale_check)
-            restore_rng(first_rng)
-            boosted = model.generate_for_samples_v2(batch)["logits"].detach().float().cpu()
+            for batch_num in range(args.num_batches):
+                try:
+                    raw_batch = next(valid_iter)
+                except StopIteration:
+                    break
+                batch = prepare_sample(raw_batch, cuda_enabled=True)
+                # All branch comparisons use the *same* batch and identical
+                # RNG state. The model and optimizer are never updated.
+                first_rng = rng_states()
+                qmods[0].d1_mode = "v_only"
+                restore_rng(first_rng)
+                off = model.generate_for_samples_v2(batch)["logits"].detach().float().cpu()
+                qmods[0].d1_mode = original_mode
+                for scale in scales:
+                    model.d1_pair_proj.weight.copy_(state * scale)
+                    restore_rng(first_rng)
+                    on = model.generate_for_samples_v2(batch)["logits"].detach().float().cpu()
+                    diff = on - off
+                    absdiff = diff.abs()
+                    st = stats[scale]
+                    st["n"] += int(diff.numel())
+                    st["changed"] += int(torch.count_nonzero(diff).item())
+                    st["sum_abs"] += float(absdiff.sum().item())
+                    st["signed_sum"] += float(diff.sum().item())
+                    st["max_abs"] = max(st["max_abs"], float(absdiff.max().item()))
+                    if args.num_batches == 1:
+                        delta_report(
+                            ("original_on_minus_off" if scale == 1
+                             else "{}x_projection_minus_off".format(scale)),
+                            on, off)
+                batches_done += 1
     finally:
         qmods[0].d1_mode = original_mode
         with torch.no_grad():
             model.d1_pair_proj.weight.copy_(state)
 
-    orig_diff = delta_report("original_on_minus_off", on, off)
-    scale_diff = delta_report(
-        "{}x_projection_minus_off".format(args.scale_check), boosted, off)
-    if orig_diff == 0 and scale_diff > 0:
-        print("[Q-PROBE] Diagnosis: original decision-Q path is "
-              "numerically INAUDIBLE at Yes logit; scaled path is live.")
-    elif scale_diff == 0:
-        print("[Q-PROBE] Diagnosis: even scaled decision-Q has NO observable "
-              "logit effect; inspect token position/path before any more training.")
-    else:
-        print("[Q-PROBE] Diagnosis: decision-Q affects logits. "
-              "Match per-sample scores, not just 10-digit aggregate AUC.")
-    print("[Q-PROBE] All model parameters restored, no optimizer steps.")
+    print("[Q-PROBE] batches={} samples={} scales={}".format(
+        batches_done, sum(s["n"] for s in stats.values()) // len(scales),
+        scales), flush=True)
+    for scale in scales:
+        st = stats[scale]
+        n = st["n"]
+        if n == 0:
+            raise RuntimeError("Valid loader returned no data")
+        print("[Q-PROBE][aggregate] scale={:g} changed={}/{} rate={:.2%} "
+              "mean_abs={:.9g} max_abs={:.9g} mean_signed={:.9g}".format(
+                  scale, st["changed"], n, st["changed"] / n,
+                  st["sum_abs"] / n, st["max_abs"], st["signed_sum"] / n),
+              flush=True)
+    if 1.0 in stats:
+        base = stats[1.0]
+        amplified = [(scale, stats[scale]) for scale in scales if scale > 1.0]
+        if base["changed"] == 0 and any(x["changed"] > 0 for _, x in amplified):
+            print("[Q-PROBE] Diagnosis: trained Q is numerically silent on "
+                  "these samples, but amplification makes it observable.")
+        elif base["changed"] == 0 and all(x["changed"] == 0 for _, x in amplified):
+            print("[Q-PROBE] Diagnosis: no observable Q effect even at "
+                  "tested amplification; inspect injection path.")
+        else:
+            print("[Q-PROBE] Diagnosis: trained Q affects some Yes logits. "
+                  "Check rate and magnitude before designing new training.")
+    print("[Q-PROBE] All parameters restored; no optimizer steps.")
 
 
 if __name__ == "__main__":
