@@ -4,6 +4,7 @@
 # Crucial S2 toggles retained: gnn_semantic_align=true, semantic_weight=1e-4,
 #   train_gnn_with_rec_loss=true, MF trainable, initial_lr=1e-4, proj_reg=5e-4.
 # Peak-memory safety: micro-batch 1, accumulation 9 => SAME eff batch 9 as S2 bs3*accum3.
+# Eval batch 4 retains historical S2 validation subgraph batching.
 # Warmup=600 micro-steps vs S2 200 to maintain approx. optimizer-step warmup.
 # Bias fix explicitly on: Q/V replacement inherits source bias (normally None).
 # Legacy S2 checkpoint auditing is performed separately, without this bias fix.
@@ -65,7 +66,7 @@ datasets:
 run:
   accum_grad_iters: 9
   amp: true
-  batch_size_eval: 1
+  batch_size_eval: 4
   batch_size_train: 1
   device: cuda
   dist_url: env://
