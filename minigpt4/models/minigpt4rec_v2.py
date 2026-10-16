@@ -1,5 +1,6 @@
 import logging
 import random
+import math
 from minigpt4.models.projector_structure_reg import projector_regularized_forward
 import torch
 from torch.cuda.amp import autocast as autocast
@@ -333,6 +334,7 @@ class MyLinear(OriginalLinear):
         self.merged = original_linear.merged
         self.lora_scale = lora_scale
         self.gnn_scale = gnn_scale
+        self.d1_q_scale = 1.0  # Decision-token Q only; ID V keeps its original scale
         self.layer_idx = layer_idx
         self.gcn_layer = gcn_layer
 
@@ -456,7 +458,8 @@ class MyLinear(OriginalLinear):
                     )
                 lora_a_output = inject_decision_query(
                     lora_a_output, decision_pair,
-                    self.d1_decision_position, self.gnn_scale
+                    self.d1_decision_position,
+                    self.gnn_scale * self.d1_q_scale
                 )
 
             if self.rel_pair_gate is not None:
@@ -543,6 +546,9 @@ class MiniGPT4Rec_v2(Rec2Base):
             proj_reg_items=64,
             d1_mode="baseline",
             d1_freeze_small=False,
+            d1_q_scale=1.0,
+            d1_pair_init_std=0.0,
+            d1_gcn_eval_match_train=False,
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -561,6 +567,13 @@ class MiniGPT4Rec_v2(Rec2Base):
                 "or decision_q_v_gated"
             )
         self.d1_freeze_small = bool(d1_freeze_small)
+        self.d1_q_scale = float(d1_q_scale)
+        self.d1_pair_init_std = float(d1_pair_init_std)
+        self.d1_gcn_eval_match_train = bool(d1_gcn_eval_match_train)
+        if not math.isfinite(self.d1_q_scale) or self.d1_q_scale <= 0:
+            raise ValueError("d1_q_scale must be finite and positive")
+        if not math.isfinite(self.d1_pair_init_std) or self.d1_pair_init_std < 0:
+            raise ValueError("d1_pair_init_std must be finite and nonnegative")
         if self.d1_mode != "baseline":
             if not self.d1_freeze_small:
                 raise ValueError("D1 experiments require d1_freeze_small=true")
@@ -806,6 +819,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                         new_module.inj_diag = self.inj_diag
                         new_module.module_tag = 'q' if 'q_proj' in name else 'v'
                         new_module.d1_mode = self.d1_mode
+                        new_module.d1_q_scale = self.d1_q_scale
 
                         parent_name = '.'.join(name.split('.')[:-1])
                         attr_name = name.split('.')[-1]
@@ -921,7 +935,14 @@ class MiniGPT4Rec_v2(Rec2Base):
                 self.d1_pair_proj = nn.Linear(
                     3 * int(lora_config.r), int(lora_config.r), bias=False
                 )
-                nn.init.zeros_(self.d1_pair_proj.weight)
+                if self.d1_pair_init_std == 0:
+                    nn.init.zeros_(self.d1_pair_proj.weight)
+                else:
+                    nn.init.normal_(
+                        self.d1_pair_proj.weight, 0.0, self.d1_pair_init_std
+                    )
+                    print("[D1] pair projection initialized with std={}".format(
+                        self.d1_pair_init_std), flush=True)
 
         if freeze_proj and self.llama_proj is not None:
             for name, param in self.llama_proj.named_parameters():
@@ -2141,7 +2162,14 @@ class MiniGPT4Rec_v2(Rec2Base):
                     inputs_embeds,
                     attention_mask
                 )
-                gcn_output = fb['gcn_output'].to(dtype=torch.float16)
+                # R2: match the training-side normalized ID-V collaborative
+                # tensor. Off by default so historic S2/D1 tests stay unchanged.
+                gcn_output = fb['gcn_output']
+                if self.d1_gcn_eval_match_train:
+                    gcn_output = F.normalize(
+                        gcn_output.float(), dim=-1
+                    ) * 0.1
+                gcn_output = gcn_output.to(dtype=torch.float16)
                 batch_indices = fb['batch_indices']
                 token_positions = fb['token_positions']
                 local_node_ids = fb['local_node_ids']
@@ -2463,6 +2491,11 @@ class MiniGPT4Rec_v2(Rec2Base):
             fix_autocast_cache=fix_autocast_cache,
             d1_mode=d1_mode,
             d1_freeze_small=d1_freeze_small,
+            d1_q_scale=cfg.get("d1_q_scale", 1.0),
+            d1_pair_init_std=cfg.get("d1_pair_init_std", 0.0),
+            d1_gcn_eval_match_train=cfg.get(
+                "d1_gcn_eval_match_train", False
+            ),
             dataset=dataset,
         )
 
