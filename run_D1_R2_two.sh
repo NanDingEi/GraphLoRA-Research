@@ -77,6 +77,6 @@ for line in Path(sys.argv[1]).read_text().splitlines()[1:]:
     a=Path(tr).read_text(errors='replace')
     b=Path(tst).read_text(errors='replace')
     def pairs(t):
-        return re.findall(r'\*\*\*auc:\s*([0-9.]+).*?\*\*\*uauc:\s*([0-9.]+)',t)
+        return re.findall(r'\*\*\*auc:\s*([0-9.]+).*?\*\*\*uauc:\s*\(?([0-9.]+)',t)
     print("[R2-RESULT]",arm,"Valid epochs",pairs(a),"TEST",pairs(b)[-1:] or "NOT FOUND",flush=True)
 PY
