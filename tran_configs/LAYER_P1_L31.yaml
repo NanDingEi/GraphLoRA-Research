@@ -64,8 +64,8 @@ datasets:
 run:
   accum_grad_iters: 4
   amp: true
-  batch_size_eval: 2
-  batch_size_train: 2
+  batch_size_eval: 1
+  batch_size_train: 1
   device: cuda
   dist_url: env://
   distributed: false
