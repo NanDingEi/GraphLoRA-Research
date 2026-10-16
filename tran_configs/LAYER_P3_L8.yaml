@@ -1,9 +1,9 @@
 # Layer P3: overnight positional screening, single ID-Q+ID-V injection at decoder layer 8.
-# P3 bs2 memory update: batch_size_train=2, accumulation=4 (effective 8); warmup=268 microsteps (~67 optimizer updates).
-# Historical P2 anchors (bs1/accum9) are not strict controls for changed batch protocol.
+# P3 bs3 setting: batch_size_train=3, accumulation=3 (effective 9); warmup=200 microsteps, as in S2.
+# Historical P2 anchors (bs1/accum9) use different micro-batches; P3 is S2-matched on train batch/accum/warmup.
 # Same P2 matched S2-adapted recipe as prior L31 (Valid AUC 0.714338) and
 # L24 (Valid AUC 0.623100), each after one epoch on ML-1M OOD2 valid_small.
-# Seed=42, batch_train=2, accumulation=4, batch_eval=4, LR scheduler 3 epochs
+# Seed=42, batch_train=3, accumulation=3, batch_eval=4, LR scheduler 3 epochs
 # but stop_after_epoch=1. MF + NGCF trainable, semantic alignment on.
 # No checkpoint warm-start; only gcn_layer/output_dir vary between 8 configs.
 # 8 single-layer arms ordered L30,L29,L28,L27,L26,L20,L16,L8.
@@ -62,10 +62,10 @@ datasets:
     train_file: train_ood2.pkl
     val_file: valid_ood2.pkl
 run:
-  accum_grad_iters: 4
+  accum_grad_iters: 3
   amp: true
   batch_size_eval: 4
-  batch_size_train: 2
+  batch_size_train: 3
   device: cuda
   dist_url: env://
   distributed: false
@@ -93,6 +93,6 @@ run:
   valid_splits:
   - valid
   warmup_lr: 1.0e-05
-  warmup_steps: 268
+  warmup_steps: 200
   weight_decay: 0.001
   world_size: 1
