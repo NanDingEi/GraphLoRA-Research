@@ -315,7 +315,8 @@ class GAT(nn.Module):
 
 
 class MyLinear(OriginalLinear):
-    def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0, gcn_layer=0):
+    def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0,
+                 gcn_layer=0, preserve_source_bias=False):
         super().__init__(
             adapter_name=original_linear.active_adapter,
             in_features=original_linear.in_features,
@@ -327,6 +328,13 @@ class MyLinear(OriginalLinear):
             is_target_conv_1d_layer=original_linear.is_target_conv_1d_layer
         )
         self.weight = original_linear.weight
+        # Original LLaMA q_proj/v_proj normally have bias=None. Our custom
+        # LoRA Linear constructor historically allocated a NEW trainable bias
+        # for the replacement module. Opt in to preserving the source
+        # module's bias exactly for clean single-layer experiments.
+        # Default remains False to keep historical S2 checkpoint semantics.
+        if preserve_source_bias:
+            self.bias = original_linear.bias
         self.lora_A = original_linear.lora_A
         self.lora_B = original_linear.lora_B
         self.lora_dropout = original_linear.lora_dropout
@@ -549,6 +557,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             d1_q_scale=1.0,
             d1_pair_init_std=0.0,
             d1_gcn_eval_match_train=False,
+            preserve_source_qv_bias=False,
     ):
         super().__init__()
         self.low_resource = low_resource
@@ -570,6 +579,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.d1_q_scale = float(d1_q_scale)
         self.d1_pair_init_std = float(d1_pair_init_std)
         self.d1_gcn_eval_match_train = bool(d1_gcn_eval_match_train)
+        self.preserve_source_qv_bias = bool(preserve_source_qv_bias)
         if not math.isfinite(self.d1_q_scale) or self.d1_q_scale <= 0:
             raise ValueError("d1_q_scale must be finite and positive")
         if not math.isfinite(self.d1_pair_init_std) or self.d1_pair_init_std < 0:
@@ -820,12 +830,24 @@ class MiniGPT4Rec_v2(Rec2Base):
                             layer_idx=gcn_layer,
                             lora_scale=lora_scale,
                             gnn_scale=gnn_scale,
-                            gcn_layer=gcn_layer
+                            gcn_layer=gcn_layer,
+                            preserve_source_bias=self.preserve_source_qv_bias,
                         )
                         new_module.inj_diag = self.inj_diag
                         new_module.module_tag = 'q' if 'q_proj' in name else 'v'
                         new_module.d1_mode = self.d1_mode
                         new_module.d1_q_scale = self.d1_q_scale
+                        if self.preserve_source_qv_bias:
+                            if new_module.bias is not module.bias:
+                                raise RuntimeError(
+                                    "GraphLoRA source Q/V bias identity was not preserved"
+                                )
+                            print(
+                                "[LAYER-BIAS] layer={} tag={} source_bias={}".format(
+                                    gcn_layer, new_module.module_tag,
+                                    "none" if module.bias is None else "present"
+                                ), flush=True
+                            )
 
                         parent_name = '.'.join(name.split('.')[:-1])
                         attr_name = name.split('.')[-1]
@@ -2511,6 +2533,9 @@ class MiniGPT4Rec_v2(Rec2Base):
             d1_pair_init_std=cfg.get("d1_pair_init_std", 0.0),
             d1_gcn_eval_match_train=cfg.get(
                 "d1_gcn_eval_match_train", False
+            ),
+            preserve_source_qv_bias=cfg.get(
+                "preserve_source_qv_bias", False
             ),
             dataset=dataset,
         )
