@@ -576,6 +576,18 @@ class RunnerBase:
                 if self.evaluate_only:
                     break
 
+                # Layer-location pilot: run one (or N) completed training epochs
+                # while KEEPING the S2 scheduler's full max_epoch horizon.
+                # Default 0 preserves every historical training run.
+                _pilot_epochs = int(self.config.run_cfg.get("stop_after_epoch", 0) or 0)
+                if _pilot_epochs > 0 and (cur_epoch + 1) >= _pilot_epochs:
+                    logging.info(
+                        "[LAYER-PILOT] stopping after %d completed epoch(s); "
+                        "scheduler horizon remained %d",
+                        cur_epoch + 1, self.max_epoch
+                    )
+                    break
+
                 if self.config.run_cfg.distributed:
                     dist.barrier()
                 if not self.model_to_betrained():
