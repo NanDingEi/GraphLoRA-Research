@@ -1,9 +1,12 @@
 # S2-code behavior restoration arm: L31, batch3 accum3, two epochs (S2 best ep1).
-# Against P3-L31-BS3: only preserve_source_qv_bias false and stop_after_epoch=2.
+# For S2 source-equivalent behavior: preserve_source_qv_bias=false and inj_diag=false.
+# stop_after_epoch=2 only limits runtime after evaluation of epoch 1; max_epoch=3 remains.
 # S2 backup d818fa2943 did NOT set self.bias=original_linear.bias;
 # source MyLinear therefore retains the newly initialized Q/V biases.
-# IMPORTANT: first audit the real S2 checkpoint's saved CONFIG; do not
-# claim exact S2 reproduction until all effective S2 flags are checked.
+# Real S2 checkpoint audit: S2 contains 4096-element q_proj/v_proj biases;
+# checkpoint config difference vs P3 is only preserve_source_qv_bias, inj_diag,
+# stop_after_epoch, and output_dir (both P3 switches are returned to S2 defaults).
+# S2 backup: d818fa2943ede4e9a810b032a3422e94d0c77ed0.
 model:
   ans_type: v2
   arch: mini_gpt4rec_v2
@@ -15,7 +18,7 @@ model:
   freeze_rec: false
   gcn_layer: 31
   preserve_source_qv_bias: false
-  inj_diag: true
+  inj_diag: false
   gnn_scale: 0.1
   gnn_semantic_align: true
   gnn_semantic_weight: 0.0001
