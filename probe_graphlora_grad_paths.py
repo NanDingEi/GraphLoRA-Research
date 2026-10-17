@@ -37,9 +37,9 @@ def parse_args():
     parser.add_argument("--fix-autocast-cache", required=True, choices=("true", "false"))
     parser.add_argument("--batch-size", type=int, default=3)
     parser.add_argument("--grad-scale", type=float, default=65536.0,
-                        help="Explicit loss multiplier for one backward. "
-                             "Try 1, 128, 1024, 65536 to localize fp16 backward overflow; "
-                             "65536 matches initial GradScaler scale.")
+                        help="Loss scaling analogous to GradScaler (initial scale 65536). "
+                             "Try 1, 128, 1024, 65536 to localize fp16 backward overflow. "
+                             "The probe also divides loss by the configured gradient accumulation count.")
     return parser.parse_args()
 
 
@@ -87,19 +87,25 @@ def main():
     model.train()
     batch = prepare_sample(next(iter(loader)), cuda_enabled=True)
     batch.update({"epoch": 0, "num_iters_per_epoch": len(loader), "iters": 0})
-    print("[GRAD-PROBE] cfg={} fix_autocast_cache={} batch_size={} seed={} grad_scale={}".format(
-        args.cfg_path, flag, args.batch_size, seed, args.grad_scale), flush=True)
+    accum_grad_iters = int(cfg.run_cfg.get("accum_grad_iters", 1))
+    if accum_grad_iters < 1:
+        raise ValueError("run.accum_grad_iters must be >=1")
+    print("[GRAD-PROBE] cfg={} fix_autocast_cache={} batch_size={} seed={} "
+          "grad_scaler_scale={} accum_grad_iters={} effective_loss_scale={}".format(
+        args.cfg_path, flag, args.batch_size, seed, args.grad_scale,
+        accum_grad_iters, args.grad_scale / accum_grad_iters), flush=True)
     print("[GRAD-PROBE] semantic_align={} teacher_layer={} preserve_bias={}".format(
         model.gnn_semantic_align, model._gnn_semantic_layer,
         model.preserve_source_qv_bias), flush=True)
 
     with torch.cuda.amp.autocast(enabled=True):
         loss = task.train_step(model, batch)
-    # A single explicit loss multiplier is exactly the local gradient-scaling
-    # mechanism being tested, without GradScaler state or optimizer steps.
-    # The default 65536 matches the first GradScaler scale in normal training.
-    # With --grad-scale 1 we inspect the unscaled fp16 autocast backward.
-    (loss * args.grad_scale).backward()
+    # Normal BaseTask._train_inner_loop uses loss / accum_grad_iters before
+    # GradScaler.scale(backward_loss). For the first gradient-accumulation window,
+    # this reproduces the SAME upstream multiplier without optimizer updates.
+    # The default --grad-scale=65536 matches GradScaler's initial scale.
+    # With --grad-scale=1 we test the unscaled (but accumulation-normalized) loss.
+    (loss / accum_grad_iters * args.grad_scale).backward()
 
     seen = {}
     # Probe LoRA B: unlike LoRA A, B can receive gradients at init (B=0).
@@ -121,7 +127,7 @@ def main():
                 "numel": param.numel(),
                 "unscaled_max_abs_finite": None if g is None else (
                     float((g.detach().float()[torch.isfinite(g)]
-                           .abs().max() / args.grad_scale).item())
+                           .abs().max() * accum_grad_iters / args.grad_scale).item())
                     if torch.isfinite(g).any() else None),
             }
 
@@ -152,6 +158,8 @@ def main():
     print("[GRAD-PROBE-SUMMARY] {}".format(json.dumps({
         "fix_autocast_cache": flag,
         "grad_scale": args.grad_scale,
+        "accum_grad_iters": accum_grad_iters,
+        "effective_loss_scale": args.grad_scale / accum_grad_iters,
         "nonfinite_lora_B": nonfinite,
         "finite_early_B": finite_early,
         "batch_size": args.batch_size,
