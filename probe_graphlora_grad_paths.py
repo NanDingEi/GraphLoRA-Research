@@ -71,6 +71,13 @@ def main():
         collate_fn=getattr(dset, "collater", None), drop_last=True,
     )
     model = task.build_model(cfg).to(torch.device("cuda"))
+    # RunnerBase.train() calls self.set_model_mode(run.mode) before train_epoch().
+    # This direct one-batch probe must mirror the same initialization.
+    run_mode = str(cfg.run_cfg.mode)
+    if run_mode != "v2":
+        raise RuntimeError(f"GraphLoRA gradient probe expects run.mode=v2, got {run_mode!r}")
+    model.set_mode(run_mode)
+    assert model.run_mode_ == "v2", "Model run_mode_ was not initialized"
     model.train()
     batch = prepare_sample(next(iter(loader)), cuda_enabled=True)
     batch.update({"epoch": 0, "num_iters_per_epoch": len(loader), "iters": 0})
