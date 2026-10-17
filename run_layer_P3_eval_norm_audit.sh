@@ -7,6 +7,13 @@ cd /home/bbx/user_lx/GraphLoRA
 export CUDA_VISIBLE_DEVICES="${GPU:-0}"
 export PYTHONUNBUFFERED=1
 mkdir -p logs
+# Runner constructs output_dir as registry.library_root / run.output_dir / job_id.
+# library_root is the minigpt4/ package directory, NOT the repository root.
+LIB_ROOT="$(python - <<'PY'
+from pathlib import Path
+print(Path('minigpt4').resolve())
+PY
+)"
 P3_STAMP="${P3_STAMP:-20261017_011429}"
 AUDIT_STAMP="$(date +%Y%m%d_%H%M%S)"
 DIR="logs/LAYER_P3_NORM_AUDIT_${AUDIT_STAMP}"
@@ -19,8 +26,13 @@ python -m py_compile minigpt4/models/minigpt4rec_v2.py
 for L in "${LAYERS[@]}"; do
   CFG="tran_configs/LAYER_P3_L${L}.yaml"
   test -f "$CFG"
-  BASE="output/LAYER_P3_${P3_STAMP}_L${L}"
-  test -d "$BASE" || { echo "[AUDIT-ERROR] missing $BASE"; exit 2; }
+  BASE="${LIB_ROOT}/output/LAYER_P3_${P3_STAMP}_L${L}"
+  test -d "$BASE" || {
+    echo "[AUDIT-ERROR] missing actual Runner path: $BASE" >&2
+    echo "[AUDIT-HINT] Possible checkpoints under minigpt4/output:" >&2
+    find "${LIB_ROOT}/output" -maxdepth 4 -path "*L${L}*/checkpoint_best.pth" -print 2>/dev/null | head -20 >&2 || true
+    exit 2
+  }
   mapfile -t CKPTS < <(find "$BASE" -maxdepth 3 -type f -name 'checkpoint_best.pth' | sort)
   [[ "${#CKPTS[@]}" -eq 1 ]] || {
     echo "[AUDIT-ERROR] expected exactly one checkpoint_best.pth under $BASE, got ${#CKPTS[@]}"; exit 2;
