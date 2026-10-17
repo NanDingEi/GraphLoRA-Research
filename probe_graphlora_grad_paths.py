@@ -36,12 +36,18 @@ def parse_args():
     parser.add_argument("--cfg-path", required=True)
     parser.add_argument("--fix-autocast-cache", required=True, choices=("true", "false"))
     parser.add_argument("--batch-size", type=int, default=3)
+    parser.add_argument("--grad-scale", type=float, default=65536.0,
+                        help="Explicit loss multiplier for one backward. "
+                             "Try 1, 128, 1024, 65536 to localize fp16 backward overflow; "
+                             "65536 matches initial GradScaler scale.")
     return parser.parse_args()
 
 
 def main():
     args = parse_args()
     flag = args.fix_autocast_cache == "true"
+    if not np.isfinite(args.grad_scale) or args.grad_scale <= 0:
+        raise ValueError("--grad-scale must be a finite positive number")
     # Config consumes --cfg-path and --options; these are normal model overrides.
     cfg = Config(argparse.Namespace(
         cfg_path=args.cfg_path,
@@ -81,16 +87,19 @@ def main():
     model.train()
     batch = prepare_sample(next(iter(loader)), cuda_enabled=True)
     batch.update({"epoch": 0, "num_iters_per_epoch": len(loader), "iters": 0})
-    print("[GRAD-PROBE] cfg={} fix_autocast_cache={} batch_size={} seed={}".format(
-        args.cfg_path, flag, args.batch_size, seed), flush=True)
+    print("[GRAD-PROBE] cfg={} fix_autocast_cache={} batch_size={} seed={} grad_scale={}".format(
+        args.cfg_path, flag, args.batch_size, seed, args.grad_scale), flush=True)
     print("[GRAD-PROBE] semantic_align={} teacher_layer={} preserve_bias={}".format(
         model.gnn_semantic_align, model._gnn_semantic_layer,
         model.preserve_source_qv_bias), flush=True)
 
     with torch.cuda.amp.autocast(enabled=True):
         loss = task.train_step(model, batch)
-    scaler = torch.cuda.amp.GradScaler()
-    scaler.scale(loss).backward()
+    # A single explicit loss multiplier is exactly the local gradient-scaling
+    # mechanism being tested, without GradScaler state or optimizer steps.
+    # The default 65536 matches the first GradScaler scale in normal training.
+    # With --grad-scale 1 we inspect the unscaled fp16 autocast backward.
+    (loss * args.grad_scale).backward()
 
     seen = {}
     # Probe LoRA B: unlike LoRA A, B can receive gradients at init (B=0).
@@ -105,6 +114,15 @@ def main():
                 "name": name,
                 "grad_is_none": g is None,
                 "grad_norm_scaled": None if g is None else float(g.float().norm().item()),
+                "param_dtype": str(param.dtype),
+                "nan_count": None if g is None else int(torch.isnan(g).sum().item()),
+                "inf_count": None if g is None else int(torch.isinf(g).sum().item()),
+                "finite_count": None if g is None else int(torch.isfinite(g).sum().item()),
+                "numel": param.numel(),
+                "unscaled_max_abs_finite": None if g is None else (
+                    float((g.detach().float()[torch.isfinite(g)]
+                           .abs().max() / args.grad_scale).item())
+                    if torch.isfinite(g).any() else None),
             }
 
     layers = [0, 1, 7, 8, 9, 16, 24, 29, 30, 31]
@@ -113,8 +131,11 @@ def main():
             if (layer, tag) not in seen:
                 raise RuntimeError("Missing LoRA B weight for layer {} {}".format(layer, tag))
             r = seen[(layer, tag)]
-            print("[GRAD-PROBE] layer={} module={} grad_none={} scaled_norm={}".format(
-                layer, tag, r["grad_is_none"], r["grad_norm_scaled"]), flush=True)
+            print("[GRAD-PROBE] layer={} module={} grad_none={} scaled_norm={} "
+                  "param_dtype={} finite={}/{} nan={} inf={} unscaled_max_abs_finite={}".format(
+                layer, tag, r["grad_is_none"], r["grad_norm_scaled"],
+                r["param_dtype"], r["finite_count"], r["numel"],
+                r["nan_count"], r["inf_count"], r["unscaled_max_abs_finite"]), flush=True)
 
     missing_early = [key for key in [(0, "q_proj"), (0, "v_proj"),
                                     (7, "q_proj"), (7, "v_proj")]
@@ -122,8 +143,17 @@ def main():
     missing_late = [key for key in [(8, "q_proj"), (8, "v_proj"),
                                    (31, "q_proj"), (31, "v_proj")]
                     if seen[key]["grad_is_none"]]
+    nonfinite = [str(k) for k, v in seen.items() if v["grad_is_none"] is False
+                 and (v["nan_count"] or v["inf_count"])]
+    finite_early = [str(k) for k in [(0, "q_proj"), (0, "v_proj"),
+                                    (7, "q_proj"), (7, "v_proj")]
+                    if k in seen and not seen[k]["grad_is_none"]
+                    and seen[k]["nan_count"] == 0 and seen[k]["inf_count"] == 0]
     print("[GRAD-PROBE-SUMMARY] {}".format(json.dumps({
         "fix_autocast_cache": flag,
+        "grad_scale": args.grad_scale,
+        "nonfinite_lora_B": nonfinite,
+        "finite_early_B": finite_early,
         "batch_size": args.batch_size,
         "loss": float(loss.detach().item()),
         "missing_early_B": [str(x) for x in missing_early],
@@ -133,6 +163,10 @@ def main():
         raise RuntimeError("Late-layer gradients unexpectedly missing: {}".format(missing_late))
     if flag and missing_early:
         raise RuntimeError("Cache FIX failed; early LoRA B grad still missing: {}".format(missing_early))
+    if nonfinite:
+        print("[GRAD-PROBE-NONFINITE] scale={} affected_lora_B={}. "
+              "This is NOT a clean backward pass. Compare lower --grad-scale runs "
+              "before any further training.".format(args.grad_scale, len(nonfinite)), flush=True)
 
 
 if __name__ == "__main__":
