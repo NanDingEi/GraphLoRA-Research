@@ -665,6 +665,17 @@ class MiniGPT4Rec_v2(Rec2Base):
         if self.fix_autocast_cache:
             print("[FX] autocast cache fix ON: teacher pass uses cache_enabled=False "
                   "(layers below teacher exit_layer regain gradient flow)", flush=True)
+        elif self.gnn_semantic_align:
+            # Keep legacy runs reproducible but make the known gradient bug
+            # unmissable. Historical configs can still explicitly opt out;
+            # NEW joint-training runs should set fix_autocast_cache=true.
+            print(
+                "[FX-WARNING] semantic teacher uses no_grad under autocast with "
+                "cache_enabled=True: early-layer LoRA gradients may be cut off. "
+                "Set model.fix_autocast_cache=true and verify with "
+                "probe_graphlora_grad_paths.py before retraining.",
+                flush=True,
+            )
         # target of the confidence-weighted loss: "mean" = layer consensus
         # (CW1, collapsed), "s8" = plain layer-8 target with confidence
         # weights only (CW2, isolates the weighting from the target shift)
