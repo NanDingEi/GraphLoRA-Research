@@ -135,6 +135,25 @@ sub(
 """                inputs_embeds = self._s2_input_fusion(inputs_embeds, samples_encode, fb)
                 gcn_output = fb['gcn_output'].to(dtype=torch.float16)
                 batch_indices = fb['batch_indices']""")
+# The original GNN-CTR helper scores the penultimate 256-d features.
+# For tonight, supervise the FINAL 8-d GNN output so all three NGCF layers
+# receive recommendation-task supervision even with layer31 injection OFF.
+sub(
+"""    def _row_gnn_scores(self, fb):""",
+"""    def _s2_final_gnn_scores(self, fb):
+        local = fb["local_node_ids"]
+        valid = local >= 0
+        assert bool(valid.any())
+        z = fb["gcn_output"].float()
+        token_final = torch.zeros((local.shape[0],z.shape[-1]),
+                                  device=z.device,dtype=z.dtype)
+        token_final[valid] = z[local[valid]]
+        score_fb = dict(fb)
+        score_fb["token_gnn"] = token_final
+        return self._row_gnn_scores(score_fb)
+
+    def _row_gnn_scores(self, fb):""")
+
 # The existing GNN supervised BCE is otherwise only executed inside the
 # pref_distill+'cand_group' branch, which DOES NOT run for plain CTR batches.
 # This explicit task loss is independent of cand_group and sends gradients
@@ -146,7 +165,7 @@ sub(
             self.gnn_conf_loss_weight > 0 or self.s2_small_kd > 0
         ):
             assert "token_gnn" in fb
-            g_scores = self._row_gnn_scores(fb).float()
+            g_scores = self._s2_final_gnn_scores(fb).float()
             labels = samples["label"].float()
             assert g_scores.shape == labels.shape, (g_scores.shape,labels.shape)
             if self.gnn_conf_loss_weight > 0:
