@@ -40,13 +40,19 @@ echo "[S2-STRICT-SOURCE] $(git rev-parse HEAD)"
 # All original dataset bytes remain in the main repository; link, do not copy.
 if [[ ! -e dataset ]]; then
   ln -s "$MAIN/dataset" dataset
-elif [[ ! -e dataset/ml-1m/movie_graph_train.npz ]]; then
-  echo "[S2-STRICT-ERROR] source tree has an unexpected dataset directory" >&2
-  exit 2
+else
+  # Worktree may contain tracked metadata but lack untracked graph data.
+  mkdir -p dataset/ml-1m
+  for NAME in movie_graph_train.npz movie_graph_valid.npz movie_graph_test.npz; do
+    if [[ ! -e "dataset/ml-1m/$NAME" ]]; then
+      ln -s "$MAIN/dataset/ml-1m/$NAME" "dataset/ml-1m/$NAME"
+    fi
+  done
 fi
 test -f "prompts/collm_movie_idlist.txt"
 test -f "dataset/ml-1m/movie_graph_train.npz"
 test -f "dataset/ml-1m/movie_graph_valid.npz"
+test -f "dataset/ml-1m/movie_graph_test.npz"
 
 # The S2 runner from 2026-10-11 has NO stop_after_epoch; setting max_epoch=1
 # would CHANGE the cosine LR schedule. Instead insert one stop after finishing
