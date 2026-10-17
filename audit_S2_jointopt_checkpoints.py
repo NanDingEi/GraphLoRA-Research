@@ -43,10 +43,10 @@ def pgroup(k):
         return "GNN"
     if "llama_proj." in k:
         return "Projector"
-    if "lora_" in k or ".lora_A." in k or ".lora_B." in k:
-        return "LoRA"
-    if ".self_attn.q_proj.bias" in k or ".self_attn.v_proj.bias" in k:
+    if k.endswith(".self_attn.q_proj.bias") or k.endswith(".self_attn.v_proj.bias"):
         return "Q_V_bias"
+    if ".lora_A." in k or ".lora_B." in k:
+        return "LoRA"
     return "Other"
 
 def load(path):
