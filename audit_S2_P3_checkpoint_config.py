@@ -10,7 +10,7 @@ from pathlib import Path
 
 import torch
 
-S2 = "/home/bbx/user_lx/GraphLoRA/minigpt4/output/S2_groups_acc3/20261010223/checkpoint_best.pth"
+S2 = "/home/bbx/user_lx/GraphLoRA/output/S2_groups_acc3/20261010223/checkpoint_best.pth"
 P3 = "/home/bbx/user_lx/GraphLoRA/minigpt4/output/LAYER_P3_L31_BS3/20261017102/checkpoint_best.pth"
 
 def load(path):
