@@ -111,7 +111,7 @@ for ALPHA in 0.10 0.00; do
       "model.ckpt=$E6_CKPT" "run.evaluate=true" "run.test_splits=[valid]" \
       "run.output_dir=$OUT/E6_eval_alpha_${ALPHA}_output" > "$LOG" 2>&1
   ) || { echo "[NO31-FOLLOWUP-ERROR] E6 eval alpha=$ALPHA";tail -n 75 "$LOG";exit 3; }
-  grep -Fq "[NIGHT8-MODEL] gnn_scale=0 alpha=$ALPHA" "$LOG" || {
+  grep -Fq "[NIGHT8-MODEL] gnn_scale=0 alpha=${ALPHA%0}" "$LOG" || {
     echo "[NO31-FOLLOWUP-ERROR] eval did not select alpha=$ALPHA"; exit 3;
   }
   python - "$LOG" "$ALPHA" <<'PY'
@@ -124,9 +124,11 @@ assert len(rows)==1,rows
 def val(p):
     m=re.search(p,rows[0]);assert m,p
     return float(m.group(1))
-print(f"[NO31-EVAL-METRIC] alpha={alpha} AUC={val(r'\\*\\*\\*auc:\\s*([0-9.]+)'):.9f} "
-      f"UAUC={val(r'\\*\\*\\*uauc:\\s*\\(?([0-9.]+)'):.9f} "
-      f"ValidLoss={val(r'\\bloss:\\s*([0-9.]+)'):.9f}",flush=True)
+auc=val(r"\*\*\*auc:\s*([0-9.]+)")
+uauc=val(r"\*\*\*uauc:\s*\(?([0-9.]+)")
+loss=val(r"\bloss:\s*([0-9.]+)")
+print(f"[NO31-EVAL-METRIC] alpha={alpha} AUC={auc:.9f} "
+      f"UAUC={uauc:.9f} ValidLoss={loss:.9f}",flush=True)
 PY
 done
 python - "$OUT" <<'PY'
@@ -198,7 +200,7 @@ PY
     S2_INPUT_ALPHA="$ALPHA" S2_SMALL_KD="$KD" S2_NIGHT_EPOCHS=1 \
     python -u train_collm_mf_din.py --cfg-path "$CFG" > "$LOG" 2>&1
   ) || { echo "[NO31-FOLLOWUP-ERROR] train $NAME failed";tail -n 75 "$LOG";exit 3; }
-  grep -Fq "[NIGHT8-MODEL] gnn_scale=0 alpha=$ALPHA" "$LOG" || {
+  grep -Fq "[NIGHT8-MODEL] gnn_scale=0 alpha=${ALPHA%0}" "$LOG" || {
     echo "[NO31-FOLLOWUP-ERROR] $NAME alpha/gnn mismatch";exit 3;
   }
   grep -Fq "[NIGHT8-STOP] trained_epochs=1" "$LOG" || {
