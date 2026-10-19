@@ -81,21 +81,40 @@ import torch
 path = sys.argv[1]
 ckpt = torch.load(path, map_location="cpu", weights_only=False)
 state = ckpt.get("model", ckpt.get("state_dict", {}))
-keys = [k for k in state if "collab_gate" in k]
+gate_keys = [k for k in state if "collab_gate" in k]
+lora_b_keys = [
+    k for k in state
+    if "layers.31.self_attn." in k and "lora_B" in k
+    and (".q_proj." in k or ".v_proj." in k)
+]
 print("[PREFLIGHT CHECKPOINT]", path)
-print("[GATE PARAMS]", len(keys))
-for k in keys:
+print("[GATE PARAMS]", len(gate_keys))
+for k in gate_keys:
     v = state[k].float()
-    print(k, "norm=", float(v.norm()), "nonzero=", int(torch.count_nonzero(v)))
-if not keys:
+    print("[GATE]", k, "norm=", float(v.norm()), "nonzero=", int(torch.count_nonzero(v)))
+print("[LAYER31 LORA_B PARAMS]", len(lora_b_keys))
+for k in lora_b_keys:
+    v = state[k].float()
+    print("[LORA-B]", k, "norm=", float(v.norm()), "nonzero=", int(torch.count_nonzero(v)))
+if not gate_keys:
     raise SystemExit("[FAIL] collab_gate parameters missing from checkpoint")
-total = sum(float(state[k].float().norm()) for k in keys)
-if total == 0.0:
+if not lora_b_keys:
+    raise SystemExit("[FAIL] layer-31 q/v LoRA-B parameters missing; cannot diagnose gate")
+gate_total = sum(float(state[k].float().norm()) for k in gate_keys)
+lora_b_total = sum(float(state[k].float().norm()) for k in lora_b_keys)
+if lora_b_total == 0.0:
     raise SystemExit(
-        "[FAIL] collab_gate remained exactly zero after preflight; "
-        "full experiments aborted to avoid wasting GPU time."
+        "[FAIL-ROOT] Layer-31 LoRA-B is still exactly zero. "
+        "The gate's zero gradient is likely downstream of LoRA-B; "
+        "inspect [OPT-UPDATE-DIAG] for skipped optimizer steps / zero parameter deltas. "
+        "Full experiments aborted."
     )
-print("[PASS] Gate parameters changed; preflight update check passed.")
+if gate_total == 0.0:
+    raise SystemExit(
+        "[FAIL-GATE] LoRA-B changed but collab_gate remained zero. "
+        "Inspect gate gradients and optimizer-group membership. Full experiments aborted."
+    )
+print("[PASS] Both layer-31 LoRA-B and gate parameters changed.")
 PY
 
 if [[ "${RUN_FULL_E3_AFTER_PREFLIGHT:-0}" != "1" ]]; then
