@@ -88,7 +88,7 @@ def main():
         run["resume_ckpt_path"] = None
         # Early, trajectory-preserving validation probes for the control run.
         # The runner saves a checkpoint at each probe step.
-        run["mid_epoch_eval_iters"] = "499,1999,4999"
+        run["mid_epoch_eval_iters"] = "500,2000,5000"
         # Never let a stale smoke-test override truncate a full epoch.
         run.pop("iters_per_epoch", None)
         run.pop("max_iters", None)
