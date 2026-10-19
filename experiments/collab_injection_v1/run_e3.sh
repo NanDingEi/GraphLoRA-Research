@@ -24,7 +24,33 @@ if pgrep -af '[t]rain_collm_mf_din.py' >/dev/null; then
   exit 3
 fi
 
+echo "[FIX-BRANCH] collab-gated-optimizer / optimizer-diagnostic-v2"
 echo "[INFO] Repository: $ROOT"
+
+# Fail closed if this checkout cannot emit the optimizer-step diagnostics.
+if ! grep -q '\[OPT-UPDATE-DIAG\]' minigpt4/tasks/base_task.py; then
+  echo "[ERROR] This checkout lacks optimizer-step diagnostics in minigpt4/tasks/base_task.py."
+  echo "[ERROR] Fetch/check out fix/collab-gated-optimizer before training."
+  exit 20
+fi
+if ! grep -q 'amp_init_scale' experiments/collab_injection_v1/prepare_e3_configs.py; then
+  echo "[ERROR] Config generator lacks amp_init_scale support; refusing stale run."
+  exit 21
+fi
+
+python - "$CONFIG_DIR/S2_GATED_L31.yaml" <<'PY'
+import sys, yaml
+with open(sys.argv[1], encoding="utf-8") as f:
+    cfg = yaml.safe_load(f)
+run = cfg.get("run", {})
+print("[FIX-CONFIG] collab_mode=", cfg.get("model", {}).get("collab_mode"))
+print("[FIX-CONFIG] amp=", run.get("amp"))
+print("[FIX-CONFIG] amp_init_scale=", run.get("amp_init_scale"))
+print("[FIX-CONFIG] accum_grad_iters=", run.get("accum_grad_iters"))
+if float(run.get("amp_init_scale", 0)) != 1024.0:
+    raise SystemExit("[ERROR] Expected amp_init_scale=1024. Regenerate configs before running.")
+PY
+
 echo "[INFO] Confirm GPU is available before continuing:"
 nvidia-smi
 
