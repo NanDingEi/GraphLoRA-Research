@@ -147,6 +147,32 @@ run_one() {
   local log="$LOG_DIR/${name}_E3.log"
   local out="$ROOT/output/${name}_E3"
 
+  # Diagnostic mode is intentionally limited to the legacy control:
+  # train at most 5,000 steps and evaluate/save at steps 500, 2,000 and 5,000.
+  # This avoids spending a full epoch before checking whether the trajectory
+  # has already degraded. It is not a final model-selection run.
+  if [[ "$name" == "S2_L31_CONTROL" && "${CONTROL_DIAG:-0}" == "1" ]]; then
+    out="$ROOT/output/S2_L31_CONTROL_DIAG"
+    log="$LOG_DIR/S2_L31_CONTROL_DIAG.log"
+    mkdir -p "$out"
+    rm -f "$out"/checkpoint_ep0_step*.pth "$out"/checkpoint_0.pth "$out"/checkpoint_best.pth
+    echo "===== START CONTROL DIAGNOSTIC (max 5000 steps) $(date) ====="
+    python -u train_collm_mf_din.py \
+      --cfg-path "$config" \
+      --options \
+      run.max_epoch=1 \
+      run.iters_per_epoch=5000 \
+      run.skip_validation=True \
+      run.accum_grad_iters=3 \
+      run.lr_scale_other=1.0 \
+      "run.output_dir=$out" \
+      2>&1 | tee "$log"
+    echo "[DIAGNOSTIC CHECKPOINTS]"
+    find "$out" -maxdepth 1 -type f -name 'checkpoint_ep0_step*.pth' -printf '%f\n' | sort -V
+    echo "===== CONTROL DIAGNOSTIC COMPLETED $(date) ====="
+    return 0
+  fi
+
   echo "===== START $name ($mode) $(date) ====="
   python -u train_collm_mf_din.py \
     --cfg-path "$config" \
