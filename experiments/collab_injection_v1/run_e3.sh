@@ -160,15 +160,16 @@ run_one() {
     python -u train_collm_mf_din.py \
       --cfg-path "$config" \
       --options \
-      run.max_epoch=1 \
-      run.iters_per_epoch=5000 \
+      run.max_epoch=3 \
+      run.max_train_steps=5001 \
+      run.diagnostic_stop_after_epoch0=True \
       run.skip_validation=True \
       run.accum_grad_iters=3 \
       run.lr_scale_other=1.0 \
       "run.output_dir=$out" \
       2>&1 | tee "$log"
     echo "[DIAGNOSTIC CHECKPOINTS]"
-    find "$out" -maxdepth 1 -type f -name 'checkpoint_ep0_step*.pth' -printf '%f\n' | sort -V
+    find "$out" -type f -name 'checkpoint_ep0_step*.pth' -printf '%p\n' | sort -V
     echo "===== CONTROL DIAGNOSTIC COMPLETED $(date) ====="
     return 0
   fi
