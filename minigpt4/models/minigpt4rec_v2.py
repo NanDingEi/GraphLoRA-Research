@@ -342,7 +342,13 @@ class MyLinear(OriginalLinear):
         # affect later target-token predictions; K/V do. Create trainable
         # collaborative modules only for V, avoiding permanently dead Q gates.
         if collab_mode == "gated_l31" and self.module_tag == "v":
-            self.collab_gate = nn.Linear(2 * rank, 1)
+            # nn.Linear.reset_parameters() consumes CPU RNG even though
+            # we subsequently zero its weights. Without an isolated fork,
+            # Gated-L31 shifts LoRA/dropout RNG vs the parameter-free V-only
+            # baseline. Fork the CPU stream so the zero-init gate introduces
+            # zero global RNG perturbation and is a controlled ablation.
+            with torch.random.fork_rng(devices=[]):
+                self.collab_gate = nn.Linear(2 * rank, 1)
             nn.init.zeros_(self.collab_gate.weight)
             nn.init.zeros_(self.collab_gate.bias)
         elif collab_mode == "conditional_lora" and self.module_tag == "v":
