@@ -242,24 +242,92 @@ class BaseTask:
 
             # update gradients every accum_grad_iters iterations
             if (i + 1) % accum_grad_iters == 0 or (i + 1) == iters_per_epoch:
+                gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
+                debug_updates = os.environ.get("GRAPHLoRA_DEBUG_OPTIMIZER", "0") == "1"
+
+                # Diagnostic snapshots are limited to the collaborative layer and
+                # LoRA-B. They let us distinguish an AMP overflow/step-skip from a
+                # parameter-group or optimizer wiring issue.
+                watched = []
+                if debug_updates:
+                    for name, param in model.named_parameters():
+                        if param.requires_grad and (
+                            "layers.31.self_attn.q_proj.lora_B" in name
+                            or "layers.31.self_attn.v_proj.lora_B" in name
+                            or "collab_gate" in name
+                            or "collab_conditioner" in name
+                        ):
+                            watched.append((name, param, param.detach().float().clone()))
+                scale_before = scaler.get_scale() if use_amp and debug_updates else None
+
                 if use_amp:
-                    # optional global grad-norm clipping (stabilization S1);
-                    # read from the model so any task can opt in via config
-                    gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
-                    if gc > 0:
+                    # Explicit unscale is required before finite-gradient diagnostics
+                    # and is also the correct prerequisite for gradient clipping.
+                    if gc > 0 or debug_updates:
                         scaler.unscale_(optimizer)
+
+                    nonfinite_tensors = 0
+                    nonfinite_values = 0
+                    found_inf = None
+                    if debug_updates:
+                        for group in optimizer.param_groups:
+                            for param in group["params"]:
+                                if param.grad is not None:
+                                    finite = torch.isfinite(param.grad)
+                                    if not bool(finite.all()):
+                                        nonfinite_tensors += 1
+                                        nonfinite_values += int((~finite).sum().item())
+                        # GradScaler records whether this optimizer step will be skipped.
+                        try:
+                            state = scaler._per_optimizer_states[id(optimizer)]
+                            found_inf = sum(float(v.item()) for v in state["found_inf_per_device"].values())
+                        except (AttributeError, KeyError):
+                            pass
+
+                    if gc > 0:
                         params = [p for g in optimizer.param_groups
                                   for p in g["params"] if p.grad is not None]
                         torch.nn.utils.clip_grad_norm_(params, gc)
                     scaler.step(optimizer)
                     scaler.update()
                 else:
-                    gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
+                    nonfinite_tensors = 0
+                    nonfinite_values = 0
+                    found_inf = 0.0
                     if gc > 0:
                         params = [p for g in optimizer.param_groups
                                   for p in g["params"] if p.grad is not None]
                         torch.nn.utils.clip_grad_norm_(params, gc)
                     optimizer.step()
+
+                if debug_updates:
+                    changed_count = 0
+                    for name, param, before in watched:
+                        after = param.detach().float()
+                        delta = float((after - before).abs().max().item())
+                        if delta > 0:
+                            changed_count += 1
+                        print(
+                            "[OPT-UPDATE-DIAG] epoch={} iter={} name={} "
+                            "before_norm={:.10g} after_norm={:.10g} "
+                            "max_abs_delta={:.10g}".format(
+                                inner_epoch, i, name,
+                                float(before.norm().item()),
+                                float(after.norm().item()), delta
+                            ),
+                            flush=True,
+                        )
+                    print(
+                        "[OPT-UPDATE-DIAG] epoch={} iter={} amp={} "
+                        "scale_before={} scale_after={} nonfinite_grad_tensors={} "
+                        "nonfinite_grad_values={} found_inf={} watched_changed={}/{}".format(
+                            inner_epoch, i, use_amp, scale_before,
+                            scaler.get_scale() if use_amp else None,
+                            nonfinite_tensors, nonfinite_values, found_inf,
+                            changed_count, len(watched)
+                        ),
+                        flush=True,
+                    )
                 optimizer.zero_grad()
 
             metric_logger.update(loss=loss.item())
