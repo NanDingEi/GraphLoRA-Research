@@ -362,7 +362,8 @@ class MyLinear(OriginalLinear):
         # bottleneck, BEFORE lora_B. Pure no-grad bookkeeping — consumes no
         # RNG and does not touch any tensor in the training graph.
         self.inj_diag = False
-        self.module_tag = "q"
+        # Preserve module_tag passed by the constructor ("q" or "v").
+        # Overwriting it here makes the V-only collaborative branch unreachable.
         self._diag_buf = []
         self._diag_step = 0
         # A1 injection warm-up factor; stays 1.0 unless forward_v2 overrides
