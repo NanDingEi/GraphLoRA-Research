@@ -603,6 +603,12 @@ class RunnerBase:
                 if self.evaluate_only:
                     break
 
+                # Diagnostic mode: one truncated epoch only, while max_epoch
+                # remains 3 so the LR cosine horizon matches the real run.
+                if bool(self.config.run_cfg.get("diagnostic_stop_after_epoch0", False)):
+                    logging.info("[CONTROL-DIAG] stopped after diagnostic epoch %d", cur_epoch)
+                    break
+
                 if self.config.run_cfg.distributed:
                     dist.barrier()
                 if not self.model_to_betrained():
@@ -649,6 +655,7 @@ class RunnerBase:
             cuda_enabled=self.cuda_enabled,
             log_freq=self.log_freq,
             accum_grad_iters=self.accum_grad_iters,
+            max_train_steps=self.config.run_cfg.get("max_train_steps", None),
         )
         # 清理显存缓存
         torch.cuda.empty_cache()
