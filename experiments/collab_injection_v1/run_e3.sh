@@ -74,9 +74,9 @@ python -u train_collm_mf_din.py \
   run.output_dir="$ROOT/output/SMOKE_GATED_PREFLIGHT" \
   2>&1 | tee "$LOG_DIR/SMOKE_GATED_PREFLIGHT.log"
 
-PREFLIGHT_CKPT="$(find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f \\( -name checkpoint_0.pth -o -name checkpoint_best.pth \\) -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
+PREFLIGHT_CKPT="$(find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f \( -name checkpoint_0.pth -o -name checkpoint_best.pth \\) -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
 if [[ -z "$PREFLIGHT_CKPT" ]]; then
-  echo "[ERROR] Gated preflight did not produce checkpoint_best.pth."
+  echo "[ERROR] Gated preflight did not produce checkpoint_0.pth/checkpoint_best.pth."
   exit 4
 fi
 
