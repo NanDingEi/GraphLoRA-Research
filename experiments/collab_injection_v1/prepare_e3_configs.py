@@ -74,6 +74,11 @@ def main():
         run["seed"] = 42
         run["max_epoch"] = 3
         run["accum_grad_iters"] = int(run.get("accum_grad_iters", 3))
+        # A smaller initial loss scale reduces the chance that one overflowing
+        # fp16 gradient silently causes GradScaler to skip every early update.
+        # The training loop logs found_inf and before/after parameter deltas.
+        run["amp_init_scale"] = 1024.0
+        run["amp_growth_interval"] = 2000
         run["lr_scale_other"] = float(run.get("lr_scale_other", 1.0))
         run["evaluate"] = False
         run["resume_ckpt_path"] = None
