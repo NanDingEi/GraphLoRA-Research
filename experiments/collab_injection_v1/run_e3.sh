@@ -8,6 +8,9 @@ CONFIG_DIR="tran_configs/collab_v1/e3"
 LOG_DIR="logs/collab_v1"
 mkdir -p "$LOG_DIR"
 
+# Print AMP overflow status and exact parameter deltas at optimizer boundaries.
+export GRAPHLoRA_DEBUG_OPTIMIZER=1
+
 if [[ ! -f "$CONFIG_DIR/S2_L31_CONTROL.yaml" ||
       ! -f "$CONFIG_DIR/S2_GATED_L31.yaml" ||
       ! -f "$CONFIG_DIR/S2_CONDITIONAL_LORA.yaml" ]]; then
