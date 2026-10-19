@@ -189,9 +189,32 @@ PY
   echo "===== DONE $name $(date) ====="
 }
 
-run_one S2_L31_CONTROL legacy
-run_one S2_GATED_L31 gated_l31
-run_one S2_CONDITIONAL_LORA conditional_lora
+# Default to the control only. Do not spend hours on all methods until the
+# historical checkpoint and control trajectory have been verified.
+RUN_ONLY="${RUN_ONLY:-S2_L31_CONTROL}"
+echo "[RUN-ONLY] ${RUN_ONLY} (set RUN_ONLY=all to run all three methods)"
 
-echo "===== ALL THREE E3 RUNS COMPLETED $(date) ====="
-echo "Training is validation-only for model selection. Run test evaluation separately on the selected checkpoints."
+case "$RUN_ONLY" in
+  S2_L31_CONTROL)
+    run_one S2_L31_CONTROL legacy
+    ;;
+  S2_GATED_L31)
+    run_one S2_GATED_L31 gated_l31
+    ;;
+  S2_CONDITIONAL_LORA)
+    run_one S2_CONDITIONAL_LORA conditional_lora
+    ;;
+  all)
+    run_one S2_L31_CONTROL legacy
+    run_one S2_GATED_L31 gated_l31
+    run_one S2_CONDITIONAL_LORA conditional_lora
+    ;;
+  *)
+    echo "[ERROR] Unknown RUN_ONLY=$RUN_ONLY"
+    echo "[ERROR] Allowed: S2_L31_CONTROL, S2_GATED_L31, S2_CONDITIONAL_LORA, all"
+    exit 22
+    ;;
+esac
+
+echo "===== SELECTED E3 RUN COMPLETED $(date) ====="
+echo "Training is validation-only for model selection. Run test evaluation separately on selected checkpoints."
