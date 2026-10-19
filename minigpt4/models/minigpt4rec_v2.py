@@ -334,7 +334,7 @@ class MyLinear(OriginalLinear):
         # COLLAB_INJECTION_V1
         self.collab_mode = collab_mode
         self.module_tag = module_tag
-        if collab_mode not in ("legacy", "gated_l31", "conditional_lora"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         rank = self.lora_A[self.active_adapter].out_features
         # The collaborative signal is injected at historical item-token positions.
@@ -432,7 +432,12 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor),
                         )
 
-                    if self.collab_mode == "legacy":
+                    if self.collab_mode == "legacy" or (
+                        self.collab_mode == "v_only" and self.module_tag == "v"
+                    ):
+                        # V-only ablation: execute exactly the legacy injection
+                        # expression on V, while Q remains ordinary LoRA.
+                        # No gate parameters or extra scaling are introduced.
                         # Original GraphLoRA injection:
                         # r' = lora_scale * r + gnn_scale * z_GNN
                         # A1 warm-up: effective gnn_scale = gnn_scale * warmup_factor.
@@ -601,7 +606,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         # A0/A1 injection controls. Both are pure schedules/bookkeeping: no new
         # parameters, no RNG consumption. ratio=0 keeps the training path
         # bitwise identical to the I3 champion.
-        if collab_mode not in ("legacy", "gated_l31", "conditional_lora"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         self.collab_mode = collab_mode
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
