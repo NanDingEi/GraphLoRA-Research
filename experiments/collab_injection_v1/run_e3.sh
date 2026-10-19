@@ -56,6 +56,11 @@ nvidia-smi
 
 # Preflight the gated module for 12 mini-batches before spending hours on
 # full runs. This is only a wiring/learning check; its metrics are not reported.
+# Remove stale best checkpoints so a failed fresh run cannot accidentally
+# validate an earlier smoke-test artifact.
+mkdir -p "$ROOT/output/SMOKE_GATED_PREFLIGHT"
+find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f -name checkpoint_best.pth -delete
+
 echo "===== GATED PREFLIGHT START $(date) ====="
 python -u train_collm_mf_din.py \
   --cfg-path "$CONFIG_DIR/S2_GATED_L31.yaml" \
@@ -98,6 +103,11 @@ for k in lora_b_keys:
     print("[LORA-B]", k, "norm=", float(v.norm()), "nonzero=", int(torch.count_nonzero(v)))
 if not gate_keys:
     raise SystemExit("[FAIL] collab_gate parameters missing from checkpoint")
+if len(gate_keys) != 2 or any(".v_proj." not in k for k in gate_keys):
+    raise SystemExit(
+        "[FAIL] Expected exactly v_proj.collab_gate.weight/bias; "
+        "the Q gate should not exist because prefix-position Q injection is causally ineffective."
+    )
 if not lora_b_keys:
     raise SystemExit("[FAIL] layer-31 q/v LoRA-B parameters missing; cannot diagnose gate")
 gate_total = sum(float(state[k].float().norm()) for k in gate_keys)
