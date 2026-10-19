@@ -119,6 +119,21 @@ for epoch in (0, 1):
         raise SystemExit(f"[FAIL] {arm}: checkpoint_{epoch}.pth missing")
 if len(best) != 1:
     raise SystemExit(f"[FAIL] {arm}: expected 1 checkpoint_best.pth, got {len(best)}")
+
+# Verify that the method actually being compared was saved in the checkpoint.
+import torch
+state = torch.load(str(best[0]), map_location="cpu", weights_only=False)["model"]
+gate_keys = sorted(k for k in state if ".v_proj.collab_gate." in k)
+if arm.startswith("GATED"):
+    if len(gate_keys) != 2:
+        raise SystemExit(f"[FAIL] {arm}: missing gate parameters: {gate_keys}")
+    norms = [float(state[k].float().norm()) for k in gate_keys]
+    if not any(x > 0.0 for x in norms):
+        raise SystemExit(f"[FAIL] {arm}: V gate never updated")
+    print(f"[8EP-GATE-CHECK] {arm}: PASS, norms={norms}", flush=True)
+elif gate_keys:
+    raise SystemExit(f"[FAIL] {arm}: unexpected gate parameters in V-only checkpoint")
+
 with open(summary_path, "a", encoding="utf-8") as f:
     for epoch, (auc, uauc) in enumerate(scores):
         f.write(f"{arm}\t{epoch}\t{auc:.9f}\t{uauc:.9f}\t{best[0]}\n")
