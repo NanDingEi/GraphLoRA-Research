@@ -161,7 +161,19 @@ class RunnerBase:
 
         if amp:
             if self._scaler is None:
-                self._scaler = torch.cuda.amp.GradScaler()
+                # Keep the historical default unless a run explicitly opts into
+                # a smaller scale. Collaborative-injection experiments use a
+                # lower initial scale to reduce early fp16 overflow risk.
+                init_scale = float(self.config.run_cfg.get("amp_init_scale", 65536.0))
+                growth_interval = int(self.config.run_cfg.get("amp_growth_interval", 2000))
+                self._scaler = torch.cuda.amp.GradScaler(
+                    init_scale=init_scale,
+                    growth_interval=growth_interval,
+                )
+                logging.info(
+                    "[AMP] GradScaler init_scale=%g growth_interval=%d",
+                    init_scale, growth_interval,
+                )
 
         return self._scaler
 
