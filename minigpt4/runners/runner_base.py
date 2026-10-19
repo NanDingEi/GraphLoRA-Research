@@ -609,6 +609,21 @@ class RunnerBase:
                     logging.info("[CONTROL-DIAG] stopped after diagnostic epoch %d", cur_epoch)
                     break
 
+                # Overnight controlled comparisons can run N actual epochs
+                # while retaining the same 3-epoch scheduler horizon.
+                # Applied only after a full train+valid+checkpoint cycle.
+                stop_after = self.config.run_cfg.get("stop_after_n_epochs", None)
+                if stop_after is not None:
+                    stop_after = int(stop_after)
+                    if not 1 <= stop_after <= self.max_epoch:
+                        raise ValueError("run.stop_after_n_epochs must be in [1, max_epoch]")
+                    if (cur_epoch - self.start_epoch + 1) >= stop_after:
+                        logging.info(
+                            "[EPOCH-LIMIT] finished %d real epochs; scheduler horizon=%d",
+                            stop_after, self.max_epoch,
+                        )
+                        break
+
                 if self.config.run_cfg.distributed:
                     dist.barrier()
                 if not self.model_to_betrained():
