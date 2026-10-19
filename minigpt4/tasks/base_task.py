@@ -339,7 +339,13 @@ class BaseTask:
             _mid_hook = getattr(self, "mid_epoch_hook", None)
             if _mid_hook is not None:
                 _mid_hook(cur_epoch=inner_epoch, cur_step=i, model=model)
-            torch.cuda.empty_cache()
+
+            # Do not flush PyTorch's CUDA caching allocator on every mini-batch.
+            # This causes repeated reallocations and slows steady-state training.
+            # Opt in for memory diagnostics with GRAPHLoRA_EMPTY_CACHE_EVERY=100.
+            _empty_cache_every = int(os.environ.get("GRAPHLoRA_EMPTY_CACHE_EVERY", "0"))
+            if _empty_cache_every > 0 and (i + 1) % _empty_cache_every == 0:
+                torch.cuda.empty_cache()
 
         # after train_epoch()
         # gather the stats from all processes
