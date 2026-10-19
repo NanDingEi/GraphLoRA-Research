@@ -113,6 +113,7 @@ class BaseTask:
         cuda_enabled=False,
         log_freq=50,
         accum_grad_iters=1,
+        max_train_steps=None,
     ):
         return self._train_inner_loop(
             epoch=epoch,
@@ -125,6 +126,7 @@ class BaseTask:
             log_freq=log_freq,
             cuda_enabled=cuda_enabled,
             accum_grad_iters=accum_grad_iters,
+            max_train_steps=max_train_steps,
         )
 
     def train_iters(
@@ -168,6 +170,7 @@ class BaseTask:
         log_freq=50,
         cuda_enabled=False,
         accum_grad_iters=1,
+        max_train_steps=None,
     ):
         """
         An inner training loop compatible with both epoch-based and iter-based training.
@@ -180,6 +183,19 @@ class BaseTask:
         accum_grad_iters = int(accum_grad_iters)
         if accum_grad_iters < 1:
             raise ValueError("accum_grad_iters must be >= 1")
+        # Diagnostic step cap; keep the *original* iters_per_epoch so the
+        # scheduler retains the full 3-epoch cosine horizon.
+        effective_iters = iters_per_epoch
+        if max_train_steps is not None:
+            max_train_steps = int(max_train_steps)
+            if max_train_steps < 1:
+                raise ValueError("max_train_steps must be >= 1")
+            effective_iters = min(max_train_steps, iters_per_epoch)
+        if effective_iters < iters_per_epoch:
+            logging.info(
+                "[CONTROL-DIAG] training %d of %d epoch steps; LR horizon unchanged",
+                effective_iters, iters_per_epoch,
+            )
 
         if not hasattr(data_loader, "__next__"):
             # convert to iterator if not already
@@ -204,9 +220,9 @@ class BaseTask:
             inner_epoch = start_iters // iters_per_epoch
             header = header + "; inner epoch [{}]".format(inner_epoch)
 
-        for i in metric_logger.log_every(range(iters_per_epoch), log_freq, header):
-            # if using iter-based runner, we stop after iters_per_epoch iterations.
-            if i >= iters_per_epoch:
+        for i in metric_logger.log_every(range(effective_iters), log_freq, header):
+            # In diagnostics stop early without shortening LR scheduler horizon.
+            if i >= effective_iters:
                 break
 
             samples = next(data_loader)
@@ -230,7 +246,7 @@ class BaseTask:
             # graphlora-train-controls-v1: no extra optimizer step is introduced.
             window_size = min(
                 accum_grad_iters,
-                iters_per_epoch - (i // accum_grad_iters) * accum_grad_iters,
+                effective_iters - (i // accum_grad_iters) * accum_grad_iters,
             )
             backward_loss = loss / window_size
             if use_amp:
@@ -241,7 +257,7 @@ class BaseTask:
             
 
             # update gradients every accum_grad_iters iterations
-            if (i + 1) % accum_grad_iters == 0 or (i + 1) == iters_per_epoch:
+            if (i + 1) % accum_grad_iters == 0 or (i + 1) == effective_iters:
                 gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
                 debug_updates = os.environ.get("GRAPHLoRA_DEBUG_OPTIMIZER", "0") == "1"
 
