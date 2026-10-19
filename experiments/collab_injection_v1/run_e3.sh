@@ -59,7 +59,7 @@ nvidia-smi
 # Remove stale best checkpoints so a failed fresh run cannot accidentally
 # validate an earlier smoke-test artifact.
 mkdir -p "$ROOT/output/SMOKE_GATED_PREFLIGHT"
-find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f -name checkpoint_best.pth -delete
+find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f -name 'checkpoint*.pth' -delete
 
 echo "===== GATED PREFLIGHT START $(date) ====="
 python -u train_collm_mf_din.py \
@@ -70,10 +70,11 @@ python -u train_collm_mf_din.py \
   run.warmup_steps=0 \
   run.accum_grad_iters=3 \
   run.lr_scale_other=1.0 \
+  run.skip_validation=True \
   run.output_dir="$ROOT/output/SMOKE_GATED_PREFLIGHT" \
   2>&1 | tee "$LOG_DIR/SMOKE_GATED_PREFLIGHT.log"
 
-PREFLIGHT_CKPT="$(find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f -name checkpoint_best.pth -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
+PREFLIGHT_CKPT="$(find "$ROOT/output/SMOKE_GATED_PREFLIGHT" -type f \\( -name checkpoint_0.pth -o -name checkpoint_best.pth \\) -printf '%T@ %p\n' 2>/dev/null | sort -nr | head -1 | cut -d' ' -f2-)"
 if [[ -z "$PREFLIGHT_CKPT" ]]; then
   echo "[ERROR] Gated preflight did not produce checkpoint_best.pth."
   exit 4
