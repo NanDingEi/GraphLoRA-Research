@@ -69,8 +69,16 @@ if total == 0.0:
         "[FAIL] collab_gate remained exactly zero after preflight; "
         "full experiments aborted to avoid wasting GPU time."
     )
-print("[PASS] Gate parameters changed; full E3 experiments may proceed.")
+print("[PASS] Gate parameters changed; preflight update check passed.")
 PY
+
+if [[ "${RUN_FULL_E3_AFTER_PREFLIGHT:-0}" != "1" ]]; then
+  echo "[STOP] Preflight passed. Full 3-epoch runs were NOT started."
+  echo "[NEXT] Inspect $LOG_DIR/SMOKE_GATED_PREFLIGHT.log for [OPT-UPDATE-DIAG]."
+  echo "[NEXT] If LoRA-B and gate deltas are nonzero and found_inf=0, rerun with:"
+  echo "       RUN_FULL_E3_AFTER_PREFLIGHT=1 bash experiments/collab_injection_v1/run_e3.sh"
+  exit 0
+fi
 
 run_one() {
   local name="$1"
