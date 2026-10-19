@@ -531,8 +531,12 @@ class RunnerBase:
                     self.log_stats(split_name="train", stats=train_stats)
                     # torch.cuda.empty_cache()
 
+                # Evaluation is expensive for the 7B recommender. The short
+                # wiring preflight opts out and saves a trainable-only checkpoint;
+                # real experiments keep the original full validation/model selection.
+                _skip_validation = bool(self.config.run_cfg.get("skip_validation", False))
                 # evaluation phase
-                if len(self.valid_splits) > 0:
+                if len(self.valid_splits) > 0 and not _skip_validation:
                     for split_name in self.valid_splits:
                         logging.info("Evaluating on {}.".format(split_name))
 
@@ -578,6 +582,11 @@ class RunnerBase:
                         self._save_checkpoint(cur_epoch, is_best=False,
                                               trainable_only=True)
 
+                elif len(self.valid_splits) > 0 and _skip_validation:
+                    # Preflight only: save a checkpoint for parameter-update checks,
+                    # but do not evaluate 1,300 validation batches after 12 train batches.
+                    if not self.evaluate_only and is_main_process():
+                        self._save_checkpoint(cur_epoch, is_best=False, trainable_only=True)
                 else:
                     # if no validation split is provided, we just save the checkpoint at the end of each epoch.
                     if not self.evaluate_only:
