@@ -128,6 +128,10 @@ if gate_total == 0.0:
 print("[PASS] Both layer-31 LoRA-B and gate parameters changed.")
 PY
 
+# Diagnostics are essential for the short preflight, but expensive for full
+# training: they scan gradients and synchronize CUDA at every optimizer update.
+unset GRAPHLoRA_DEBUG_OPTIMIZER
+
 if [[ "${RUN_FULL_E3_AFTER_PREFLIGHT:-0}" != "1" ]]; then
   echo "[STOP] Preflight passed. Full 3-epoch runs were NOT started."
   echo "[NEXT] Inspect $LOG_DIR/SMOKE_GATED_PREFLIGHT.log for [OPT-UPDATE-DIAG]."
