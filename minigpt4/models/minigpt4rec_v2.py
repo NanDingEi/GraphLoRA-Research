@@ -310,7 +310,7 @@ class GAT(nn.Module):
 
 
 class MyLinear(OriginalLinear):
-    def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0, gcn_layer=0, collab_mode="legacy"):
+    def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0, gcn_layer=0, collab_mode="legacy", module_tag="q"):
         super().__init__(
             adapter_name=original_linear.active_adapter,
             in_features=original_linear.in_features,
@@ -333,14 +333,19 @@ class MyLinear(OriginalLinear):
         self.gcn_layer = gcn_layer
         # COLLAB_INJECTION_V1
         self.collab_mode = collab_mode
+        self.module_tag = module_tag
         if collab_mode not in ("legacy", "gated_l31", "conditional_lora"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         rank = self.lora_A[self.active_adapter].out_features
-        if collab_mode == "gated_l31":
+        # The collaborative signal is injected at historical item-token positions.
+        # Under causal attention, Q at those prefix positions does not directly
+        # affect later target-token predictions; K/V do. Create trainable
+        # collaborative modules only for V, avoiding permanently dead Q gates.
+        if collab_mode == "gated_l31" and self.module_tag == "v":
             self.collab_gate = nn.Linear(2 * rank, 1)
             nn.init.zeros_(self.collab_gate.weight)
             nn.init.zeros_(self.collab_gate.bias)
-        elif collab_mode == "conditional_lora":
+        elif collab_mode == "conditional_lora" and self.module_tag == "v":
             self.collab_conditioner = nn.Linear(rank, rank)
             nn.init.zeros_(self.collab_conditioner.weight)
             nn.init.zeros_(self.collab_conditioner.bias)
@@ -444,21 +449,25 @@ class MyLinear(OriginalLinear):
                                 * (self.gnn_scale * self.warmup_factor)
                             )
     
-                    else:
-                        a = lora_a_output[batch_indices, token_positions]
-                        z = self.gcn_output[local_node_ids].to(dtype=a.dtype)
-                        if z.shape != a.shape:
-                            raise RuntimeError(f"GNN/LoRA rank mismatch: {z.shape} vs {a.shape}")
-                        if self.collab_mode == "gated_l31":
-                            gate_in = torch.cat((a.float(), z.float()), dim=-1)
-                            gate = (2.0 * torch.sigmoid(self.collab_gate(gate_in))).to(dtype=a.dtype)
-                            updated = (a * self.lora_scale +
-                                       z * (self.gnn_scale * self.warmup_factor) * gate)
-                        else:
-                            modulation = (2.0 * torch.sigmoid(
-                                self.collab_conditioner(z.float()))).to(dtype=a.dtype)
-                            updated = a * self.lora_scale * modulation
-                        lora_a_output[batch_indices, token_positions] = updated
+                    elif self.collab_mode in ("gated_l31", "conditional_lora"):
+                        # Only V receives the collaborative signal at historical
+                        # item-token positions. Q's prefix-position output is
+                        # causally disconnected from later target-token losses.
+                        if self.module_tag == "v":
+                            a = lora_a_output[batch_indices, token_positions]
+                            z = self.gcn_output[local_node_ids].to(dtype=a.dtype)
+                            if z.shape != a.shape:
+                                raise RuntimeError(f"GNN/LoRA rank mismatch: {z.shape} vs {a.shape}")
+                            if self.collab_mode == "gated_l31":
+                                gate_in = torch.cat((a.float(), z.float()), dim=-1)
+                                gate = (2.0 * torch.sigmoid(self.collab_gate(gate_in))).to(dtype=a.dtype)
+                                updated = (a * self.lora_scale +
+                                           z * (self.gnn_scale * self.warmup_factor) * gate)
+                            else:
+                                modulation = (2.0 * torch.sigmoid(
+                                    self.collab_conditioner(z.float()))).to(dtype=a.dtype)
+                                updated = a * self.lora_scale * modulation
+                            lora_a_output[batch_indices, token_positions] = updated
             if self.rel_pair_gate is not None:
                 # rank-wise pair modulation: g = 2*sigmoid(W c_ui) in (0,2),
                 # zero-init W => g == 1 (identity). Modulates the LoRA-A
@@ -791,10 +800,10 @@ class MiniGPT4Rec_v2(Rec2Base):
                             lora_scale=lora_scale,
                             gnn_scale=gnn_scale,
                             gcn_layer=gcn_layer,
-                            collab_mode=self.collab_mode
+                            collab_mode=self.collab_mode,
+                            module_tag='q' if 'q_proj' in name else 'v'
                         )
                         new_module.inj_diag = self.inj_diag
-                        new_module.module_tag = 'q' if 'q_proj' in name else 'v'
 
                         parent_name = '.'.join(name.split('.')[:-1])
                         attr_name = name.split('.')[-1]
