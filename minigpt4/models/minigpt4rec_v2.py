@@ -310,7 +310,7 @@ class GAT(nn.Module):
 
 
 class MyLinear(OriginalLinear):
-    def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0, gcn_layer=0):
+    def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0, gcn_layer=0, collab_mode="legacy"):
         super().__init__(
             adapter_name=original_linear.active_adapter,
             in_features=original_linear.in_features,
@@ -331,6 +331,19 @@ class MyLinear(OriginalLinear):
         self.gnn_scale = gnn_scale
         self.layer_idx = layer_idx
         self.gcn_layer = gcn_layer
+        # COLLAB_INJECTION_V1
+        self.collab_mode = collab_mode
+        if collab_mode not in ("legacy", "gated_l31", "conditional_lora"):
+            raise ValueError(f"Unknown collab_mode: {collab_mode}")
+        rank = self.lora_A[self.active_adapter].out_features
+        if collab_mode == "gated_l31":
+            self.collab_gate = nn.Linear(2 * rank, 1)
+            nn.init.zeros_(self.collab_gate.weight)
+            nn.init.zeros_(self.collab_gate.bias)
+        elif collab_mode == "conditional_lora":
+            self.collab_conditioner = nn.Linear(rank, rank)
+            nn.init.zeros_(self.collab_conditioner.weight)
+            nn.init.zeros_(self.collab_conditioner.bias)
 
         self.gcn_output = None
         self.batch_indices = None
@@ -413,23 +426,39 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor),
                         )
 
-                    # Original GraphLoRA injection:
-                    # r' = lora_scale * r + gnn_scale * z_GNN
-                    # A1 warm-up: effective gnn_scale = gnn_scale * warmup_factor.
-                    # The factor==1.0 branch keeps the ORIGINAL expression so the
-                    # default path stays bitwise identical to I3.
-                    if self.warmup_factor == 1.0:
-                        lora_a_output[batch_indices, token_positions] = (
-                            lora_a_output[batch_indices, token_positions] * self.lora_scale
-                            + self.gcn_output[local_node_ids] * self.gnn_scale
-                        )
+                    if self.collab_mode == "legacy":
+                        # Original GraphLoRA injection:
+                        # r' = lora_scale * r + gnn_scale * z_GNN
+                        # A1 warm-up: effective gnn_scale = gnn_scale * warmup_factor.
+                        # The factor==1.0 branch keeps the ORIGINAL expression so the
+                        # default path stays bitwise identical to I3.
+                        if self.warmup_factor == 1.0:
+                            lora_a_output[batch_indices, token_positions] = (
+                                lora_a_output[batch_indices, token_positions] * self.lora_scale
+                                + self.gcn_output[local_node_ids] * self.gnn_scale
+                            )
+                        else:
+                            lora_a_output[batch_indices, token_positions] = (
+                                lora_a_output[batch_indices, token_positions] * self.lora_scale
+                                + self.gcn_output[local_node_ids]
+                                * (self.gnn_scale * self.warmup_factor)
+                            )
+    
                     else:
-                        lora_a_output[batch_indices, token_positions] = (
-                            lora_a_output[batch_indices, token_positions] * self.lora_scale
-                            + self.gcn_output[local_node_ids]
-                            * (self.gnn_scale * self.warmup_factor)
-                        )
-
+                        a = lora_a_output[batch_indices, token_positions]
+                        z = self.gcn_output[local_node_ids].to(dtype=a.dtype)
+                        if z.shape != a.shape:
+                            raise RuntimeError(f"GNN/LoRA rank mismatch: {z.shape} vs {a.shape}")
+                        if self.collab_mode == "gated_l31":
+                            gate_in = torch.cat((a.float(), z.float()), dim=-1)
+                            gate = (2.0 * torch.sigmoid(self.collab_gate(gate_in))).to(dtype=a.dtype)
+                            updated = (a * self.lora_scale +
+                                       z * (self.gnn_scale * self.warmup_factor) * gate)
+                        else:
+                            modulation = (2.0 * torch.sigmoid(
+                                self.collab_conditioner(z.float()))).to(dtype=a.dtype)
+                            updated = a * self.lora_scale * modulation
+                        lora_a_output[batch_indices, token_positions] = updated
             if self.rel_pair_gate is not None:
                 # rank-wise pair modulation: g = 2*sigmoid(W c_ui) in (0,2),
                 # zero-init W => g == 1 (identity). Modulates the LoRA-A
@@ -477,6 +506,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             lora_scale=1.0,
             gnn_scale=0,
             gcn_layer=0,
+            collab_mode="legacy",
             gnn_semantic_align=False,
             gnn_semantic_weight=0.05,
             train_gnn_with_rec_loss=True,
@@ -561,6 +591,13 @@ class MiniGPT4Rec_v2(Rec2Base):
         # A0/A1 injection controls. Both are pure schedules/bookkeeping: no new
         # parameters, no RNG consumption. ratio=0 keeps the training path
         # bitwise identical to the I3 champion.
+        if collab_mode not in ("legacy", "gated_l31", "conditional_lora"):
+            raise ValueError(f"Unknown collab_mode: {collab_mode}")
+        self.collab_mode = collab_mode
+        if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
+            raise ValueError("conditional_lora requires gnn_scale=0")
+        if collab_mode != "legacy" and (rel_rank_mod or rel_inject):
+            raise ValueError("Disable rel_rank_mod/rel_inject for isolated experiments")
         self.inj_diag = bool(inj_diag)
         self.inj_warmup_ratio = float(gnn_injection_warmup_ratio)
         self.inj_warmup_total_steps = int(gnn_injection_warmup_total_steps)
@@ -753,7 +790,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                             layer_idx=gcn_layer,
                             lora_scale=lora_scale,
                             gnn_scale=gnn_scale,
-                            gcn_layer=gcn_layer
+                            gcn_layer=gcn_layer,
+                            collab_mode=self.collab_mode
                         )
                         new_module.inj_diag = self.inj_diag
                         new_module.module_tag = 'q' if 'q_proj' in name else 'v'
@@ -2246,6 +2284,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         lora_scale = cfg.get("lora_scale", 1.0)
         gnn_scale = cfg.get("gnn_scale", 0)
         gcn_layer = cfg.get("gcn_layer", 0)
+        collab_mode = cfg.get("collab_mode", "legacy")
 
         # Only the requested new controls.
         gnn_semantic_align = cfg.get("gnn_semantic_align", False)
@@ -2311,6 +2350,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             lora_scale=lora_scale,
             gnn_scale=gnn_scale,
             gcn_layer=gcn_layer,
+            collab_mode=collab_mode,
             gnn_semantic_align=gnn_semantic_align,
             gnn_semantic_weight=gnn_semantic_weight,
             train_gnn_with_rec_loss=train_gnn_with_rec_loss,
