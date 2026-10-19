@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Build matched 3-epoch configs from the actual S2-L31 checkpoint config.
+"""Build matched configs warm-started from the actual S2-L31 checkpoint.
 
-This deliberately copies the checkpoint's saved config rather than using a
-reconstructed YAML. Model weights are NOT loaded for training: model.ckpt and
-run.resume_ckpt_path are cleared for every experiment.
+The S2 model weights are loaded through model.ckpt. Optimizer/scheduler state is
+not resumed: run.resume_ckpt_path remains None, so each method starts with a
+fresh optimizer and learning-rate schedule. New gate/conditioner parameters
+missing from the legacy checkpoint keep their method-specific initialization.
 """
 import argparse
 import copy
@@ -64,7 +65,10 @@ def main():
         model = cfg["model"]
         run = cfg["run"]
 
-        model["ckpt"] = None
+        # Load the same S2-L31 model weights for every method, but do not
+        # resume its optimizer/scheduler state. This is a controlled
+        # warm-start comparison, not a scratch-training comparison.
+        model["ckpt"] = str(checkpoint_path.resolve())
         model["collab_mode"] = mode
         model["gnn_scale"] = scale
         model["gcn_layer"] = 31
@@ -82,6 +86,9 @@ def main():
         run["lr_scale_other"] = float(run.get("lr_scale_other", 1.0))
         run["evaluate"] = False
         run["resume_ckpt_path"] = None
+        # Early, trajectory-preserving validation probes for the control run.
+        # The runner saves a checkpoint at each probe step.
+        run["mid_epoch_eval_iters"] = "499,1999,4999"
         # Never let a stale smoke-test override truncate a full epoch.
         run.pop("iters_per_epoch", None)
         run.pop("max_iters", None)
@@ -101,7 +108,8 @@ def main():
             f"  output_dir={run['output_dir']}"
         )
 
-    print("[OK] Configs copied from checkpoint config; no checkpoint weights will be resumed.")
+    print(f"[OK] All methods warm-start from model weights: {checkpoint_path.resolve()}")
+    print("[OK] Optimizer/scheduler state is fresh (run.resume_ckpt_path=None).")
 
 
 if __name__ == "__main__":
