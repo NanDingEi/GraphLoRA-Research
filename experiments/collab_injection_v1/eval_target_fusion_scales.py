@@ -8,7 +8,15 @@ No training, no test set, no checkpoint writes.
 """
 import argparse
 import json
+import sys
 from pathlib import Path
+
+# Launched as python experiments/collab_injection_v1/this_script.py,
+# sys.path[0] is the script's directory, not the repository root.
+# Insert the root BEFORE importing the project's training entrypoint.
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 import pandas as pd
 import torch
