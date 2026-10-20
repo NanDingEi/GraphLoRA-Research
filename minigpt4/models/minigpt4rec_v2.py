@@ -334,6 +334,41 @@ def build_id_token_roles(idx_nopad, ids_order, history_len):
     return roles
 
 
+def mismatch_candidate_features(candidate_ids, candidate_features,
+                                node_ids, penult, num_users):
+    """Deterministic wrong-candidate KS context, never changing original Q/V.
+
+    Prefer another candidate from the same batch (fixed cyclic index order).
+    If the whole batch has the same target ID, choose a different item already
+    present in the current sorted GNN subgraph. This is an explicit fallback,
+    not a globally precomputed one-to-one negative mapping.
+    """
+    ids = candidate_ids.long().reshape(-1)
+    if candidate_features.ndim != 2 or ids.numel() != candidate_features.size(0):
+        raise RuntimeError("KS target IDs/feature rows mismatch")
+    item_mask = node_ids >= int(num_users)
+    item_nodes = node_ids[item_mask]
+    item_feats = penult[item_mask]
+    if ids.numel() == 0:
+        raise RuntimeError("KS cannot mismatch empty batch")
+    picks, fallbacks = [], 0
+    for i in range(ids.numel()):
+        partner = None
+        for step in range(1, ids.numel()):
+            j = (i + step) % ids.numel()
+            if bool(ids[j] != ids[i]):
+                partner = candidate_features[j]
+                break
+        if partner is None:
+            alternative = (item_nodes != ids[i] + num_users).nonzero(as_tuple=True)[0]
+            if alternative.numel() == 0:
+                raise RuntimeError("KS lacks a different item in sampled subgraph")
+            partner = item_feats[alternative[0]]
+            fallbacks += 1
+        picks.append(partner)
+    return torch.stack(picks, dim=0), fallbacks
+
+
 class TargetConditionedKeyAdapter(nn.Module):
     """Zero-initialized full K-projection residual, bypassing LoRA-B."""
     def __init__(self, output_dim, graph_size=256, middle=64):
@@ -398,7 +433,7 @@ class MyLinear(OriginalLinear):
         self.collab_mode = collab_mode
         self.module_tag = module_tag
         if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate",
-                               "target_k_no_candidate", "target_k_candidate"):
+                               "target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         rank = self.lora_A[self.active_adapter].out_features
         # The collaborative signal is injected at historical item-token positions.
@@ -509,7 +544,7 @@ class MyLinear(OriginalLinear):
                     if self.collab_mode in (
                         "legacy", "target_fusion",
                         "target_v_gate_no_candidate", "target_v_gate_candidate",
-                        "target_k_no_candidate", "target_k_candidate",
+                        "target_k_no_candidate", "target_k_candidate", "target_k_shuffle",
                     ) or (
                         self.collab_mode == "v_only" and self.module_tag == "v"
                     ):
@@ -771,16 +806,17 @@ class MiniGPT4Rec_v2(Rec2Base):
         # bitwise identical to the I3 champion.
         if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion",
                                "target_v_gate_no_candidate", "target_v_gate_candidate",
-                               "target_k_no_candidate", "target_k_candidate"):
+                               "target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         self.collab_mode = collab_mode
         self.target_fusion_scale = float(target_fusion_scale)
         self.target_fusion_mode = str(target_fusion_mode)
         self.target_fusion_relative_cap = float(target_fusion_relative_cap)
         self.target_key_scope = str(target_key_scope)
-        if self.target_key_scope not in ("history", "user", "target", "all"):
+        if self.target_key_scope not in ("history", "user", "target", "history_target", "all"):
             raise ValueError(f"Unsupported Key token scope: {self.target_key_scope}")
         self._target_key_payload = None
+        self._ks_fallback_rows = 0
         self.target_key_adapter = None
         self._target_fusion_payload = None
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
@@ -998,7 +1034,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                 f"Replaced {len(self.my_linears)} modules."
             )
 
-            if self.collab_mode in ("target_k_no_candidate", "target_k_candidate"):
+            if self.collab_mode in ("target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
                 if int(gcn_layer) != int(self.llama_model.config.num_hidden_layers) - 1:
                     raise ValueError("Target-Key injection requires last decoder layer")
                 key_linear = self.llama_model.model.layers[int(gcn_layer)].self_attn.k_proj
@@ -1411,7 +1447,7 @@ class MiniGPT4Rec_v2(Rec2Base):
 
         if self.collab_mode in (
             "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate",
-            "target_k_no_candidate", "target_k_candidate"
+            "target_k_no_candidate", "target_k_candidate", "target_k_shuffle"
         ):
             ret["sub_node_ids"] = sub_node_ids
             ret["gnn_penult"] = gcn_penult
@@ -1526,8 +1562,11 @@ class MiniGPT4Rec_v2(Rec2Base):
         if context.size(0) != rows.numel() or roles.numel() != rows.numel():
             raise RuntimeError("Target-Key token/context shape mismatch")
         wanted = {"user": 0, "history": 1, "target": 2}
-        select = (roles == wanted[self.target_key_scope]) if (
-            self.target_key_scope != "all") else (roles >= 0)
+        if self.target_key_scope == "history_target":
+            select = (roles == 1) | (roles == 2)
+        else:
+            select = (roles == wanted[self.target_key_scope]) if (
+                self.target_key_scope != "all") else (roles >= 0)
         if not bool(select.any()):
             return output
         b, p = rows[select], positions[select]
@@ -1565,6 +1604,10 @@ class MiniGPT4Rec_v2(Rec2Base):
 
         user = gather(samples["UserID"].long())
         candidate = gather(samples["TargetItemID"].long() + self.num_users)
+        if self.collab_mode == "target_k_shuffle":
+            candidate, fallback_count = mismatch_candidate_features(
+                samples["TargetItemID"], candidate, ids, penult, self.num_users)
+            self._ks_fallback_rows += fallback_count
         batch = fb["batch_indices"].long()
         local = fb["local_node_ids"].long()
         if batch.shape != local.shape:
@@ -2252,7 +2295,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     for my_linear in self.my_linears:
                         if my_linear.module_tag == "v":
                             my_linear.target_v_context = v_context
-                if self.collab_mode in ("target_k_no_candidate", "target_k_candidate"):
+                if self.collab_mode in ("target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
                     good = local_node_ids >= 0
                     if "token_roles" not in fb:
                         raise RuntimeError("Target-Key requires role-aligned token metadata")
@@ -2507,7 +2550,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     for my_linear in self.my_linears:
                         if my_linear.module_tag == "v":
                             my_linear.target_v_context = v_context
-                if self.collab_mode in ("target_k_no_candidate", "target_k_candidate"):
+                if self.collab_mode in ("target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
                     good = local_node_ids >= 0
                     if "token_roles" not in fb:
                         raise RuntimeError("Target-Key requires role-aligned token metadata")
@@ -2859,7 +2902,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                 and trainable_policy == "target_v_gate_only"
             )
             valid_key = (
-                collab_mode in ("target_k_no_candidate", "target_k_candidate")
+                collab_mode in ("target_k_no_candidate", "target_k_candidate", "target_k_shuffle")
                 and trainable_policy == "target_k_only"
             )
             if not valid_fusion and not valid_vg and not valid_key:
