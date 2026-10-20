@@ -10,7 +10,7 @@ import torch
 
 path = Path(__file__).resolve().parent / "eval_vg_l31_paired_precision.py"
 tree = ast.parse(path.read_text(encoding="utf-8"))
-wanted = {"rng_snapshot", "rng_restore", "rng_equal", "diff_stat", "Aggregate"}
+wanted = {"rng_snapshot", "rng_restore", "rng_equal", "prompt_state_snapshot", "prompt_state_restore", "rng_differences", "diff_stat", "Aggregate"}
 nodes = [n for n in tree.body
          if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in wanted]
 assert set(n.name for n in nodes) == wanted
@@ -27,6 +27,38 @@ scope["rng_restore"](snap)
 b = (random.random(), np.random.rand(), torch.randn(4))
 assert a[0] == b[0] and a[1] == b[1] and torch.equal(a[2], b[2])
 assert not scope["rng_equal"](snap, scope["rng_snapshot"]())
+
+# Regress the bug seen in the real GPU run: prompt printing consumes
+# one extra Python random.choice on the first forward only.
+class FakeModel:
+    has_print_prompt = False
+    has_pri_decode = False
+    prompt_list_p = None
+
+
+fake = FakeModel()
+random.seed(42)
+start_rng = scope["rng_snapshot"]()
+start_prompt = scope["prompt_state_snapshot"](fake)
+ends = []
+for factor in (0, 0, 1, 50):
+    scope["rng_restore"](start_rng)
+    scope["prompt_state_restore"](fake, start_prompt)
+    random.choice([0, 1, 2, 3])  # prompt template
+    if not fake.has_print_prompt:
+        random.choice([0, 1, 2, 3])  # first prompt-example print
+        fake.has_print_prompt = True
+    if not fake.has_pri_decode:
+        fake.has_pri_decode = True
+    if fake.prompt_list_p is None:
+        fake.prompt_list_p = [0, 1, 2, 3]
+    ends.append(scope["rng_snapshot"]())
+assert all(scope["rng_equal"](ends[0], state) for state in ends[1:])
+assert all(not scope["rng_differences"](ends[0], state) for state in ends[1:])
+assert fake.has_print_prompt and fake.has_pri_decode
+scope["prompt_state_restore"](fake, start_prompt)
+assert fake.has_print_prompt is False and fake.has_pri_decode is False
+print("[VG-PAIRED-CPU] first-prompt RNG/state replay PASS")
 
 base = torch.tensor([[2.0, 0.0], [0.0, 1.0]])
 same = scope["diff_stat"](base, base)
