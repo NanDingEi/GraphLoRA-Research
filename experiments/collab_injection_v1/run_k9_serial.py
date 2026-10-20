@@ -23,14 +23,14 @@ import subprocess
 import sys
 from pathlib import Path
 
+# Limit device visibility BEFORE importing PyTorch or touching CUDA.
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["PYTHONUNBUFFERED"] = "1"
 import torch
 import yaml
 
 ROOT = Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
-os.environ["PYTHONUNBUFFERED"] = "1"
-# GPU0 is selected by this process. Restrict child processes to the same GPU.
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
 ARMS = [
     ("H0", "history", "target_k_no_candidate"),
