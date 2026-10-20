@@ -22,6 +22,7 @@ DEFAULT_CHECKPOINT = (
 EXPERIMENTS = (
     ("S2_L31_CONTROL", "legacy", 0.1),
     ("S2_V_ONLY_L31", "v_only", 0.1),
+    ("S2_TARGET_FUSION", "target_fusion", 0.1),
     ("S2_GATED_L31", "gated_l31", 0.1),
     ("S2_CONDITIONAL_LORA", "conditional_lora", 0.0),
 )
@@ -73,6 +74,8 @@ def main():
         model["collab_mode"] = mode
         model["gnn_scale"] = scale
         model["gcn_layer"] = 31
+        if mode == "target_fusion":
+            model["target_fusion_scale"] = 1.0
         model["rel_inject"] = False
         model["rel_rank_mod"] = False
 
