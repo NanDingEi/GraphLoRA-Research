@@ -5,6 +5,7 @@ K0 excludes candidate data, K1 uses it; both change history-token Key only.
 Each arm independently starts from S2-L31, trains 1 epoch on GPU0, validates
 on Valid Small and saves isolated adapter plus fully merged checkpoint.
 """
+import argparse
 import copy
 import datetime
 import os
@@ -79,6 +80,12 @@ def inspect_trainable(ckpt_path, arm):
     return state
 
 def main():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--scope", choices=("history", "target", "user", "all"),
+                        default="history",
+                        help="L31 Key token positions (same in K0/K1)")
+    args = parser.parse_args()
+
     others = subprocess.run(
         ["pgrep", "-af", "[t]rain_collm_mf_din.py"],
         capture_output=True, text=True, check=False,
@@ -93,7 +100,7 @@ def main():
     run([sys.executable, "-m", "py_compile", str(model_py)], ROOT / "logs/collab_v1/k_syntax.log")
     run([sys.executable, "experiments/collab_injection_v1/test_target_k_cpu.py"],
         ROOT / "logs/collab_v1/k_cpu_unit.log")
-    tag = "S2_K_2EP_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    tag = "S2_K_2EP_" + args.scope.upper() + "_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     logs = ROOT / "logs/collab_v1" / tag
     outputs = ROOT / "output" / tag
     logs.mkdir(parents=True)
@@ -120,7 +127,7 @@ def main():
         m, r = cfg["model"], cfg["run"]
         m["collab_mode"] = mode
         m["trainable_policy"] = "target_k_only"
-        m["target_key_scope"] = "history"
+        m["target_key_scope"] = args.scope
         m.pop("target_fusion_scale", None)
         m.pop("target_fusion_mode", None)
         m.pop("target_fusion_relative_cap", None)
@@ -161,7 +168,7 @@ def main():
              "--result", anchor_result],
             logs / f"{name}_ANCHOR.log")
 
-        print(f"[K-START] {name}: 24-batch gate gradient smoke", flush=True)
+        print(f"[K-START] {name}: 24-batch Key gradient smoke", flush=True)
         run([sys.executable, "-u", "train_collm_mf_din.py", "--cfg-path", smoke_cfg],
             logs / f"{name}_SMOKE.log")
         inspect_trainable(ckpt_in(out / "SMOKE_24", "checkpoint_0.pth"), name)
