@@ -37,8 +37,8 @@ def main():
         raise FileNotFoundError(f"{checkpoint} or {cfg_path}")
     cfg = Config(Namespace(cfg_path=str(cfg_path), options=None))
     if cfg.model_cfg.collab_mode not in (
-            "target_k_no_candidate", "target_k_candidate"):
-        raise RuntimeError("Expected K0 or K1 architecture")
+            "target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
+        raise RuntimeError("Expected K0, K1 or KS architecture")
     cfg.model_cfg.ckpt = str(checkpoint)
     cfg.run_cfg.resume_ckpt_path = None
     cfg.run_cfg.evaluate = False
