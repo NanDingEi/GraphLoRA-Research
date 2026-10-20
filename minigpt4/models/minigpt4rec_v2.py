@@ -2252,6 +2252,16 @@ class MiniGPT4Rec_v2(Rec2Base):
                     for my_linear in self.my_linears:
                         if my_linear.module_tag == "v":
                             my_linear.target_v_context = v_context
+                if self.collab_mode in ("target_k_no_candidate", "target_k_candidate"):
+                    good = local_node_ids >= 0
+                    if "token_roles" not in fb:
+                        raise RuntimeError("Target-Key requires role-aligned token metadata")
+                    self._target_key_payload = (
+                        self._make_target_v_context(fb, samples)[good],
+                        batch_indices[good],
+                        token_positions[good],
+                        fb["token_roles"][good],
+                    )
 
             # The prediction logit at [:, -t_posi, :] belongs to
             # the FINAL PROMPT TOKEN, not the candidate-item ID token.
@@ -2282,6 +2292,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     )
             finally:
                 self._target_fusion_payload = None
+                self._target_key_payload = None
 
             if self.use_lora:
                 for my_linear in self.my_linears:
@@ -2496,6 +2507,16 @@ class MiniGPT4Rec_v2(Rec2Base):
                     for my_linear in self.my_linears:
                         if my_linear.module_tag == "v":
                             my_linear.target_v_context = v_context
+                if self.collab_mode in ("target_k_no_candidate", "target_k_candidate"):
+                    good = local_node_ids >= 0
+                    if "token_roles" not in fb:
+                        raise RuntimeError("Target-Key requires role-aligned token metadata")
+                    self._target_key_payload = (
+                        self._make_target_v_context(fb, samples)[good],
+                        batch_indices[good],
+                        token_positions[good],
+                        fb["token_roles"][good],
+                    )
 
             # The prediction logit at [:, -t_posi, :] belongs to
             # the FINAL PROMPT TOKEN, not the candidate-item ID token.
@@ -2526,6 +2547,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     )
             finally:
                 self._target_fusion_payload = None
+                self._target_key_payload = None
 
             if self.use_lora:
                 for my_linear in self.my_linears:
@@ -2836,17 +2858,24 @@ class MiniGPT4Rec_v2(Rec2Base):
                 collab_mode in ("target_v_gate_no_candidate", "target_v_gate_candidate")
                 and trainable_policy == "target_v_gate_only"
             )
-            if not valid_fusion and not valid_vg:
+            valid_key = (
+                collab_mode in ("target_k_no_candidate", "target_k_candidate")
+                and trainable_policy == "target_k_only"
+            )
+            if not valid_fusion and not valid_vg and not valid_key:
                 raise ValueError(
                     f"Incompatible collab_mode={collab_mode}, "
                     f"trainable_policy={trainable_policy}"
                 )
-            selected = {"fusion": [], "lora": [], "vg": []}
+            selected = {"fusion": [], "lora": [], "vg": [], "key": []}
             for pname, p in model.named_parameters():
                 is_fusion = pname.startswith("target_fusion.")
                 is_lora = ("lora_A." in pname or "lora_B." in pname)
                 is_vg = ".target_v_gate." in pname
-                if valid_vg:
+                is_key = pname.startswith("target_key_adapter.")
+                if valid_key:
+                    allow = is_key
+                elif valid_vg:
                     allow = is_vg
                 else:
                     allow = is_fusion or (
@@ -2854,9 +2883,15 @@ class MiniGPT4Rec_v2(Rec2Base):
                     )
                 p.requires_grad_(allow)
                 if allow:
-                    kind = "vg" if is_vg else ("fusion" if is_fusion else "lora")
+                    kind = "key" if is_key else ("vg" if is_vg else (
+                        "fusion" if is_fusion else "lora"))
                     selected[kind].append(pname)
-            if valid_vg:
+            if valid_key:
+                if len(selected["key"]) != 4 or any(
+                    selected[k] for k in ("fusion", "lora", "vg")
+                ):
+                    raise RuntimeError(f"Expected 4 Key-only tensors: {selected}")
+            elif valid_vg:
                 if len(selected["vg"]) != 4 or selected["fusion"] or selected["lora"]:
                     raise RuntimeError(
                         f"Expected only 4 L31 V gate tensors, got {selected}"
@@ -2870,7 +2905,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             print(
                 f"[TRAINABLE-POLICY] {trainable_policy}: "
                 f"fusion={len(selected['fusion'])} lora={len(selected['lora'])} "
-                f"vg={len(selected['vg'])} "
+                f"vg={len(selected['vg'])} key={len(selected['key'])} "
                 f"trainable_numel={sum(p.numel() for p in model.parameters() if p.requires_grad)}",
                 flush=True,
             )
