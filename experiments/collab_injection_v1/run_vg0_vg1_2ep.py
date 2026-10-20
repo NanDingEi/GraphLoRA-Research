@@ -204,7 +204,7 @@ def main():
         print(f"[VG-MERGED] {name} checkpoint: {merged_path}", flush=True)
 
         run([sys.executable,
-             "experiments/collab_injection_v1/compare_target_fusion_checkpoint_drift.py",
+             "experiments/collab_injection_v1/compare_vg_checkpoint_drift.py",
              "--champion", champion, "--trained", merged_path],
             logs / f"{name}_DRIFT.log")
 
