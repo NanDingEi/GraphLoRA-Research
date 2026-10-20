@@ -309,6 +309,27 @@ class GAT(nn.Module):
 
 
 
+class TargetConditionedVGate(nn.Module):
+    """Zero-initialized rank-wise correction for the historical L31 V signal.
+
+    Gate = 1 + delta, delta = 0.5*tanh(MLP(context)).
+    No extra model output head; at initialization delta == 0 bit-for-bit.
+    """
+    def __init__(self, graph_size=256, rank=8, mid=32):
+        super().__init__()
+        with torch.random.fork_rng(devices=[]):
+            self.network = nn.Sequential(
+                nn.Linear(4 * graph_size, mid),
+                nn.GELU(),
+                nn.Linear(mid, rank),
+            )
+        nn.init.zeros_(self.network[-1].weight)
+        nn.init.zeros_(self.network[-1].bias)
+
+    def forward(self, context):
+        return 0.5 * torch.tanh(self.network(context.float()))
+
+
 class MyLinear(OriginalLinear):
     def __init__(self, original_linear, layer_idx=None, lora_scale=1.0, gnn_scale=0, gcn_layer=0, collab_mode="legacy", module_tag="q"):
         super().__init__(
@@ -357,16 +378,7 @@ class MyLinear(OriginalLinear):
             nn.init.zeros_(self.collab_conditioner.bias)
 
         if collab_mode in ("target_v_gate_no_candidate", "target_v_gate_candidate") and self.module_tag == "v":
-            # Independent 8-rank gate on the historical L31 V GNN injection.
-            # Isolate CPU RNG so VG0/VG1 warm-start the S2 trajectory.
-            with torch.random.fork_rng(devices=[]):
-                self.target_v_gate = nn.Sequential(
-                    nn.Linear(4 * 256, 32),
-                    nn.GELU(),
-                    nn.Linear(32, rank),
-                )
-            nn.init.zeros_(self.target_v_gate[-1].weight)
-            nn.init.zeros_(self.target_v_gate[-1].bias)
+            self.target_v_gate = TargetConditionedVGate(graph_size=256, rank=rank)
 
         self.target_v_context = None
         self.gcn_output = None
@@ -491,8 +503,7 @@ class MyLinear(OriginalLinear):
                                 raise RuntimeError(
                                     f"VG context mismatch: {context.shape}"
                                 )
-                            gate_logits = self.target_v_gate(context.float())
-                            gate_delta = 0.5 * torch.tanh(gate_logits)
+                            gate_delta = self.target_v_gate(context)
                             z = self.gcn_output[local_node_ids].to(
                                 dtype=lora_a_output.dtype)
                             correction = z.float() * (
