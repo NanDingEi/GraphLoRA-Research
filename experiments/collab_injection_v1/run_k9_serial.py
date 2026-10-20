@@ -237,7 +237,7 @@ def preflight():
     # Prevent a common pitfall: running against locally modified source
     # would make the Git SHA in the manifest insufficient for reproducibility.
     tracked = subprocess.run(
-        ["git", "diff", "--quiet", "--",
+        ["git", "diff", "HEAD", "--quiet", "--",
          "minigpt4/models/minigpt4rec_v2.py",
          "experiments/collab_injection_v1"],
         cwd=ROOT, check=False
