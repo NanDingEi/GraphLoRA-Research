@@ -816,6 +816,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         if self.target_key_scope not in ("history", "user", "target", "history_target", "all"):
             raise ValueError(f"Unsupported Key token scope: {self.target_key_scope}")
         self._target_key_payload = None
+        self._target_key_scope_empty_batches = 0
+        self._target_key_scope_used_batches = 0
         self._ks_fallback_rows = 0
         self._ks_mismatch_calls = 0
         self.target_key_adapter = None
@@ -1569,7 +1571,35 @@ class MiniGPT4Rec_v2(Rec2Base):
             select = (roles == wanted[self.target_key_scope]) if (
                 self.target_key_scope != "all") else (roles >= 0)
         if not bool(select.any()):
-            return output
+            # Some training batches have no historical interactions, even
+            # when the prompt template contains an ItemIDList placeholder.
+            # In history-only mode their current Key scope is empty.
+            # Because *only* the Key adapter is trainable, returning output
+            # directly disconnects loss from EVERY trainable parameter and
+            # runner.backward() crashes with "does not require grad".
+            #
+            # Attach a zero-valued autograd edge to an adapter parameter.
+            # Forward values remain exactly S2, and gradient is ZERO.
+            # This is NOT an extra injection or synthetic supervision.
+            self._target_key_scope_empty_batches += 1
+            if self.training and (
+                self._target_key_scope_empty_batches <= 3 or
+                self._target_key_scope_empty_batches % 500 == 0
+            ):
+                counts = [int((roles == x).sum().item()) for x in (0, 1, 2)]
+                print(
+                    f"[KEY-EMPTY-SCOPE] scope={self.target_key_scope} "
+                    f"count={self._target_key_scope_empty_batches} "
+                    f"nonempty_count={self._target_key_scope_used_batches} "
+                    f"roles_user_history_target={counts}; "
+                    "no Key update for this batch",
+                    flush=True,
+                )
+            if not self.training:
+                return output
+            zero_edge = self.target_key_adapter.network[-1].weight.sum() * 0.0
+            return output + zero_edge.to(dtype=output.dtype)
+        self._target_key_scope_used_batches += 1
         b, p = rows[select], positions[select]
         if not bool(((b >= 0) & (b < output.shape[0])
                      & (p >= 0) & (p < output.shape[1])).all()):
