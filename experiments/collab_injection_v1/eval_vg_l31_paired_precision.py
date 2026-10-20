@@ -60,6 +60,45 @@ def rng_equal(a, b):
     )
 
 
+def prompt_state_snapshot(model):
+    """Preserve stateful first-prompt bookkeeping across paired forwards.
+
+    recprompt_wrap_v2 uses an extra random.choice the FIRST time it prints a
+    prompt example. Resetting RNG alone is insufficient because the flag
+    changes between the off-A and off-B passes.
+    """
+    return {
+        "has_print_prompt": bool(model.has_print_prompt),
+        "has_pri_decode": bool(model.has_pri_decode),
+        "prompt_list_p": model.prompt_list_p,
+    }
+
+
+def prompt_state_restore(model, state):
+    for name, value in state.items():
+        setattr(model, name, value)
+
+
+def rng_differences(a, b):
+    """Identify stream divergence if a future model change breaks pairing."""
+    names = []
+    if a[0] != b[0]:
+        names.append("python_random")
+    if not all(
+        np.array_equal(x, y) if isinstance(x, np.ndarray) else x == y
+        for x, y in zip(a[1], b[1])
+    ):
+        names.append("numpy")
+    if not torch.equal(a[2], b[2]):
+        names.append("torch_cpu")
+    if len(a[3]) != len(b[3]):
+        names.append("cuda_device_count")
+    else:
+        names.extend(f"torch_cuda_{i}" for i, (x, y) in
+                     enumerate(zip(a[3], b[3])) if not torch.equal(x, y))
+    return names
+
+
 def diff_stat(current, base):
     if current.shape != base.shape:
         raise RuntimeError(
@@ -273,14 +312,22 @@ def main():
             return orig_generate(samples)
 
         rng = rng_snapshot()
+        initial_prompt_state = prompt_state_snapshot(model)
         snaps = {}
         actual = None
         end_rng = None
-        # Identical samples and random states for every pass:
-        # the x0-vs-x0_repeat control measures real execution variability.
+        trained_end_rng = None
+        trained_prompt_state = None
+
+        # Restore BOTH RNG and first-prompt bookkeeping before every
+        # intervention. Otherwise off-A may consume an extra random.choice
+        # when it prints the first example, while off-B skips the print.
+        # This changes the stochastic evaluation trajectory even with RNG
+        # restored, so the two supposedly matched runs become incomparable.
         for name, factor in (("off_A", 0.0), ("off_B", 0.0),
                              ("trained", 1.0), ("amplified", args.intervention)):
             rng_restore(rng)
+            prompt_state_restore(model, initial_prompt_state)
             with torch.no_grad():
                 output, snap = one_forward(samples, factor)
             snaps[name] = snap
@@ -288,12 +335,21 @@ def main():
             if end_rng is None:
                 end_rng = current_rng
             elif not rng_equal(current_rng, end_rng):
+                differences = rng_differences(current_rng, end_rng)
                 raise RuntimeError(
-                    "RNG consumption differs between gate factors; paired "
-                    "evaluation is no longer an apples-to-apples control"
+                    "RNG consumption differs despite restoring model "
+                    f"prompt flags; streams={differences}, batch={n}. "
+                    "Do not treat unmatched forwards as paired evidence."
                 )
             if name == "trained":
                 actual = output
+                trained_end_rng = current_rng
+                trained_prompt_state = prompt_state_snapshot(model)
+        # Match the ONE trained VG1 forward that the validation runner
+        # logically requested, rather than retaining off-A or amplified
+        # side-effects. This preserves the following batch's prompt RNG.
+        rng_restore(trained_end_rng)
+        prompt_state_restore(model, trained_prompt_state)
         if actual is None:
             raise RuntimeError("Trained VG1 forward was never executed")
 
@@ -328,12 +384,7 @@ def main():
             print("[VG-PAIRED] completed", measured["diagnostic_batches"],
                   "matched batches", flush=True)
 
-        # The last pass uses the amplified factor. Restore the RNG that a
-        # SINGLE trained pass would have consumed, so remaining validation
-        # batches retain the historical random sequence.
-        #
-        # The four forwards have the same RNG consumption paths, so the
-        # amplified pass's final RNG equals the single trained-pass final RNG.
+        # End state has already been restored from the single trained pass.
         active["factor"] = 1.0
         active["capture"] = None
         return actual
