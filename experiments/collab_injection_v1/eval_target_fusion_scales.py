@@ -79,6 +79,17 @@ def main():
     runner = entry.get_runner_class(cfg)(
         cfg=cfg, job_id=entry.now(), task=task, model=model, datasets=datasets
     )
+    # The real training entrypoint calls RunnerBase.train(), whose first
+    # action is set_model_mode(cfg.run_cfg.mode). Direct eval_epoch bypasses
+    # that initialization, otherwise model.generate_for_samples() crashes
+    # because run_mode_ is never assigned.
+    run_mode = str(cfg.run_cfg.mode)
+    if run_mode != "v2":
+        raise RuntimeError(f"Expected GraphLoRA Yes/No mode v2, got {run_mode!r}")
+    runner.set_model_mode(run_mode)
+    assert runner.unwrap_dist_model(runner.model).run_mode_ == run_mode
+    print(f"[FUSION-SCALE] set model run_mode_={run_mode}", flush=True)
+
     scales = [float(x) for x in args.scales.split(",")]
     if not scales or any(not 0 <= scale <= 1 for scale in scales):
         raise ValueError("Scales must be within [0,1]")
