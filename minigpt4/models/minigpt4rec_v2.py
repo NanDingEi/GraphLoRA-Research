@@ -334,7 +334,7 @@ class MyLinear(OriginalLinear):
         # COLLAB_INJECTION_V1
         self.collab_mode = collab_mode
         self.module_tag = module_tag
-        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         rank = self.lora_A[self.active_adapter].out_features
         # The collaborative signal is injected at historical item-token positions.
@@ -438,7 +438,7 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor),
                         )
 
-                    if self.collab_mode == "legacy" or (
+                    if self.collab_mode in ("legacy", "target_fusion") or (
                         self.collab_mode == "v_only" and self.module_tag == "v"
                     ):
                         # V-only ablation: execute exactly the legacy injection
@@ -496,6 +496,41 @@ class MyLinear(OriginalLinear):
 
         return result.to(previous_dtype)
 
+
+class TargetAwareDecisionFusion(nn.Module):
+    """Candidate-specific GNN interaction at the first Yes/No answer logit.
+
+    Zero-initialized output projector preserves champion predictions at step 0.
+    The fused state still goes through LLaMA's own RMSNorm and language head.
+    """
+    def __init__(self, hidden_size, graph_size=256, rank=128, scale=1.0):
+        super().__init__()
+        self.scale = float(scale)
+        with torch.random.fork_rng(devices=[]):
+            self.pair_encoder = nn.Sequential(
+                nn.LayerNorm(6 * graph_size),
+                nn.Linear(6 * graph_size, rank),
+                nn.GELU(),
+            )
+            self.gate_h = nn.Linear(hidden_size, rank, bias=False)
+            self.gate_pair = nn.Linear(rank, rank, bias=False)
+            self.gate_out = nn.Linear(rank, 1)
+            self.to_hidden = nn.Linear(rank, hidden_size, bias=False)
+        nn.init.zeros_(self.to_hidden.weight)
+        nn.init.zeros_(self.gate_out.weight)
+        nn.init.zeros_(self.gate_out.bias)
+
+    def forward(self, decision_h, pair_features):
+        if decision_h.ndim != 2 or pair_features.ndim != 2:
+            raise ValueError("Target fusion expects [batch, hidden], [batch, graph_features]")
+        latent = self.pair_encoder(pair_features.float())
+        logits = self.gate_out(torch.tanh(
+            self.gate_h(decision_h.float()) + self.gate_pair(latent)
+        ))
+        gain = 2.0 * torch.sigmoid(logits)  # 1.0 at initialization
+        residual = self.to_hidden(latent) * gain * self.scale
+        return residual.to(dtype=decision_h.dtype)
+
 @registry.register_model("mini_gpt4rec_v2")
 class MiniGPT4Rec_v2(Rec2Base):
     PRETRAINED_MODEL_CONFIG_DICT = {
@@ -528,6 +563,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             gnn_scale=0,
             gcn_layer=0,
             collab_mode="legacy",
+            target_fusion_scale=1.0,
             gnn_semantic_align=False,
             gnn_semantic_weight=0.05,
             train_gnn_with_rec_loss=True,
@@ -612,9 +648,11 @@ class MiniGPT4Rec_v2(Rec2Base):
         # A0/A1 injection controls. Both are pure schedules/bookkeeping: no new
         # parameters, no RNG consumption. ratio=0 keeps the training path
         # bitwise identical to the I3 champion.
-        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         self.collab_mode = collab_mode
+        self.target_fusion_scale = float(target_fusion_scale)
+        self._target_fusion_payload = None
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
             raise ValueError("conditional_lora requires gnn_scale=0")
         if collab_mode != "legacy" and (rel_rank_mod or rel_inject):
@@ -829,6 +867,22 @@ class MiniGPT4Rec_v2(Rec2Base):
                 f"Setting LoRA, GCN, and MyLinear for layer {gcn_layer} Done. "
                 f"Replaced {len(self.my_linears)} modules."
             )
+
+            # Decision-state collaborative fusion is strictly a complement to
+            # historical L31 injection, not a replacement (warm-start anchor).
+            if self.collab_mode == "target_fusion":
+                if int(gcn_layer) != int(self.llama_model.config.num_hidden_layers) - 1:
+                    raise ValueError("target_fusion requires the final decoder layer")
+                self.target_fusion = TargetAwareDecisionFusion(
+                    self.llama_model.config.hidden_size,
+                    graph_size=256,
+                    scale=self.target_fusion_scale,
+                )
+                self._target_fusion_handle = self.llama_model.model.layers[
+                    int(gcn_layer)
+                ].register_forward_hook(self._target_fusion_decoder_hook)
+                print("[TARGET-FUSION] final Yes/No decision state; zero-init residual; "
+                      "historical L31 Q/V unchanged", flush=True)
 
             # Budget-neutral per-layer LoRA rank redistribution (RC series).
             # lora_rank_groups: list of [start_layer, end_layer, rank]
@@ -1268,6 +1322,60 @@ class MiniGPT4Rec_v2(Rec2Base):
                 ret["h_semantic_stack"] = h_semantic_stack
 
         return ret
+
+    def _make_target_fusion_features(self, fb, samples):
+        """Pair and history GNN features, independent of prompt field order."""
+        nodes = fb["sub_node_ids"].long()
+        graph = fb["gnn_penult"].float()
+        if nodes.numel() == 0 or graph.ndim != 2 or graph.size(1) != 256:
+            raise RuntimeError("Target fusion requires 256-d GNN penultimate features")
+
+        def gather(global_ids):
+            ids = global_ids.long()
+            idx = torch.searchsorted(nodes, ids.contiguous())
+            safe = idx.clamp(max=nodes.numel() - 1)
+            found = (idx < nodes.numel()) & (nodes[safe] == ids)
+            feats = graph[safe] * found.to(graph.dtype).unsqueeze(-1)
+            return feats, found
+
+        user, has_user = gather(samples["UserID"])
+        target, has_target = gather(samples["TargetItemID"] + self.num_users)
+        if not has_user.all() or not has_target.all():
+            raise RuntimeError("Target fusion missing user or target node from subgraph")
+        history_ids = samples.get("InteractedItemIDs_pad")
+        if history_ids is None:
+            history = torch.zeros_like(target)
+        else:
+            item_hist, has_hist = gather(history_ids + self.num_users)
+            valid = (history_ids != self.rec_encoder.padding_index) & has_hist
+            weights = valid.to(item_hist.dtype).unsqueeze(-1)
+            history = (item_hist * weights).sum(dim=1) / weights.sum(dim=1).clamp_min(1)
+
+        return torch.cat(
+            (user, target, history, user * target,
+             history * target, (user - target).abs()), dim=-1
+        )
+
+    def _target_fusion_decoder_hook(self, module, inputs, result):
+        """Add residual ONLY at the prompt token predicting the first Yes/No."""
+        payload = self._target_fusion_payload
+        if payload is None:
+            return result
+        if not isinstance(result, tuple) or not torch.is_tensor(result[0]):
+            raise RuntimeError("Unexpected Llama decoder hook output")
+        hidden = result[0]
+        pair_features, position = payload
+        if not 0 <= position < hidden.size(1) or pair_features.size(0) != hidden.size(0):
+            raise RuntimeError("Target fusion batch or decision position mismatch")
+        state = hidden[:, position, :]
+        residual = self.target_fusion(state, pair_features)
+        updated = hidden.clone()
+        updated[:, position, :] = state + residual
+        if self.training and not getattr(self, "_target_fusion_hook_seen", False):
+            print(f"[TARGET-FUSION] active hook position={position} "
+                  f"batch={hidden.size(0)} pair_dim={pair_features.size(-1)}", flush=True)
+            self._target_fusion_hook_seen = True
+        return (updated,) + result[1:]
 
     def _compute_gnn_semantic_loss(self, fb):
         """
@@ -2306,6 +2414,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         gnn_scale = cfg.get("gnn_scale", 0)
         gcn_layer = cfg.get("gcn_layer", 0)
         collab_mode = cfg.get("collab_mode", "legacy")
+        target_fusion_scale = cfg.get("target_fusion_scale", 1.0)
 
         # Only the requested new controls.
         gnn_semantic_align = cfg.get("gnn_semantic_align", False)
@@ -2372,6 +2481,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             gnn_scale=gnn_scale,
             gcn_layer=gcn_layer,
             collab_mode=collab_mode,
+            target_fusion_scale=target_fusion_scale,
             gnn_semantic_align=gnn_semantic_align,
             gnn_semantic_weight=gnn_semantic_weight,
             train_gnn_with_rec_loss=train_gnn_with_rec_loss,
