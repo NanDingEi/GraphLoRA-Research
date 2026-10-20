@@ -29,7 +29,7 @@ ARMS = [
 ]
 
 def run(cmd, log):
-    print("[NOON-CMD]", " ".join(map(str, cmd)), flush=True)
+    print("[VG-CMD]", " ".join(map(str, cmd)), flush=True)
     log.parent.mkdir(parents=True, exist_ok=True)
     with log.open("w", encoding="utf-8") as f:
         process = subprocess.Popen(
@@ -92,7 +92,7 @@ def main():
     if "class TargetConditionedVGate" not in model_py.read_text(encoding="utf-8"):
         raise RuntimeError("Missing VG model code; fetch latest branch")
 
-    run([sys.executable, "-m", "py_compile", str(model_py)], ROOT / "logs/collab_v1/noon_syntax.log")
+    run([sys.executable, "-m", "py_compile", str(model_py)], ROOT / "logs/collab_v1/vg_syntax.log")
     run([sys.executable, "experiments/collab_injection_v1/test_target_v_gate_cpu.py"],
         ROOT / "logs/collab_v1/vg_cpu_unit.log")
     tag = "S2_VG_2EP_" + datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
