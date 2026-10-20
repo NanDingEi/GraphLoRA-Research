@@ -817,6 +817,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             raise ValueError(f"Unsupported Key token scope: {self.target_key_scope}")
         self._target_key_payload = None
         self._ks_fallback_rows = 0
+        self._ks_mismatch_calls = 0
         self.target_key_adapter = None
         self._target_fusion_payload = None
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
@@ -1608,6 +1609,11 @@ class MiniGPT4Rec_v2(Rec2Base):
             candidate, fallback_count = mismatch_candidate_features(
                 samples["TargetItemID"], candidate, ids, penult, self.num_users)
             self._ks_fallback_rows += fallback_count
+            self._ks_mismatch_calls += 1
+            if self._ks_mismatch_calls == 1:
+                print(f"[KS-MISMATCH] enabled; batch={len(samples['TargetItemID'])} "
+                      f"fallback_rows={fallback_count}; only Key context changed",
+                      flush=True)
         batch = fb["batch_indices"].long()
         local = fb["local_node_ids"].long()
         if batch.shape != local.shape:
