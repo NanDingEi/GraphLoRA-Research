@@ -7,6 +7,8 @@ set -Eeuo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
+# The project server currently has a single usable GPU; never occupy gpu1.
+export CUDA_VISIBLE_DEVICES=0
 
 if pgrep -af '[t]rain_collm_mf_din.py' >/dev/null; then
   echo "[ERROR] Training process is already running; only gpu0, serial experiments." >&2
