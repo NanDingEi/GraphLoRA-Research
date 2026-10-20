@@ -1592,7 +1592,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     f"count={self._target_key_scope_empty_batches} "
                     f"nonempty_count={self._target_key_scope_used_batches} "
                     f"roles_user_history_target={counts}; "
-                    "no Key update for this batch",
+                    "zero Key data-gradient for this batch",
                     flush=True,
                 )
             if not self.training:
