@@ -334,7 +334,7 @@ class MyLinear(OriginalLinear):
         # COLLAB_INJECTION_V1
         self.collab_mode = collab_mode
         self.module_tag = module_tag
-        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         rank = self.lora_A[self.active_adapter].out_features
         # The collaborative signal is injected at historical item-token positions.
@@ -356,6 +356,19 @@ class MyLinear(OriginalLinear):
             nn.init.zeros_(self.collab_conditioner.weight)
             nn.init.zeros_(self.collab_conditioner.bias)
 
+        if collab_mode in ("target_v_gate_no_candidate", "target_v_gate_candidate") and self.module_tag == "v":
+            # Independent 8-rank gate on the historical L31 V GNN injection.
+            # Isolate CPU RNG so VG0/VG1 warm-start the S2 trajectory.
+            with torch.random.fork_rng(devices=[]):
+                self.target_v_gate = nn.Sequential(
+                    nn.Linear(4 * 256, 32),
+                    nn.GELU(),
+                    nn.Linear(32, rank),
+                )
+            nn.init.zeros_(self.target_v_gate[-1].weight)
+            nn.init.zeros_(self.target_v_gate[-1].bias)
+
+        self.target_v_context = None
         self.gcn_output = None
         self.batch_indices = None
         self.token_positions = None
@@ -438,7 +451,10 @@ class MyLinear(OriginalLinear):
                             * (self.gnn_scale * self.warmup_factor),
                         )
 
-                    if self.collab_mode in ("legacy", "target_fusion") or (
+                    if self.collab_mode in (
+                        "legacy", "target_fusion",
+                        "target_v_gate_no_candidate", "target_v_gate_candidate",
+                    ) or (
                         self.collab_mode == "v_only" and self.module_tag == "v"
                     ):
                         # V-only ablation: execute exactly the legacy injection
@@ -460,7 +476,34 @@ class MyLinear(OriginalLinear):
                                 + self.gcn_output[local_node_ids]
                                 * (self.gnn_scale * self.warmup_factor)
                             )
-    
+
+                        # VG0/VG1: keep the exact S2 expression above and
+                        # add ONLY the candidate-aware correction on V.
+                        # Zero-init final gate layer => correction exactly 0,
+                        # without changing historical Q or V at initialization.
+                        if self.collab_mode in (
+                            "target_v_gate_no_candidate", "target_v_gate_candidate"
+                        ) and self.module_tag == "v":
+                            if self.target_v_context is None:
+                                raise RuntimeError("Missing VG context on L31 V")
+                            context = self.target_v_context[valid_mask]
+                            if context.shape != (batch_indices.shape[0], 4 * 256):
+                                raise RuntimeError(
+                                    f"VG context mismatch: {context.shape}"
+                                )
+                            gate_logits = self.target_v_gate(context.float())
+                            gate_delta = 0.5 * torch.tanh(gate_logits)
+                            z = self.gcn_output[local_node_ids].to(
+                                dtype=lora_a_output.dtype)
+                            correction = z.float() * (
+                                self.gnn_scale * self.warmup_factor
+                            ) * gate_delta
+                            updated = (
+                                lora_a_output[batch_indices, token_positions]
+                                + correction.to(dtype=lora_a_output.dtype)
+                            )
+                            lora_a_output[batch_indices, token_positions] = updated
+
                     elif self.collab_mode in ("gated_l31", "conditional_lora"):
                         # Only V receives the collaborative signal at historical
                         # item-token positions. Q's prefix-position output is
@@ -670,7 +713,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         # A0/A1 injection controls. Both are pure schedules/bookkeeping: no new
         # parameters, no RNG consumption. ratio=0 keeps the training path
         # bitwise identical to the I3 champion.
-        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         self.collab_mode = collab_mode
         self.target_fusion_scale = float(target_fusion_scale)
@@ -1163,7 +1206,10 @@ class MiniGPT4Rec_v2(Rec2Base):
         need_semantic = self.training and self.gnn_semantic_align
         need_pref = self.training and self.pref_distill
         need_gnn_view = need_semantic or need_pref \
-            or self.rel_inject or self.rel_rank_mod or self.collab_mode == "target_fusion"
+            or self.rel_inject or self.rel_rank_mod or self.collab_mode in (
+                "target_fusion", "target_v_gate_no_candidate",
+                "target_v_gate_candidate"
+            )
 
         if need_semantic:
             # LLM is the semantic teacher for this auxiliary objective.
@@ -1282,7 +1328,9 @@ class MiniGPT4Rec_v2(Rec2Base):
                     + int(samples.get('iters', 0)),
         }
 
-        if self.collab_mode == "target_fusion":
+        if self.collab_mode in (
+            "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate"
+        ):
             ret["sub_node_ids"] = sub_node_ids
             ret["gnn_penult"] = gcn_penult
 
@@ -1387,6 +1435,43 @@ class MiniGPT4Rec_v2(Rec2Base):
             (user, target, history, user * target,
              history * target, (user - target).abs()), dim=-1
         )
+
+    def _make_target_v_context(self, fb, samples):
+        """Build [num_ID_tokens, 1024] GNN-penult condition for L31 V.
+
+        Columns = user, candidate, current injected node, candidate*node.
+        VG0 zeros the candidate and interaction blocks; VG1 uses both.
+        The same per-token indexing as historical S2 is preserved.
+        """
+        ids = fb["sub_node_ids"].long()
+        penult = fb["gnn_penult"].float().detach()
+        if penult.ndim != 2 or penult.shape[-1] != 256 or ids.numel() == 0:
+            raise RuntimeError("VG requires 256-dimensional NGCF penultimate embeddings")
+        if not torch.all(ids[1:] > ids[:-1]):
+            raise RuntimeError("VG expected sorted, unique subgraph node IDs")
+
+        def gather(query):
+            idx = torch.searchsorted(ids, query.long().contiguous())
+            safe = idx.clamp(max=ids.numel()-1)
+            if not bool(((idx < ids.numel()) & (ids[safe] == query)).all()):
+                raise RuntimeError("VG missing user or candidate from sampled subgraph")
+            return penult[safe]
+
+        user = gather(samples["UserID"].long())
+        candidate = gather(samples["TargetItemID"].long() + self.num_users)
+        batch = fb["batch_indices"].long()
+        local = fb["local_node_ids"].long()
+        if batch.shape != local.shape:
+            raise RuntimeError("VG node and batch row counts differ")
+        if not bool(((local >= 0) & (local < ids.numel())).all()):
+            raise RuntimeError("VG has invalid token->subgraph node mapping")
+        node = penult[local]
+        u = user[batch]
+        if self.collab_mode == "target_v_gate_no_candidate":
+            t = torch.zeros_like(node)
+        else:
+            t = candidate[batch]
+        return torch.cat((u, t, node, t * node), dim=-1)
 
     def _target_fusion_decoder_hook(self, module, inputs, result):
         """Add residual ONLY at the prompt token predicting the first Yes/No."""
@@ -2042,6 +2127,15 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.local_node_ids = local_node_ids
                     my_linear.rel_pair_gate = pair_gate['g_raw'] if pair_gate is not None else None
                     my_linear.warmup_factor = warmup_factor
+                    my_linear.target_v_context = None
+                if self.collab_mode in (
+                    "target_v_gate_no_candidate", "target_v_gate_candidate"
+                ):
+                    # The context follows the same ID-token rows as gcn_output.
+                    v_context = self._make_target_v_context(fb, samples)
+                    for my_linear in self.my_linears:
+                        if my_linear.module_tag == "v":
+                            my_linear.target_v_context = v_context
 
             # The prediction logit at [:, -t_posi, :] belongs to
             # the FINAL PROMPT TOKEN, not the candidate-item ID token.
@@ -2079,6 +2173,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = None
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
+                    my_linear.target_v_context = None
 
         pos_ans_id = self.llama_tokenizer(ans_[1], add_special_tokens=False).input_ids[0]
         logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2277,6 +2372,14 @@ class MiniGPT4Rec_v2(Rec2Base):
                     # batch rows caused a CUDA OOB abort in N5
                     my_linear.rel_pair_gate = fb['pair_rankgate']['g_raw'] \
                         if 'pair_rankgate' in fb else None
+                    my_linear.target_v_context = None
+                if self.collab_mode in (
+                    "target_v_gate_no_candidate", "target_v_gate_candidate"
+                ):
+                    v_context = self._make_target_v_context(fb, samples)
+                    for my_linear in self.my_linears:
+                        if my_linear.module_tag == "v":
+                            my_linear.target_v_context = v_context
 
             # The prediction logit at [:, -t_posi, :] belongs to
             # the FINAL PROMPT TOKEN, not the candidate-item ID token.
@@ -2314,6 +2417,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.batch_indices = None
                     my_linear.token_positions = None
                     my_linear.local_node_ids = None
+                    my_linear.target_v_context = None
 
             pos_ans_id = self.llama_tokenizer(pos_ans, add_special_tokens=False).input_ids[0]
             logits = outputs.logits[:, -t_posi, :][:, pos_ans_id]
@@ -2606,36 +2710,49 @@ class MiniGPT4Rec_v2(Rec2Base):
         # Default is fully unchanged for every existing GraphLoRA experiment.
         trainable_policy = cfg.get("trainable_policy", None)
         if trainable_policy is not None:
-            if collab_mode != "target_fusion" or trainable_policy not in (
-                "fusion_only", "fusion_lora"
-            ):
+            valid_fusion = (
+                collab_mode == "target_fusion"
+                and trainable_policy in ("fusion_only", "fusion_lora")
+            )
+            valid_vg = (
+                collab_mode in ("target_v_gate_no_candidate", "target_v_gate_candidate")
+                and trainable_policy == "target_v_gate_only"
+            )
+            if not valid_fusion and not valid_vg:
                 raise ValueError(
-                    "trainable_policy is only supported for target_fusion "
-                    "with fusion_only or fusion_lora"
+                    f"Incompatible collab_mode={collab_mode}, "
+                    f"trainable_policy={trainable_policy}"
                 )
-            selected = {"fusion": [], "lora": []}
+            selected = {"fusion": [], "lora": [], "vg": []}
             for pname, p in model.named_parameters():
                 is_fusion = pname.startswith("target_fusion.")
                 is_lora = ("lora_A." in pname or "lora_B." in pname)
-                allow = is_fusion or (
-                    trainable_policy == "fusion_lora" and is_lora
-                )
+                is_vg = ".target_v_gate." in pname
+                if valid_vg:
+                    allow = is_vg
+                else:
+                    allow = is_fusion or (
+                        trainable_policy == "fusion_lora" and is_lora
+                    )
                 p.requires_grad_(allow)
                 if allow:
-                    selected["fusion" if is_fusion else "lora"].append(pname)
-            if len(selected["fusion"]) != 9:
-                raise RuntimeError(
-                    "Expected 9 target-fusion tensors, found "
-                    + str(len(selected["fusion"]))
-                )
+                    kind = "vg" if is_vg else ("fusion" if is_fusion else "lora")
+                    selected[kind].append(pname)
+            if valid_vg:
+                if len(selected["vg"]) != 4 or selected["fusion"] or selected["lora"]:
+                    raise RuntimeError(
+                        f"Expected only 4 L31 V gate tensors, got {selected}"
+                    )
+            elif len(selected["fusion"]) != 9:
+                raise RuntimeError("Expected 9 target-fusion tensors")
             if trainable_policy == "fusion_lora" and not selected["lora"]:
                 raise RuntimeError("fusion_lora selected but no LoRA tensors found")
             if trainable_policy == "fusion_only" and selected["lora"]:
                 raise RuntimeError("fusion_only accidentally enabled LoRA")
             print(
                 f"[TRAINABLE-POLICY] {trainable_policy}: "
-                f"fusion_tensors={len(selected['fusion'])} "
-                f"lora_tensors={len(selected['lora'])} "
+                f"fusion={len(selected['fusion'])} lora={len(selected['lora'])} "
+                f"vg={len(selected['vg'])} "
                 f"trainable_numel={sum(p.numel() for p in model.parameters() if p.requires_grad)}",
                 flush=True,
             )
