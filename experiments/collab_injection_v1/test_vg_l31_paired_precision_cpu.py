@@ -10,7 +10,7 @@ import torch
 
 path = Path(__file__).resolve().parent / "eval_vg_l31_paired_precision.py"
 tree = ast.parse(path.read_text(encoding="utf-8"))
-wanted = {"rng_snapshot", "rng_restore", "diff_stat", "Aggregate"}
+wanted = {"rng_snapshot", "rng_restore", "rng_equal", "diff_stat", "Aggregate"}
 nodes = [n for n in tree.body
          if isinstance(n, (ast.ClassDef, ast.FunctionDef)) and n.name in wanted]
 assert set(n.name for n in nodes) == wanted
@@ -21,10 +21,12 @@ random.seed(42)
 np.random.seed(42)
 torch.manual_seed(42)
 snap = scope["rng_snapshot"]()
+assert scope["rng_equal"](snap, scope["rng_snapshot"]())
 a = (random.random(), np.random.rand(), torch.randn(4))
 scope["rng_restore"](snap)
 b = (random.random(), np.random.rand(), torch.randn(4))
 assert a[0] == b[0] and a[1] == b[1] and torch.equal(a[2], b[2])
+assert not scope["rng_equal"](snap, scope["rng_snapshot"]())
 
 base = torch.tensor([[2.0, 0.0], [0.0, 1.0]])
 same = scope["diff_stat"](base, base)
