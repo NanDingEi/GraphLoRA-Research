@@ -48,6 +48,18 @@ def rng_restore(s):
     torch.cuda.set_rng_state_all(s[3])
 
 
+def rng_equal(a, b):
+    if a[0] != b[0] or not torch.equal(a[2], b[2]):
+        return False
+    if len(a[3]) != len(b[3]) or any(
+            not torch.equal(x, y) for x, y in zip(a[3], b[3])):
+        return False
+    return all(
+        np.array_equal(x, y) if isinstance(x, np.ndarray) else x == y
+        for x, y in zip(a[1], b[1])
+    )
+
+
 def diff_stat(current, base):
     if current.shape != base.shape:
         raise RuntimeError(
@@ -263,6 +275,7 @@ def main():
         rng = rng_snapshot()
         snaps = {}
         actual = None
+        end_rng = None
         # Identical samples and random states for every pass:
         # the x0-vs-x0_repeat control measures real execution variability.
         for name, factor in (("off_A", 0.0), ("off_B", 0.0),
@@ -271,6 +284,14 @@ def main():
             with torch.no_grad():
                 output, snap = one_forward(samples, factor)
             snaps[name] = snap
+            current_rng = rng_snapshot()
+            if end_rng is None:
+                end_rng = current_rng
+            elif not rng_equal(current_rng, end_rng):
+                raise RuntimeError(
+                    "RNG consumption differs between gate factors; paired "
+                    "evaluation is no longer an apples-to-apples control"
+                )
             if name == "trained":
                 actual = output
         if actual is None:
