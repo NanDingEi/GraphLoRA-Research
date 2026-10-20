@@ -2569,6 +2569,47 @@ class MiniGPT4Rec_v2(Rec2Base):
                     torch.load(rec_config['pretrained_path'], map_location="cpu")
                 )
 
+        # Opt-in parameter-isolation study, applied AFTER warm-start weights
+        # are loaded. "fusion_only" keeps champion LoRA/GNN/projector fixed.
+        # "fusion_lora" additionally trains the LLM LoRA matrices, but not
+        # the graph, projector, recommender or L31 Q/V biases.
+        # Default is fully unchanged for every existing GraphLoRA experiment.
+        trainable_policy = cfg.get("trainable_policy", None)
+        if trainable_policy is not None:
+            if collab_mode != "target_fusion" or trainable_policy not in (
+                "fusion_only", "fusion_lora"
+            ):
+                raise ValueError(
+                    "trainable_policy is only supported for target_fusion "
+                    "with fusion_only or fusion_lora"
+                )
+            selected = {"fusion": [], "lora": []}
+            for pname, p in model.named_parameters():
+                is_fusion = pname.startswith("target_fusion.")
+                is_lora = ("lora_A." in pname or "lora_B." in pname)
+                allow = is_fusion or (
+                    trainable_policy == "fusion_lora" and is_lora
+                )
+                p.requires_grad_(allow)
+                if allow:
+                    selected["fusion" if is_fusion else "lora"].append(pname)
+            if len(selected["fusion"]) != 9:
+                raise RuntimeError(
+                    "Expected 9 target-fusion tensors, found "
+                    + str(len(selected["fusion"]))
+                )
+            if trainable_policy == "fusion_lora" and not selected["lora"]:
+                raise RuntimeError("fusion_lora selected but no LoRA tensors found")
+            if trainable_policy == "fusion_only" and selected["lora"]:
+                raise RuntimeError("fusion_only accidentally enabled LoRA")
+            print(
+                f"[TRAINABLE-POLICY] {trainable_policy}: "
+                f"fusion_tensors={len(selected['fusion'])} "
+                f"lora_tensors={len(selected['lora'])} "
+                f"trainable_numel={sum(p.numel() for p in model.parameters() if p.requires_grad)}",
+                flush=True,
+            )
+
         ans_type = cfg.get('ans_type')
         model.set_answer_type(mode=ans_type)
         model.print_prompt()
