@@ -2017,20 +2017,35 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.rel_pair_gate = pair_gate['g_raw'] if pair_gate is not None else None
                     my_linear.warmup_factor = warmup_factor
 
-            if not self.use_lora:
-                outputs = self.llama_model(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attention_mask,
-                    return_dict=True,
-                    labels=targets,
+            # The prediction logit at [:, -t_posi, :] belongs to
+            # the FINAL PROMPT TOKEN, not the candidate-item ID token.
+            # Keep the context active only for the real full-model pass;
+            # the early semantic teacher remains untouched.
+            if self.collab_mode == "target_fusion":
+                decision_pos = sample_embeds.shape[1] - 1
+                if decision_pos != inputs_embeds.shape[1] - t_posi:
+                    raise RuntimeError("Target fusion decision index disagrees with Yes/No logits")
+                self._target_fusion_payload = (
+                    self._make_target_fusion_features(fb, samples),
+                    decision_pos,
                 )
-            else:
-                outputs = self.llama_model_lora(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attention_mask,
-                    return_dict=True,
-                    labels=targets,
-                )
+            try:
+                if not self.use_lora:
+                    outputs = self.llama_model(
+                        inputs_embeds=inputs_embeds,
+                        attention_mask=attention_mask,
+                        return_dict=True,
+                        labels=targets,
+                    )
+                else:
+                    outputs = self.llama_model_lora(
+                        inputs_embeds=inputs_embeds,
+                        attention_mask=attention_mask,
+                        return_dict=True,
+                        labels=targets,
+                    )
+            finally:
+                self._target_fusion_payload = None
 
             if self.use_lora:
                 for my_linear in self.my_linears:
@@ -2237,20 +2252,35 @@ class MiniGPT4Rec_v2(Rec2Base):
                     my_linear.rel_pair_gate = fb['pair_rankgate']['g_raw'] \
                         if 'pair_rankgate' in fb else None
 
-            if not self.use_lora:
-                outputs = self.llama_model(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attention_mask,
-                    return_dict=True,
-                    labels=targets,
+            # The prediction logit at [:, -t_posi, :] belongs to
+            # the FINAL PROMPT TOKEN, not the candidate-item ID token.
+            # Keep the context active only for the real full-model pass;
+            # the early semantic teacher remains untouched.
+            if self.collab_mode == "target_fusion":
+                decision_pos = sample_embeds.shape[1] - 1
+                if decision_pos != inputs_embeds.shape[1] - t_posi:
+                    raise RuntimeError("Target fusion decision index disagrees with Yes/No logits")
+                self._target_fusion_payload = (
+                    self._make_target_fusion_features(fb, samples),
+                    decision_pos,
                 )
-            else:
-                outputs = self.llama_model_lora(
-                    inputs_embeds=inputs_embeds,
-                    attention_mask=attention_mask,
-                    return_dict=True,
-                    labels=targets,
-                )
+            try:
+                if not self.use_lora:
+                    outputs = self.llama_model(
+                        inputs_embeds=inputs_embeds,
+                        attention_mask=attention_mask,
+                        return_dict=True,
+                        labels=targets,
+                    )
+                else:
+                    outputs = self.llama_model_lora(
+                        inputs_embeds=inputs_embeds,
+                        attention_mask=attention_mask,
+                        return_dict=True,
+                        labels=targets,
+                    )
+            finally:
+                self._target_fusion_payload = None
 
             if self.use_lora:
                 for my_linear in self.my_linears:
