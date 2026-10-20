@@ -1282,7 +1282,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         need_gnn_view = need_semantic or need_pref \
             or self.rel_inject or self.rel_rank_mod or self.collab_mode in (
                 "target_fusion", "target_v_gate_no_candidate",
-                "target_v_gate_candidate"
+                "target_v_gate_candidate", "target_k_no_candidate",
+                "target_k_candidate"
             )
 
         if need_semantic:
@@ -1402,8 +1403,15 @@ class MiniGPT4Rec_v2(Rec2Base):
                     + int(samples.get('iters', 0)),
         }
 
+        if "token_roles" in samples_encode:
+            roles = samples_encode["token_roles"]
+            if roles.numel() != replaced_idx.shape[0]:
+                raise RuntimeError("ID roles and placeholder positions differ")
+            ret["token_roles"] = roles[batch_mask]
+
         if self.collab_mode in (
-            "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate"
+            "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate",
+            "target_k_no_candidate", "target_k_candidate"
         ):
             ret["sub_node_ids"] = sub_node_ids
             ret["gnn_penult"] = gcn_penult
@@ -1853,6 +1861,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                 idx_flag = [idx_flag[k] for k in ids_order]
                 idx_flag = torch.cat(idx_flag, dim=1).to(device)
                 idx_nopad = torch.nonzero(idx_flag)
+                token_roles = build_id_token_roles(
+                    idx_nopad, ids_order, sample['InteractedItemIDs_pad'].shape[1])
                 # segment boundaries in the ids_order-permuted layout:
                 # ids_order[i] is the original segment (0=user, 1=items, 2=target)
                 # placed at slot i, so position checks must follow the permutation
@@ -1888,6 +1898,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     'InteractedItems_embs': interactedItem_embeds_llama.reshape(batch_size, -1, hidden_size),
                     'merged_embs': merged_embeds[idx_nopad[:, 0], idx_nopad[:, 1]].reshape(-1, hidden_size),
                     'node_ids': node_ids,
+                    'token_roles': token_roles,
                     'mf_embeddings': mf_embeddings,
                 }
             else:
@@ -1904,6 +1915,10 @@ class MiniGPT4Rec_v2(Rec2Base):
                     'InteractedItems_embs': None,
                     'merged_embs': None,
                     'node_ids': node_ids,
+                    'token_roles': torch.cat((
+                        torch.zeros(batch_size, dtype=torch.long, device=device),
+                        torch.full((batch_size,), 2, dtype=torch.long, device=device),
+                    )),
                     'mf_embeddings': mf_embeddings,
                 }
         sample_atts_llama = None
@@ -1994,6 +2009,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                 min_len = min(num_found, num_target)
                 replaced_idx = replaced_idx[:min_len]
                 node_ids = node_ids[:min_len]
+                if 'token_roles' in samples:
+                    samples['token_roles'] = samples['token_roles'][:min_len]
                 # keep all three aligned (merged_embs rows map 1:1 to node_ids);
                 # truncating only replaced_idx used to crash the index assignment
                 if samples.get('merged_embs') is not None and samples['merged_embs'].shape[0] > min_len:
@@ -2067,6 +2084,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         # Construct samples_encode with node_ids and replaced_idx
         samples_encode_out = {
             'node_ids': samples_encode['node_ids'],
+            'token_roles': samples_encode['token_roles'],
             'replaced_idx': replaced_idx,
             'mf_embeddings': samples_encode['mf_embeddings'] if 'mf_embeddings' in samples_encode else None
         }
