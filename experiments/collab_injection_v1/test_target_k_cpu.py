@@ -9,10 +9,11 @@ import torch.nn as nn
 
 src = Path(__file__).resolve().parents[2] / "minigpt4/models/minigpt4rec_v2.py"
 tree = ast.parse(src.read_text(encoding="utf-8"))
-names = ("build_id_token_roles", "TargetConditionedKeyAdapter")
+names = ("build_id_token_roles", "TargetConditionedKeyAdapter",
+         "mismatch_candidate_features")
 nodes = [node for node in tree.body if isinstance(node, (ast.ClassDef, ast.FunctionDef))
          and node.name in names]
-assert len(nodes) == 2
+assert len(nodes) == 3
 model = [node for node in tree.body
          if isinstance(node, ast.ClassDef) and node.name == "MiniGPT4Rec_v2"]
 assert len(model) == 1
@@ -99,3 +100,28 @@ assert torch.equal(fu, mu) and torch.equal(fn, mn)
 assert ft.abs().sum() > 0 and fp.abs().sum() > 0
 assert mt.count_nonzero() == mp.count_nonzero() == 0
 print("[KEY-CPU] K0/K1 candidate masking is isolated PASS", flush=True)
+
+# KS: preserve candidates in prompt/GNN; replace only Key context and require
+# wrong target IDs. In-batch all-same/size-one fallback also must mismatch.
+negative = env["mismatch_candidate_features"]
+idlist = torch.tensor([11, 12, 11])
+features = torch.tensor([[1., 2.], [3., 4.], [1., 2.]])
+nodes = torch.tensor([0, 21, 22, 23])
+penult = torch.tensor([[0., 0.], [1., 2.], [3., 4.], [5., 6.]])
+mismatch, fallback = negative(idlist, features, nodes, penult, 10)
+assert fallback == 0
+assert torch.equal(mismatch, torch.tensor([[3., 4.], [1., 2.], [3., 4.]]))
+assert torch.equal(idlist, torch.tensor([11, 12, 11]))
+single, fb_count = negative(torch.tensor([11]), features[:1], nodes, penult, 10)
+assert fb_count == 1 and not torch.equal(single[0], features[0])
+print("[KEY-CPU] KS candidate mismatch and single-target fallback PASS", flush=True)
+
+# History+target scope: user Key unchanged; the other two groups change.
+fake.target_key_scope = "history_target"
+fake._target_key_payload = (ctx, b, pos, role_ids)
+joined = hook_fn(fake, None, None, original)
+joined_changed = (joined - original).abs().sum(-1) > 0
+expected_joined = torch.zeros(2, 6, dtype=torch.bool)
+expected_joined[:, 2:4] = True
+assert torch.equal(joined_changed, expected_joined), (joined_changed, expected_joined)
+print("[KEY-CPU] history_target positions only PASS", flush=True)
