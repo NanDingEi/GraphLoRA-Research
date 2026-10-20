@@ -50,6 +50,9 @@ class FakeModel:
     _target_key_payload = None
     collab_mode = "target_k_candidate"
     num_users = 10
+    _target_key_scope_empty_batches = 0
+    _target_key_scope_used_batches = 0
+    training = True
 
 fake = FakeModel()
 b = torch.tensor([0, 0, 0, 1, 1, 1])
@@ -125,3 +128,20 @@ expected_joined = torch.zeros(2, 6, dtype=torch.bool)
 expected_joined[:, 2:4] = True
 assert torch.equal(joined_changed, expected_joined), (joined_changed, expected_joined)
 print("[KEY-CPU] history_target positions only PASS", flush=True)
+
+# Reproduce H0 first 24 batches succeeding but a later batch with no
+# history tokens failing backward because Key was the ONLY trainable module.
+# Returning original K tensor directly would leave loss.requires_grad=False.
+fake.target_key_scope = "history"
+fake._target_key_payload = (ctx, b, pos, torch.tensor([0, 2, 2, 0, 2, 2]))
+key0.zero_grad(set_to_none=True)
+no_history_result = hook_fn(fake, None, None, original)
+assert torch.equal(no_history_result, original), "Empty scope changed S2 K values"
+assert no_history_result.requires_grad, "Empty scope detached the only trainable path"
+no_history_result.square().sum().backward()
+out_weight_grad = key0.network[-1].weight.grad
+assert out_weight_grad is not None
+assert torch.count_nonzero(out_weight_grad) == 0, "Empty scope must not learn from non-matching samples"
+assert fake._target_key_scope_empty_batches == 1
+print("[KEY-CPU] empty history batch: S2 identity, backward succeeds, zero Key gradient PASS", flush=True)
+
