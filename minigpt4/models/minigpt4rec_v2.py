@@ -309,6 +309,48 @@ class GAT(nn.Module):
 
 
 
+
+def build_id_token_roles(idx_nopad, ids_order, history_len):
+    """Row-major ID placeholder roles: user=0, historical item=1, target=2.
+
+    Role assignment follows get_ids_order and segment boundaries, NOT item
+    ID equality (a repeated target can occur in the user's history).
+    """
+    if sorted(map(int, ids_order)) != [0, 1, 2]:
+        raise ValueError(f"Unsupported ID prompt layout: {ids_order}")
+    if idx_nopad.ndim != 2 or idx_nopad.shape[1] != 2:
+        raise ValueError("Expected [N,2] placeholder coordinates")
+    lengths = {0: 1, 1: int(history_len), 2: 1}
+    roles = torch.full((len(idx_nopad),), -1, device=idx_nopad.device,
+                       dtype=torch.long)
+    begin = 0
+    for seg in ids_order:
+        end = begin + lengths[int(seg)]
+        where = (idx_nopad[:, 1] >= begin) & (idx_nopad[:, 1] < end)
+        roles[where] = int(seg)
+        begin = end
+    if not bool((roles >= 0).all()):
+        raise RuntimeError("Role assignment left unmatched placeholders")
+    return roles
+
+
+class TargetConditionedKeyAdapter(nn.Module):
+    """Zero-initialized full K-projection residual, bypassing LoRA-B."""
+    def __init__(self, output_dim, graph_size=256, middle=64):
+        super().__init__()
+        with torch.random.fork_rng(devices=[]):
+            self.network = nn.Sequential(
+                nn.Linear(4 * graph_size, middle),
+                nn.GELU(),
+                nn.Linear(middle, int(output_dim)),
+            )
+        nn.init.zeros_(self.network[-1].weight)
+        nn.init.zeros_(self.network[-1].bias)
+
+    def forward(self, context):
+        return self.network(context.float())
+
+
 class TargetConditionedVGate(nn.Module):
     """Zero-initialized rank-wise correction for the historical L31 V signal.
 
@@ -355,7 +397,8 @@ class MyLinear(OriginalLinear):
         # COLLAB_INJECTION_V1
         self.collab_mode = collab_mode
         self.module_tag = module_tag
-        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate",
+                               "target_k_no_candidate", "target_k_candidate"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         rank = self.lora_A[self.active_adapter].out_features
         # The collaborative signal is injected at historical item-token positions.
@@ -466,6 +509,7 @@ class MyLinear(OriginalLinear):
                     if self.collab_mode in (
                         "legacy", "target_fusion",
                         "target_v_gate_no_candidate", "target_v_gate_candidate",
+                        "target_k_no_candidate", "target_k_candidate",
                     ) or (
                         self.collab_mode == "v_only" and self.module_tag == "v"
                     ):
@@ -640,6 +684,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             target_fusion_scale=1.0,
             target_fusion_mode="linear",
             target_fusion_relative_cap=0.02,
+            target_key_scope="history",
             gnn_semantic_align=False,
             gnn_semantic_weight=0.05,
             train_gnn_with_rec_loss=True,
@@ -724,12 +769,19 @@ class MiniGPT4Rec_v2(Rec2Base):
         # A0/A1 injection controls. Both are pure schedules/bookkeeping: no new
         # parameters, no RNG consumption. ratio=0 keeps the training path
         # bitwise identical to the I3 champion.
-        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion", "target_v_gate_no_candidate", "target_v_gate_candidate"):
+        if collab_mode not in ("legacy", "v_only", "gated_l31", "conditional_lora", "target_fusion",
+                               "target_v_gate_no_candidate", "target_v_gate_candidate",
+                               "target_k_no_candidate", "target_k_candidate"):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         self.collab_mode = collab_mode
         self.target_fusion_scale = float(target_fusion_scale)
         self.target_fusion_mode = str(target_fusion_mode)
         self.target_fusion_relative_cap = float(target_fusion_relative_cap)
+        self.target_key_scope = str(target_key_scope)
+        if self.target_key_scope not in ("history", "user", "target", "all"):
+            raise ValueError(f"Unsupported Key token scope: {self.target_key_scope}")
+        self._target_key_payload = None
+        self.target_key_adapter = None
         self._target_fusion_payload = None
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
             raise ValueError("conditional_lora requires gnn_scale=0")
@@ -945,6 +997,17 @@ class MiniGPT4Rec_v2(Rec2Base):
                 f"Setting LoRA, GCN, and MyLinear for layer {gcn_layer} Done. "
                 f"Replaced {len(self.my_linears)} modules."
             )
+
+            if self.collab_mode in ("target_k_no_candidate", "target_k_candidate"):
+                if int(gcn_layer) != int(self.llama_model.config.num_hidden_layers) - 1:
+                    raise ValueError("Target-Key injection requires last decoder layer")
+                key_linear = self.llama_model.model.layers[int(gcn_layer)].self_attn.k_proj
+                self.target_key_adapter = TargetConditionedKeyAdapter(
+                    output_dim=key_linear.out_features)
+                self._target_key_handle = key_linear.register_forward_hook(
+                    self._target_key_projection_hook)
+                print(f"[TARGET-K] layer={gcn_layer} scope={self.target_key_scope} "
+                      "output residual zero-init; original Q/V retained", flush=True)
 
             # Decision-state collaborative fusion is strictly a complement to
             # historical L31 injection, not a replacement (warm-start anchor).
@@ -1447,6 +1510,30 @@ class MiniGPT4Rec_v2(Rec2Base):
              history * target, (user - target).abs()), dim=-1
         )
 
+    def _target_key_projection_hook(self, module, inputs, output):
+        payload = self._target_key_payload
+        if payload is None:
+            return output
+        context, rows, positions, roles = payload
+        if context.size(0) != rows.numel() or roles.numel() != rows.numel():
+            raise RuntimeError("Target-Key token/context shape mismatch")
+        wanted = {"user": 0, "history": 1, "target": 2}
+        select = (roles == wanted[self.target_key_scope]) if (
+            self.target_key_scope != "all") else (roles >= 0)
+        if not bool(select.any()):
+            return output
+        b, p = rows[select], positions[select]
+        if not bool(((b >= 0) & (b < output.shape[0])
+                     & (p >= 0) & (p < output.shape[1])).all()):
+            raise RuntimeError("Target-Key token indices out of K projection bounds")
+        with torch.autocast(device_type=output.device.type, enabled=False):
+            delta = self.target_key_adapter(context[select].float())
+        if delta.shape != (b.numel(), output.shape[-1]):
+            raise RuntimeError(f"Target-Key residual shape mismatch: {delta.shape}")
+        patched = output.clone()
+        patched[b, p] = (output[b, p].float() + delta).to(output.dtype)
+        return patched
+
     def _make_target_v_context(self, fb, samples):
         """Build [num_ID_tokens, 1024] GNN-penult condition for L31 V.
 
@@ -1478,7 +1565,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             raise RuntimeError("VG has invalid token->subgraph node mapping")
         node = penult[local]
         u = user[batch]
-        if self.collab_mode == "target_v_gate_no_candidate":
+        if self.collab_mode in ("target_v_gate_no_candidate", "target_k_no_candidate"):
             t = torch.zeros_like(node)
         else:
             t = candidate[batch]
@@ -2594,6 +2681,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         target_fusion_scale = cfg.get("target_fusion_scale", 1.0)
         target_fusion_mode = cfg.get("target_fusion_mode", "linear")
         target_fusion_relative_cap = cfg.get("target_fusion_relative_cap", 0.02)
+        target_key_scope = cfg.get("target_key_scope", "history")
 
         # Only the requested new controls.
         gnn_semantic_align = cfg.get("gnn_semantic_align", False)
@@ -2663,6 +2751,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             target_fusion_scale=target_fusion_scale,
             target_fusion_mode=target_fusion_mode,
             target_fusion_relative_cap=target_fusion_relative_cap,
+            target_key_scope=target_key_scope,
             gnn_semantic_align=gnn_semantic_align,
             gnn_semantic_weight=gnn_semantic_weight,
             train_gnn_with_rec_loss=train_gnn_with_rec_loss,
