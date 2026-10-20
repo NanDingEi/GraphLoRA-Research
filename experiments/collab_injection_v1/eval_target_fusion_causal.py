@@ -65,6 +65,8 @@ def main():
                    help="Inference-time scale; F1 at 0.05 is near champion AUC")
     p.add_argument("--modes", default="baseline,original,shuffle_target,no_target,no_history,shuffle_user")
     p.add_argument("--result", required=True)
+    p.add_argument("--expected-baseline", type=float, default=None,
+                   help="Fail early if scale-zero AUC differs by >0.003")
     args = p.parse_args()
 
     checkpoint = Path(args.checkpoint).resolve()
@@ -202,6 +204,12 @@ def main():
         rows.append(row)
         print("[CAUSAL-RESULT] " + json.dumps(row, ensure_ascii=False), flush=True)
         outpath.write_text(json.dumps(rows, indent=2, ensure_ascii=False), encoding="utf-8")
+        if (mode == "baseline" and args.expected_baseline is not None
+                and abs(row["auc"] - args.expected_baseline) > 0.003):
+            raise RuntimeError(
+                f"Baseline mismatch: observed {row['auc']:.9f}, "
+                f"expected {args.expected_baseline:.9f}; stop before further ablations"
+            )
         active["capture"] = None
         active["norms"] = None
     if "original" in modes:
