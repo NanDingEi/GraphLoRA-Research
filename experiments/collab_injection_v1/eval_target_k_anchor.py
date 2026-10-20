@@ -69,8 +69,6 @@ def main():
         raise RuntimeError("K module missing")
     if model.target_key_adapter.network[-1].weight.count_nonzero() != 0:
         raise RuntimeError("K adapter output projection must be zero-initialized")
-    if cfg.model_cfg.get("target_key_scope", "history") != "history":
-        raise RuntimeError("K anchor expects the history-only default")
     runner = entry.get_runner_class(cfg)(
         cfg=cfg, job_id=entry.now(), task=task, model=model, datasets=datasets
     )
