@@ -191,6 +191,7 @@ def main():
         "has_pri_decode": model.has_pri_decode,
         "prompt_list_p": model.prompt_list_p,
     }
+    records = []
     anchor = None
     order = None
     baseline_score = None
