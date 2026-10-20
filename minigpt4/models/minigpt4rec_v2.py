@@ -503,9 +503,16 @@ class TargetAwareDecisionFusion(nn.Module):
     Zero-initialized output projector preserves champion predictions at step 0.
     The fused state still goes through LLaMA's own RMSNorm and language head.
     """
-    def __init__(self, hidden_size, graph_size=256, rank=128, scale=1.0):
+    def __init__(self, hidden_size, graph_size=256, rank=128, scale=1.0,
+                 mode="linear", relative_cap=0.02):
         super().__init__()
         self.scale = float(scale)
+        self.mode = str(mode)
+        self.relative_cap = float(relative_cap)
+        if self.mode not in ("linear", "relative_cap"):
+            raise ValueError(f"Unsupported target fusion mode: {self.mode}")
+        if self.relative_cap <= 0 or not float("0") < self.relative_cap < float("inf"):
+            raise ValueError("target_fusion_relative_cap must be finite and positive")
         with torch.random.fork_rng(devices=[]):
             self.pair_encoder = nn.Sequential(
                 nn.LayerNorm(6 * graph_size),
@@ -528,7 +535,20 @@ class TargetAwareDecisionFusion(nn.Module):
             self.gate_h(decision_h.float()) + self.gate_pair(latent)
         ))
         gain = 2.0 * torch.sigmoid(logits)  # 1.0 at initialization
-        residual = self.to_hidden(latent) * gain * self.scale
+        raw = self.to_hidden(latent) * gain
+        if self.mode == "linear":
+            # Historical target_fusion path: preserve exactly by default.
+            residual = raw * self.scale
+        else:
+            # Smooth relative-norm cap, per sample:
+            # ||residual|| <= scale * cap * ||h||.
+            # Unlike cap*||h|| * raw / (||raw||+eps), derivative of this
+            # form at raw=0 is NONZERO; zero-init projector can learn.
+            base_norm = decision_h.float().detach().norm(
+                dim=-1, keepdim=True).clamp_min(1e-6)
+            raw_norm = torch.linalg.vector_norm(raw, dim=-1, keepdim=True)
+            divisor = 1.0 + raw_norm / (self.relative_cap * base_norm)
+            residual = self.scale * (raw / divisor)
         return residual.to(dtype=decision_h.dtype)
 
 @registry.register_model("mini_gpt4rec_v2")
@@ -564,6 +584,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             gcn_layer=0,
             collab_mode="legacy",
             target_fusion_scale=1.0,
+            target_fusion_mode="linear",
+            target_fusion_relative_cap=0.02,
             gnn_semantic_align=False,
             gnn_semantic_weight=0.05,
             train_gnn_with_rec_loss=True,
@@ -652,6 +674,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             raise ValueError(f"Unknown collab_mode: {collab_mode}")
         self.collab_mode = collab_mode
         self.target_fusion_scale = float(target_fusion_scale)
+        self.target_fusion_mode = str(target_fusion_mode)
+        self.target_fusion_relative_cap = float(target_fusion_relative_cap)
         self._target_fusion_payload = None
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
             raise ValueError("conditional_lora requires gnn_scale=0")
@@ -877,6 +901,8 @@ class MiniGPT4Rec_v2(Rec2Base):
                     self.llama_model.config.hidden_size,
                     graph_size=256,
                     scale=self.target_fusion_scale,
+                    mode=self.target_fusion_mode,
+                    relative_cap=self.target_fusion_relative_cap,
                 )
                 self._target_fusion_handle = self.llama_model.model.layers[
                     int(gcn_layer)
@@ -2451,6 +2477,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         gcn_layer = cfg.get("gcn_layer", 0)
         collab_mode = cfg.get("collab_mode", "legacy")
         target_fusion_scale = cfg.get("target_fusion_scale", 1.0)
+        target_fusion_mode = cfg.get("target_fusion_mode", "linear")
+        target_fusion_relative_cap = cfg.get("target_fusion_relative_cap", 0.02)
 
         # Only the requested new controls.
         gnn_semantic_align = cfg.get("gnn_semantic_align", False)
@@ -2518,6 +2546,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             gcn_layer=gcn_layer,
             collab_mode=collab_mode,
             target_fusion_scale=target_fusion_scale,
+            target_fusion_mode=target_fusion_mode,
+            target_fusion_relative_cap=target_fusion_relative_cap,
             gnn_semantic_align=gnn_semantic_align,
             gnn_semantic_weight=gnn_semantic_weight,
             train_gnn_with_rec_loss=train_gnn_with_rec_loss,
