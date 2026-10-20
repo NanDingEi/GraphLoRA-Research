@@ -8,10 +8,8 @@ No training, no test set, no checkpoint writes.
 """
 import argparse
 import json
-import random
 from pathlib import Path
 
-import numpy as np
 import pandas as pd
 import torch
 
@@ -41,6 +39,11 @@ def main():
     cfg.run_cfg.resume_ckpt_path = None
     cfg.run_cfg.evaluate = False
     cfg.run_cfg.distributed = False  # one local GPU; no collective operations
+    # Do not write evaluation artifacts into the trained model output folder.
+    cfg.run_cfg.output_dir = str(
+        Path(args.result).resolve().parent / "eval_artifacts"
+        if args.result else Path.cwd() / "logs/collab_v1/target_fusion_eval_artifacts"
+    )
 
     entry.init_distributed_mode(cfg.run_cfg)
     entry.setup_seeds(cfg)
