@@ -1137,7 +1137,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         need_semantic = self.training and self.gnn_semantic_align
         need_pref = self.training and self.pref_distill
         need_gnn_view = need_semantic or need_pref \
-            or self.rel_inject or self.rel_rank_mod
+            or self.rel_inject or self.rel_rank_mod or self.collab_mode == "target_fusion"
 
         if need_semantic:
             # LLM is the semantic teacher for this auxiliary objective.
@@ -1256,6 +1256,10 @@ class MiniGPT4Rec_v2(Rec2Base):
                     + int(samples.get('iters', 0)),
         }
 
+        if self.collab_mode == "target_fusion":
+            ret["sub_node_ids"] = sub_node_ids
+            ret["gnn_penult"] = gcn_penult
+
         if need_gnn_view:
             valid = local_node_ids >= 0
             token_gnn = torch.zeros(
@@ -1327,6 +1331,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         """Pair and history GNN features, independent of prompt field order."""
         nodes = fb["sub_node_ids"].long()
         graph = fb["gnn_penult"].float()
+        if self.training and not self.train_gnn_with_rec_loss:
+            graph = graph.detach()
         if nodes.numel() == 0 or graph.ndim != 2 or graph.size(1) != 256:
             raise RuntimeError("Target fusion requires 256-d GNN penultimate features")
 
