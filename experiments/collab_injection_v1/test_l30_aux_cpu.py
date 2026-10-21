@@ -84,6 +84,13 @@ assert "loss = loss + self.gnn_semantic_weight * loss_sem" in source
 assert "loss = loss + self.l30_aux_weight * aux_loss" in source
 assert "self._l30_aux_active = active_l30" in source
 assert "self._l30_aux_active = False" in source
+# Confirm float-vs-int comparison regression: int(0.1)==0 must not
+# incorrectly reject the original S2 gnn_scale=0.1.
+assert 'abs(float(gnn_scale) - 0.1) > 1e-10' in path.read_text(encoding="utf-8")
+assert 'int(gnn_scale) != 0.1' not in path.read_text(encoding="utf-8")
+assert not (abs(float(0.1)-0.1)>1e-10)
+print("[L30-CPU] S2 gnn_scale=0.1 accepted by float guard PASS",flush=True)
+
 # from_config must pass aux kwargs, but old checkpoints omit aux config and
 # use the default zero weight in __init__.
 from_cfg = next(n for n in methods if n.name == "from_config")
