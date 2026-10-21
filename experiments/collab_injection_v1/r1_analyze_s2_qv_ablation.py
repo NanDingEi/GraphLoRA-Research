@@ -160,8 +160,8 @@ def main():
         default="logs/collab_v1/S2_R1_QV_ABLATION.npz")
     p.add_argument("--manifest",
         default="logs/collab_v1/S2_R1_QV_ABLATION.json")
-    p.add_argument("--train-pkl",required=True,
-        help="Exact train_ood2.pkl (never Valid or Test for frequency)")
+    p.add_argument("--train-pkl",default=None,
+        help="Exact train_ood2.pkl; if omitted derive from the R1 model YAML")
     p.add_argument("--out",
         default="logs/collab_v1/S2_R1_QV_ANALYSIS.json")
     p.add_argument("--expected-samples",type=int,default=5200)
@@ -169,7 +169,7 @@ def main():
     pred=Path(args.predictions).resolve()
     manifest=Path(args.manifest).resolve()
     out=Path(args.out).resolve()
-    for path in (pred,manifest,Path(args.train_pkl)):
+    for path in (pred,manifest):
         if not path.is_file():
             raise FileNotFoundError(path)
     if out.exists():
@@ -178,9 +178,25 @@ def main():
     if (manifest_data.get("status")!="complete" or
         Path(manifest_data.get("prediction_archive","")).resolve()!=pred):
         raise RuntimeError("Prediction archive does not match completed R1 manifest")
+    if args.train_pkl is None:
+        import yaml
+        source=Path(manifest_data["config"])
+        if not source.is_file():
+            raise FileNotFoundError(f"Missing R1 source config: {source}")
+        cfg=yaml.safe_load(source.read_text(encoding="utf-8"))
+        datasets=cfg.get("datasets",{})
+        ds=datasets.get("movie_ood",datasets.get("amazon_ood",{}))
+        train_path=Path(str(ds.get("path","")))/"train_ood2.pkl"
+    else:
+        train_path=Path(args.train_pkl).expanduser()
+    train_path=train_path.resolve()
+    if not train_path.is_file():
+        raise FileNotFoundError(
+            f"train_ood2.pkl not found: {train_path}; "
+            "pass --train-pkl with the actual OOD2 training table")
     with np.load(pred,allow_pickle=False) as npz:
         data={key:npz[key] for key in npz.files}
-    train=pd.read_pickle(args.train_pkl)
+    train=pd.read_pickle(train_path)
     report=analyze(data,train,expected_n=args.expected_samples)
     for name,metrics in report["metrics"].items():
         print(f"[R1-SCORE] {name:16s} "
@@ -201,7 +217,7 @@ def main():
               f"UAUC={g['S2_minus_OFF_uauc']}",flush=True)
     report["prediction_archive"]=str(pred)
     report["r1_manifest"]=str(manifest)
-    report["train_data"]=str(Path(args.train_pkl).resolve())
+    report["train_data"]=str(train_path)
     out.parent.mkdir(parents=True,exist_ok=True)
     out.write_text(json.dumps(report,ensure_ascii=False,indent=2),
                    encoding="utf-8")
