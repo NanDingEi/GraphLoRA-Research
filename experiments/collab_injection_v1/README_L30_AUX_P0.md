@@ -44,3 +44,27 @@ To resume after an arm failure (same git commit and hyperparams), use the `[P0-R
 - Because the S2 checkpoint already has strong Valid performance, one extra epoch can degrade it; CONTROL is indispensable.
 - No Test metrics until a treatment beats the matched control on Valid and is independently replicated.
 - This is intentionally *not* multi-layer injection and not prediction voting. Test the auxiliary-gradient hypothesis before expanding to L28/L30 or GNN-conditioned cross-layer corrections.
+
+## 2026-10-21: fixed guard and resume of the first actual run
+
+The original P0 run completed CONTROL (`AUC=0.7219307045640613`, `UAUC=0.6659307008748429`) but refused the AUX anchor before training because the model guard compared `int(gnn_scale) != 0.1`. Python truncates `int(0.1)` to zero. We corrected the guard to `abs(float(gnn_scale)-0.1) > 1e-10`.
+
+The P0 runner now performs a **fail-closed migration** only when `state.json` refers to commit `1a41ce8a2fa8fd18bf7a01e410fd62bec7858fa0`, the model source differs from that commit in exactly the guarded expression, the S2 checkpoint hash is unchanged, the completed CONTROL checkpoint/config still match, and the failed AUX log contains the precise former guard error. CONTROL is skipped; AUX anchor/smoke/full start anew.
+
+Resume the original run from the same GraphLoRA working directory after git fast-forward:
+
+```bash
+cd /home/bbx/user_lx/GraphLoRA_collab_v1
+git status --short
+git fetch https://github.com/NanDingEi/GraphLoRA-Research.git fix/collab-gated-optimizer
+git merge --ff-only FETCH_HEAD
+conda activate minigpt4
+export CUDA_VISIBLE_DEVICES=0
+set -o pipefail
+python -u experiments/collab_injection_v1/run_l30_aux_p0.py \
+  --resume-dir /home/bbx/user_lx/GraphLoRA_collab_v1/logs/collab_v1/S2_L30_AUX_P0_20261021_165700 \
+  --seed 42 --lr 2e-5 --accum 3 --smoke-steps 24 \
+  2>&1 | tee -a logs/collab_v1/L30_P0_console.log
+```
+
+Expect `[P0-GUARD-FIX]`, `[P0-SKIP] P0_CONTROL`, `[L30-ANCHOR] PASS`, then the AUX smoke/full evaluation. If any invariant fails, stop and inspect; do **not** bypass the guard or rerun CONTROL unless necessary.
