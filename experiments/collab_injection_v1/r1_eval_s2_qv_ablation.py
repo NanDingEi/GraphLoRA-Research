@@ -247,6 +247,15 @@ def main():
 
     if len(scores)!=len(ARMS):
         raise RuntimeError("Not all R1 arms completed")
+    if np.array_equal(scores["R1_A_S2_QV"],scores["R1_B_OFF"]):
+        raise RuntimeError(
+            "Turning both L31 Q/V GNN injections OFF left all Yes logits "
+            "identical: verify MyLinear scale wiring before analyzing R1")
+    if np.array_equal(scores["R1_C_V_ONLY"],scores["R1_E_V_HALF"]):
+        print("[R1-WARNING] V=0.1 and V=0.05 produced identical scores; "
+              "investigate scale effect",flush=True)
+    if any(p.grad is not None for p in model.parameters()):
+        raise RuntimeError("Evaluation unexpectedly produced parameter gradients")
     for name,_,_ in ARMS:
         metrics[name]["delta_auc_vs_s2"]=metrics[name]["auc"]-metrics[
             "R1_A_S2_QV"]["auc"]
