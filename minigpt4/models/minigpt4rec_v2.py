@@ -1322,7 +1322,7 @@ class MiniGPT4Rec_v2(Rec2Base):
             or self.rel_inject or self.rel_rank_mod or self.collab_mode in (
                 "target_fusion", "target_v_gate_no_candidate",
                 "target_v_gate_candidate", "target_k_no_candidate",
-                "target_k_candidate"
+                "target_k_candidate", "target_k_shuffle"
             )
 
         if need_semantic:
