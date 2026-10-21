@@ -29,6 +29,11 @@ CHECKPOINT=Path(
     "L31_output/20261017143/checkpoint_best.pth")
 S2_AUC=0.7296752596287361
 S2_UAUC=0.6841670211619721
+# The original experiment is already on the server (one full CONTROL epoch
+# finished). Only this exact code lineage is eligible for automatic recovery.
+P0_PRE_GUARD_FIX_COMMIT="1a41ce8a2fa8fd18bf7a01e410fd62bec7858fa0"
+OLD_GUARD='collab_mode != "legacy" or int(gnn_scale) != 0.1 or'
+NEW_GUARD='collab_mode != "legacy" or abs(float(gnn_scale) - 0.1) > 1e-10 or'
 ARMS=(("P0_CONTROL",0.0),("P0_L30_AUX002",0.02))
 
 def sha(path):
@@ -122,6 +127,60 @@ def preflight():
     if not CHECKPOINT.is_file():
         raise FileNotFoundError(f"Historical S2 checkpoint missing: {CHECKPOINT}")
 
+def migrate_verified_guard_fix(state, logs):
+    """Keep a completed CONTROL across ONLY the exact integer-cast guard fix.
+
+    The CONTROL's model forward was identical: L30 auxiliary weight=0 means
+    the erroneous condition was never evaluated. The original AUX arm was
+    stopped at model construction and never trained. Require these facts and
+    byte-for-byte model source equivalence apart from the ONE guard replacement.
+    """
+    if state.get("git_commit")!=P0_PRE_GUARD_FIX_COMMIT:
+        raise RuntimeError("P0 resume source commit mismatch; unsafe migration")
+    model_path="minigpt4/models/minigpt4rec_v2.py"
+    before=subprocess.check_output([
+        "git","show",f"{P0_PRE_GUARD_FIX_COMMIT}:{model_path}"
+    ],cwd=ROOT,text=True)
+    after=(ROOT/model_path).read_text(encoding="utf-8")
+    if before.count(OLD_GUARD)!=1 or before.replace(
+        OLD_GUARD,NEW_GUARD,1)!=after:
+        raise RuntimeError("More than the one audited P0 guard changed; refuse resume")
+    arms=state.get("arms",{})
+    if set(arms)!={"P0_CONTROL","P0_L30_AUX002"} or (
+        arms["P0_CONTROL"].get("status")!="complete" or
+        arms["P0_L30_AUX002"].get("status")!="failed"
+    ):
+        raise RuntimeError("Expected exactly completed CONTROL + failed AUX")
+    original_control=logs/"P0_CONTROL_FULL.yaml"
+    control_ckpt=Path(arms["P0_CONTROL"].get("best_checkpoint",""))
+    if not (original_control.is_file() and control_ckpt.is_file() and
+            sha(original_control)==arms["P0_CONTROL"].get("config_sha")):
+        raise RuntimeError("Completed CONTROL cannot be verified")
+    control_cfg=yaml.safe_load(original_control.read_text(encoding="utf-8"))
+    if (float(control_cfg["model"].get("l30_aux_weight",0))!=0 or
+        Path(control_cfg["model"]["ckpt"]).resolve()!=CHECKPOINT.resolve() or
+        control_cfg["model"]["collab_mode"]!="legacy"):
+        raise RuntimeError("Previous CONTROL was not exact unmodified S2")
+    failed_log=logs/"P0_AUX_ANCHOR.log"
+    if not failed_log.is_file() or (
+        "ValueError: L30 auxiliary BCE requires legacy S2 L31 LoRA injection"
+        not in failed_log.read_text(encoding="utf-8",errors="replace")
+    ):
+        raise RuntimeError("Previous AUX error does not match repaired integer-cast guard")
+    state["guard_fix_migration"]={
+        "old_commit":P0_PRE_GUARD_FIX_COMMIT,
+        "new_commit":repo_head(),
+        "model_change":"single int(gnn_scale) to float(gnn_scale) comparison",
+        "control_reused":True,
+        "aux_retrained_from_original_S2":True,
+    }
+    state["git_commit"]=repo_head()
+    print("[P0-GUARD-FIX] verified one-line model change; "
+          "reusing completed CONTROL, restarting only AUX from S2",
+          flush=True)
+    write_state(logs,state)
+
+
 def write_state(logdir,state):
     tmp=logdir/"state.tmp"
     tmp.write_text(json.dumps(state,ensure_ascii=False,indent=2),encoding="utf-8")
@@ -205,13 +264,13 @@ def main():
         if not path.is_file():
             raise FileNotFoundError(path)
         state=json.loads(path.read_text(encoding="utf-8"))
-        if state["git_commit"]!=repo_head() or (
-            state["champion_sha256"]!=sha(CHECKPOINT)
-        ):
-            raise RuntimeError("Unsafe P0 resume: source/S2 checkpoint changed")
+        if state["champion_sha256"]!=sha(CHECKPOINT):
+            raise RuntimeError("Unsafe P0 resume: S2 checkpoint changed")
         if (state["seed"]!=args.seed or state["lr"]!=args.lr or
             state["accum"]!=args.accum or state["smoke_steps"]!=args.smoke_steps):
             raise RuntimeError("Unsafe P0 resume: hyperparameters changed")
+        if state["git_commit"]!=repo_head():
+            migrate_verified_guard_fix(state, logs)
         out=Path(state["output_dir"])
     else:
         tag="S2_L30_AUX_P0_"+datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
