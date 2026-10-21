@@ -70,7 +70,7 @@ def test_model_context():
                          collab_mode="legacy",r2_weights=None,
                          r2_decision=None,r2_key=None)
     model=SimpleNamespace(
-        collab_mode="legacy",gcn_layer=31,num_users=n,
+        collab_mode="legacy",num_users=n,
         my_linears=[modq,modv],
     )
     # Regression: real MiniGPT4Rec_v2 does not expose model.gcn_layer.
