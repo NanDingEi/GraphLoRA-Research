@@ -20,6 +20,34 @@ MODES = ("off","audit","decision_q","history_k","relation_v",
 _ACTIVE = None
 
 
+def _validate_l31_adapters(model):
+    """Check R2 injection depth from the actual MyLinear adapters.
+
+    MiniGPT4Rec_v2 stores gcn_layer/layer_idx on MyLinear, not as a
+    guaranteed top-level MiniGPT4Rec_v2 attribute.
+    """
+    if str(model.collab_mode)!="legacy":
+        raise RuntimeError("R2 requires original S2 collab_mode=legacy")
+    mods=list(model.my_linears)
+    if len(mods)!=2:
+        raise RuntimeError(f"R2 requires exactly two L31 Q/V modules, got {len(mods)}")
+    selected={}
+    for module in mods:
+        tag=getattr(module,"module_tag",None)
+        if tag not in ("q","v") or tag in selected:
+            raise RuntimeError(f"R2 bad L31 module tag: {tag}")
+        if int(module.layer_idx)!=31 or int(module.gcn_layer)!=31:
+            raise RuntimeError(
+                f"R2 {tag} injection depth mismatch: layer_idx={module.layer_idx}, "
+                f"gcn_layer={module.gcn_layer}, expected both 31")
+        if str(module.collab_mode)!="legacy":
+            raise RuntimeError(f"R2 module {tag} must run legacy S2")
+        selected[tag]=module
+    if set(selected)!={"q","v"}:
+        raise RuntimeError(f"R2 expected q/v modules, found {list(selected)}")
+    return selected
+
+
 def _gather(node_ids, features, query):
     if node_ids.ndim != 1 or features.shape[0] != node_ids.numel():
         raise RuntimeError("R2 invalid graph IDs/features shape")
@@ -142,16 +170,10 @@ class R2Runtime:
                 inputs_embeds,attention_mask)
         finally:
             model.collab_mode=original_mode
-        if original_mode!="legacy":
-            raise RuntimeError("R2 requires legacy GraphLoRA model")
-        if model.gcn_layer!=31:
-            raise RuntimeError("R2 only supports original L31 injection")
+        mods=_validate_l31_adapters(model)
         if "gnn_penult" not in fb:
             raise RuntimeError("R2 missing penultimate graph output")
         self.counters["feedback_calls"]+=1
-        mods={m.module_tag:m for m in model.my_linears}
-        if set(mods)!={"q","v"}:
-            raise RuntimeError("R2 needs Q/V MyLinear only")
         # Clear previous batch state here. Original forward clears gcn_output.
         for m in mods.values():
             m.r2_weights=None
@@ -292,7 +314,7 @@ class R2Runtime:
         return patched
 
     def attach_hooks(self,model):
-        selected={m.module_tag:m for m in model.my_linears}
+        selected=_validate_l31_adapters(model)
         self._q_mod=selected["q"]
         q_layer=model.llama_model.model.layers[31].self_attn
         if q_layer.q_proj is not self._q_mod:
@@ -322,9 +344,7 @@ def install_runtime(mode):
     # Classmethod from_config is bound; wrap as classmethod.
     def build_wrapper(cls,cfg):
         model=original_build(cfg)
-        if (str(model.collab_mode)!="legacy" or len(model.my_linears)!=2
-                or int(model.gcn_layer)!=31):
-            raise RuntimeError("R2 requires original S2 legacy 31 Q/V")
+        _validate_l31_adapters(model)
         runtime.attach_hooks(model)
         print(f"[R2-RUNTIME] attached={runtime.mode} legacy L31",flush=True)
         return model
