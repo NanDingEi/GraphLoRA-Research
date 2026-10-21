@@ -109,7 +109,59 @@ def test_graph_gather():
     print("[R2-CPU] graph user/target ID bounds PASS",flush=True)
 
 
+def test_probe_loader_contract():
+    """Regression: MultiIterLoader has __next__ but NOT __iter__.
+
+    Extract probe's tiny loader-unwrapping function by AST so a CPU unit
+    test does NOT import train_collm_mf_din or construct Vicuna.
+    """
+    import ast
+    from pathlib import Path
+    source=Path(__file__).with_name("r2_probe.py")
+    root=ast.parse(source.read_text(encoding="utf-8"))
+    functions=[n for n in root.body if isinstance(n,ast.FunctionDef)
+               and n.name=="get_valid_probe_loader"]
+    if len(functions)!=1:
+        raise AssertionError("R2 probe concrete loader helper missing")
+    ns={}
+    exec(compile(ast.Module(body=functions,type_ignores=[]),str(source),"exec"),ns)
+    get=ns["get_valid_probe_loader"]
+
+    class ConcreteValid:
+        def __len__(self):
+            return 1300
+        def __iter__(self):
+            yield {"UserID":torch.tensor([10,20,30])}
+            yield {"UserID":torch.tensor([40,50,60])}
+
+    class MultiIterOnly:
+        def __init__(self):
+            self.loaders=[ConcreteValid()]
+        def __next__(self):
+            return next(iter(self.loaders[0]))
+        # Deliberately NO __iter__. This matches GraphLoRA MultiIterLoader.
+
+    wrapper=MultiIterOnly()
+    assert not hasattr(wrapper,"__iter__")
+    runner=SimpleNamespace(dataloaders={"valid":wrapper})
+    loader=get(runner)
+    assert [list(b["UserID"]) for b in loader]==[
+        [torch.tensor(10),torch.tensor(20),torch.tensor(30)],
+        [torch.tensor(40),torch.tensor(50),torch.tensor(60)]]
+    # Distinct fresh iteration restarts from the first Valid example.
+    assert next(iter(get(runner)))["UserID"][0].item()==10
+    wrapper.loaders.append(ConcreteValid())
+    try:
+        get(runner)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("Multiple Valid loaders should be rejected")
+    print("[R2-CPU] MultiIterLoader unwrap + fresh Valid iteration PASS",flush=True)
+
+
 def main():
+    test_probe_loader_contract()
     test_weights()
     test_graph_gather()
     test_model_context()
