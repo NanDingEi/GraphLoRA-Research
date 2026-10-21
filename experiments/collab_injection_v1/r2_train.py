@@ -240,6 +240,8 @@ def main():
     p.add_argument("--root",default="logs/collab_v1/R2_EIGHT_20261022")
     p.add_argument("--smoke-steps",type=int,default=24)
     p.add_argument("--prepare-only",action="store_true")
+    p.add_argument("--check-source-only",action="store_true",
+        help="Validate S2+P2B full-run YAML parity with no GPU and no files written")
     p.add_argument("--p2b-source",default=None,
         help="Exact completed P2B FULL_E1 YAML, if autodiscovery is ambiguous")
     args=p.parse_args()
@@ -247,9 +249,16 @@ def main():
         raise ValueError("Only the predefined 24-step smoke is allowed")
     source_path=locate_p2b_source(args.p2b_source)
     preflight(source_path)
-    mode,branch=probe_gate(args.round)
     source=yaml.safe_load(source_path.read_text(encoding="utf-8"))
     base=Path(args.root).resolve()
+    # Run a full source-parity check BEFORE any expensive R2 probe.
+    # This creates an in-memory config only, never overwrites files.
+    control_config(source,"relation_v","R2_SOURCE_PREFLIGHT",base,None)
+    if args.check_source_only:
+        print(f"[R2-SOURCE-OK] matched_P2B={source_path} "
+              f"sha256={sha(source_path)} original_S2={S2}",flush=True)
+        return
+    mode,branch=probe_gate(args.round)
     arm="R2_"+args.round
     folder=base/arm
     if folder.exists():
