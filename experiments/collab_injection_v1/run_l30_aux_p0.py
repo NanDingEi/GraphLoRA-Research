@@ -66,6 +66,32 @@ def subprocess_log(cmd, path):
     if rc:
         raise RuntimeError(f"Child exited {rc}; see {path}")
 
+def check_smoke_lora_update(champion, trained, arm):
+    """Verify smoke actually modified the existing S2 LoRA parameters.
+
+    Merely seeing a loss and saved file would not guarantee that AMP did
+    not skip all optimizer steps. Compare exact existing LoRA tensor keys.
+    """
+    import torch
+    def ckpt(path):
+        try:
+            return torch.load(str(path), map_location="cpu", mmap=True,
+                              weights_only=False)["model"]
+        except TypeError:
+            return torch.load(str(path), map_location="cpu")["model"]
+    before=ckpt(champion)
+    after=ckpt(trained)
+    keys=[k for k in after if ("lora_A." in k or "lora_B." in k)
+          and k in before]
+    if not keys:
+        raise RuntimeError(f"{arm} smoke has no comparable S2 LoRA tensors")
+    changed=sum(int(not torch.equal(before[k],after[k])) for k in keys)
+    if changed==0:
+        raise RuntimeError(f"{arm} smoke trained zero LoRA tensors: AMP/optimizer problem")
+    print(f"[P0-UPDATE] {arm} smoke changed LoRA tensors={changed}/{len(keys)}",
+          flush=True)
+
+
 def get_val(log):
     pattern=re.compile(
         r"\*\*\*auc:\s*([0-9.eE+-]+).*?\*\*\*uauc:\(\s*([0-9.eE+-]+)")
@@ -243,8 +269,10 @@ def main():
                 encoding="utf-8",errors="replace")
             if bool(weight) != ("[L30-AUX] step=" in smoke_text):
                 raise RuntimeError("P0 smoke aux behavior differs from config")
-            if not list((out/name/"SMOKE").rglob("checkpoint_0.pth")):
-                raise RuntimeError(f"{name} smoke checkpoint missing")
+            smoke_ckpts=list((out/name/"SMOKE").rglob("checkpoint_0.pth"))
+            if len(smoke_ckpts)!=1:
+                raise RuntimeError(f"{name} expected one smoke checkpoint: {smoke_ckpts}")
+            check_smoke_lora_update(CHECKPOINT,smoke_ckpts[0],name)
             subprocess_log([sys.executable,"-u","train_collm_mf_din.py",
                 "--cfg-path",full],logs/f"{name}_FULL.log")
             matches=list((out/name/"FULL_E1").rglob("checkpoint_best.pth"))
