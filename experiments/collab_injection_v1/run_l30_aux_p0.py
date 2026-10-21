@@ -218,6 +218,12 @@ def main():
                 raise RuntimeError(f"Broken completed arm: {name}")
             print(f"[P0-SKIP] {name} verified complete",flush=True)
             continue
+        # Failed/incomplete arm is restarted from its ORIGINAL S2 checkpoint.
+        # Never reuse a partially trained model or stale checkpoint_best.
+        if old is not None and (out/name).exists():
+            import shutil
+            shutil.rmtree(out/name)
+            print(f"[P0-CLEAN] removed incomplete outputs for {name}",flush=True)
         full,smoke=create_config(source,name,weight,logs,out,args)
         cfg_hash=sha(full)
         state["arms"][name]={"status":"running","config_sha":cfg_hash}
