@@ -1,5 +1,7 @@
 # R2: Eight sequential collaborative attention injection experiments
 
+**IMPLEMENTED:** See [README_R2_RUN.md](README_R2_RUN.md) for actual programs, CPU guards, GPU0 commands and checkpoint evaluation rules. The remainder below is the original design and is retained as a protocol reference.
+
 **Design only; no executable eight-run launcher or GPU run is implied.**
 GPU0-only, one experiment at a time, foreground; original S2 checkpoint
 remains unchanged. No label-driven gates or direct logit manipulation.
