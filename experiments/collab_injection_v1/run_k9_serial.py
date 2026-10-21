@@ -44,6 +44,19 @@ ARMS = [
     ("HTS", "history_target", "target_k_shuffle"),
 ]
 S2_AUC = 0.7296752596287361
+# The only permitted cross-commit recovery is the audited one-line
+# KS/NGCF penultimate-feature fix. This preserves completed H0/H1.
+KS_PRE_FIX_COMMIT = "74710a3585298eaa4f34bb6ea025854a686ed3f4"
+KS_OLD_CONDITION = (
+    '                "target_v_gate_candidate", "target_k_no_candidate",\n'
+    '                "target_k_candidate"\n'
+    '            )'
+)
+KS_NEW_CONDITION = (
+    '                "target_v_gate_candidate", "target_k_no_candidate",\n'
+    '                "target_k_candidate", "target_k_shuffle"\n'
+    '            )'
+)
 OUTPUT_COLUMNS = ("arm", "scope", "condition", "auc", "uauc",
                   "delta_auc_vs_s2", "merged_checkpoint")
 
@@ -171,6 +184,70 @@ def write_state(logdir, state):
     temp.replace(path)
 
 
+def migrate_ks_hotfix(logs, state, champion):
+    """Explicit, fail-closed reuse of H0/H1 across ONE model-line KS repair.
+
+    Never treat general code changes as a safe resume; check the exact
+    old-to-new model source delta, old commit, result configs and actual
+    unchanged S2 weights in both merged H0/H1 checkpoints.
+    """
+    if state.get("repo_commit") != KS_PRE_FIX_COMMIT:
+        raise RuntimeError(
+            "KS hotfix migration accepts only the exact previous code "
+            f"commit {KS_PRE_FIX_COMMIT}; manifest has {state.get('repo_commit')}"
+        )
+    previous = subprocess.run(
+        ["git", "show", f"{KS_PRE_FIX_COMMIT}:minigpt4/models/minigpt4rec_v2.py"],
+        cwd=ROOT, capture_output=True, text=True, check=True
+    ).stdout
+    updated = (ROOT / "minigpt4/models/minigpt4rec_v2.py").read_text(encoding="utf-8")
+    if previous.count(KS_OLD_CONDITION) != 1 or (
+        previous.replace(KS_OLD_CONDITION, KS_NEW_CONDITION) != updated
+    ):
+        raise RuntimeError(
+            "Refusing cross-commit recovery: model source changed beyond "
+            "the single audited target_k_shuffle/need_gnn_view line"
+        )
+    arms = state["arms"]
+    completed = {name for name, row in arms.items()
+                 if row.get("status") == "complete"}
+    if completed != {"H0", "H1"}:
+        raise RuntimeError(
+            f"KS recovery expected precisely completed H0+H1, got {completed}"
+        )
+    if any(name not in ("H0", "H1", "HS") for name in arms):
+        raise RuntimeError("Cannot migrate run that already contains later arms")
+    if arms.get("HS", {}).get("status") != "failed":
+        raise RuntimeError("Expected KS HS anchor failure in old run")
+    for name in ("H0", "H1"):
+        row = arms[name]
+        config = logs / f"{name}_FULL.yaml"
+        checkpoint = Path(row["merged_checkpoint"])
+        if not config.is_file() or file_sha(config) != row.get("config_sha256"):
+            raise RuntimeError(f"{name}: full config not preserved")
+        if not checkpoint.is_file() or checkpoint.parent.name != name:
+            raise RuntimeError(f"{name}: merged checkpoint missing or misplaced")
+        if row.get("arm") != name or row.get("scope") != "history":
+            raise RuntimeError(f"{name}: incomplete saved result provenance")
+        if not all(math.isfinite(float(row[k])) for k in ("auc", "uauc")):
+            raise RuntimeError(f"{name}: invalid stored Valid metrics")
+        print(f"[K9-MIGRATE] verifying {name} original-weight drift", flush=True)
+        run([sys.executable,
+             "experiments/collab_injection_v1/compare_k_checkpoint_drift.py",
+             "--champion", champion, "--trained", checkpoint],
+            logs / f"{name}_HOTFIX_DRIFT.log")
+
+    state.setdefault("code_migrations", []).append({
+        "reason": "KS only: request NGCF return_penult to avoid NoneType.float",
+        "from": state["repo_commit"], "to": git_head(),
+        "retained_completed_arms": ["H0", "H1"],
+    })
+    state["repo_commit"] = git_head()
+    write_state(logs, state)
+    print("[K9-MIGRATE] Verified H0/H1; HS will restart from S2 under "
+          "corrected KS GNN context", flush=True)
+
+
 def setup_run(args, champion):
     if args.resume_dir:
         logs = Path(args.resume_dir).expanduser().resolve()
@@ -178,11 +255,6 @@ def setup_run(args, champion):
         if not state_file.is_file():
             raise FileNotFoundError(f"Cannot resume without {state_file}")
         state = json.loads(state_file.read_text(encoding="utf-8"))
-        if state.get("repo_commit") != git_head():
-            raise RuntimeError(
-                "Cannot resume across different Git commits. Recreate run "
-                "or restore the original experiment commit."
-            )
         if state.get("champion") != str(champion):
             raise RuntimeError("Resume S2 checkpoint differs from previous run")
         if state.get("champion_sha256") != file_sha(champion):
@@ -191,6 +263,17 @@ def setup_run(args, champion):
             raise RuntimeError("Resume seed/LR must match the manifest")
         if state.get("smoke_steps") != args.smoke_steps:
             raise RuntimeError("Resume smoke_steps must match the manifest")
+        if state.get("repo_commit") != git_head():
+            if not args.resume_ks_hotfix:
+                raise RuntimeError(
+                    "Cannot resume across different commits by default. "
+                    "For the audited KS-only one-line fix, explicitly pass "
+                    "--resume-ks-hotfix; otherwise create a new run."
+                )
+            migrate_ks_hotfix(logs, state, champion)
+        elif args.resume_ks_hotfix:
+            print("[K9-MIGRATE] Already on current commit; no migration needed",
+                  flush=True)
         output_root = Path(state["output_root"])
         if not output_root.is_dir():
             raise RuntimeError(f"Missing original outputs: {output_root}")
@@ -255,11 +338,16 @@ def main():
     parser.add_argument("--smoke-steps", type=int, default=24)
     parser.add_argument("--resume-dir", default=None,
                         help="Path to prior logs/collab_v1/S2_K9_SERIAL_... folder")
+    parser.add_argument("--resume-ks-hotfix", action="store_true",
+                        help="Safely reuse H0/H1 from the exact KS penult hotfix "
+                             "only; audits model diff, configs and checkpoints")
     args = parser.parse_args()
     if args.seed < 0 or not math.isfinite(args.lr) or args.lr <= 0:
         raise ValueError("Invalid seed or learning rate")
     if args.smoke_steps < 1:
         raise ValueError("smoke-steps must be positive")
+    if args.resume_ks_hotfix and not args.resume_dir:
+        raise ValueError("--resume-ks-hotfix requires --resume-dir")
     preflight()
     run([sys.executable, "-m", "py_compile",
          "minigpt4/models/minigpt4rec_v2.py",
