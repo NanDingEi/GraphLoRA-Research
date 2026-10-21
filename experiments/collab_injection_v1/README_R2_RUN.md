@@ -41,6 +41,24 @@ test -f tran_configs/collab_v1/e3/S2_L31_CONTROL.yaml || \
   python experiments/collab_injection_v1/prepare_e3_configs.py
 ```
 
+## One command (foreground, strictly serial and resumable)
+
+The launcher checks completed JSON/NPZ/checkpoint artifacts. It **skips**
+verified finished slots, so running it after R2-01/02 does not repeat
+those GPU probes. A partial or corrupt completed artifact is a STOP,
+not permission to overwrite or resume intermediate optimizer state.
+Before any additional GPU probes it performs a CPU-only check that the
+actual completed P2B Full-E1 control configuration exists and matches
+the original S2 checkpoint, seed, LR and other training settings.
+
+If automatic discovery of the actual P2B YAML is ambiguous, pass its
+real path (do not fabricate a new file):
+
+```bash
+bash experiments/collab_injection_v1/run_r2_eight_foreground.sh \
+  --p2b-source /absolute/path/to/P2B_REAL_FULL_E1.yaml
+```
+
 ## Single command (foreground, strictly serial)
 
 ```bash
