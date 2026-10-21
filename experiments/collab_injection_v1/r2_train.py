@@ -57,6 +57,17 @@ def probe_gate(arm):
     c=b["score_differences_vs_native"]["relation_v"]
     if c["fraction_nonzero"]<=0:
         raise RuntimeError("R2-05 candidate-aware V has zero native logit impact")
+    # The candidate mismatch must actually change the REAL forward output;
+    # global score differences alone cannot demonstrate relational specificity.
+    import numpy as np
+    prediction=Path(b["prediction_archive"])
+    if not prediction.is_file():
+        raise FileNotFoundError(prediction)
+    with np.load(prediction,allow_pickle=False) as npz:
+        if np.array_equal(npz["relation_v"],npz["relation_shuffle"]):
+            raise RuntimeError(
+                "Correct and mismatched candidate produce identical Yes logits. "
+                "Investigate relation weights before committing full training.")
     if arm=="07":
         probe03=ROOT/"logs/collab_v1/R2_03_PROBE.json"
         if not probe03.is_file():
@@ -92,7 +103,7 @@ def control_config(source,mode,arm,root,steps):
     if int(r.get("accum_grad_iters",0))!=3:
         raise RuntimeError("Expected P2B gradient accumulation=3")
     m["r2_mode"]=mode
-    r["output_dir"]=str((root/"output"/arm/("SMOKE" if steps else "FULL_E1")).resolve())
+    r["output_dir"]=str((ROOT/"output"/root.name/arm/("SMOKE" if steps else "FULL_E1")).resolve())
     r["evaluate"]=False
     r["resume_ckpt_path"]=None
     r["skip_validation"]=bool(steps)
@@ -229,7 +240,7 @@ def main():
             "--cfg-path",folder/"FULL_E1.yaml","--mode",mode],
             folder/"FULL_E1.log")
         auc,uauc=eval_result(folder/"FULL_E1.log")
-        matches=list((base/"output"/arm/"FULL_E1").rglob("checkpoint_best.pth"))
+        matches=list((ROOT/"output"/base.name/arm/"FULL_E1").rglob("checkpoint_best.pth"))
         if len(matches)!=1:
             raise RuntimeError(f"Expected exactly one R2 best checkpoint: {matches}")
         info.update({"status":"complete","auc":auc,"uauc":uauc,
