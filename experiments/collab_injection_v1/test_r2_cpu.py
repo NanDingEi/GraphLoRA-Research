@@ -4,7 +4,7 @@ import torch
 import torch.nn.functional as F
 from types import SimpleNamespace
 from r2_collab_runtime import (
-    R2Runtime, make_relation_weights, _gather, MODES,
+    R2Runtime, make_relation_weights, _gather, _validate_l31_adapters, MODES,
 )
 
 
@@ -63,14 +63,28 @@ def test_model_context():
     fb,samples,n=fixture()
     runtime=R2Runtime("relation_v")
     runtime.original_feedback=lambda model,*a: fb
-    modq=SimpleNamespace(module_tag="q",r2_weights=None,
+    modq=SimpleNamespace(module_tag="q",layer_idx=31,gcn_layer=31,
+                         collab_mode="legacy",r2_weights=None,
                          r2_decision=None,r2_key=None)
-    modv=SimpleNamespace(module_tag="v",r2_weights=None,
+    modv=SimpleNamespace(module_tag="v",layer_idx=31,gcn_layer=31,
+                         collab_mode="legacy",r2_weights=None,
                          r2_decision=None,r2_key=None)
     model=SimpleNamespace(
         collab_mode="legacy",gcn_layer=31,num_users=n,
         my_linears=[modq,modv],
     )
+    # Regression: real MiniGPT4Rec_v2 does not expose model.gcn_layer.
+    assert not hasattr(model,"gcn_layer")
+    assert set(_validate_l31_adapters(model))=={"q","v"}
+    try:
+        modv.gcn_layer=30
+        _validate_l31_adapters(model)
+    except RuntimeError:
+        pass
+    else:
+        raise AssertionError("R2 should reject wrong adapter injection depth")
+    finally:
+        modv.gcn_layer=31
     got=runtime._feedback(
         model,samples,None,None,torch.zeros(2,20,8),None)
     assert got is fb
