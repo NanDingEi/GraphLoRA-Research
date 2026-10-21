@@ -720,6 +720,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             target_fusion_mode="linear",
             target_fusion_relative_cap=0.02,
             target_key_scope="history",
+            l30_aux_weight=0.0,
+            l30_aux_layer=30,
             gnn_semantic_align=False,
             gnn_semantic_weight=0.05,
             train_gnn_with_rec_loss=True,
@@ -820,6 +822,21 @@ class MiniGPT4Rec_v2(Rec2Base):
         self._target_key_scope_used_batches = 0
         self._ks_fallback_rows = 0
         self._ks_mismatch_calls = 0
+        # Optional L30 auxiliary BCE; weight=0 is identical to S2.
+        self.l30_aux_weight = float(l30_aux_weight)
+        self.l30_aux_layer = int(l30_aux_layer)
+        if not 0 <= self.l30_aux_weight <= 0.1:
+            raise ValueError("L30 auxiliary BCE weight must lie in [0, 0.1]")
+        if self.l30_aux_weight and (
+            collab_mode != "legacy" or int(gnn_scale) != 0.1 or
+            int(gcn_layer) != 31 or lora_config is None or
+            not lora_config.use_lora
+        ):
+            raise ValueError("L30 auxiliary BCE requires legacy S2 L31 LoRA injection")
+        self._l30_aux_active = False
+        self._l30_aux_position = None
+        self._l30_aux_hidden = None
+        self._l30_aux_forward_calls = 0
         self.target_key_adapter = None
         self._target_fusion_payload = None
         if collab_mode == "conditional_lora" and float(gnn_scale) != 0:
@@ -1125,6 +1142,16 @@ class MiniGPT4Rec_v2(Rec2Base):
                     f"weight={self.gnn_semantic_weight}, "
                     f"rec_loss_updates_gnn={self.train_gnn_with_rec_loss}"
                 )
+
+        if self.l30_aux_weight:
+            if not 0 <= self.l30_aux_layer < int(gcn_layer):
+                raise ValueError("Auxiliary decision layer must precede S2 L31")
+            self._l30_aux_handle = self.llama_model.model.layers[
+                self.l30_aux_layer
+            ].register_forward_hook(self._l30_aux_capture)
+            print(f"[L30-AUX] hook layer={self.l30_aux_layer} "
+                  f"weight={self.l30_aux_weight}; L31 Yes path unchanged",
+                  flush=True)
 
         if freeze_lora and self.use_lora:
             print("freeze LoRA...")
@@ -1556,6 +1583,41 @@ class MiniGPT4Rec_v2(Rec2Base):
             (user, target, history, user * target,
              history * target, (user - target).abs()), dim=-1
         )
+
+    def _l30_aux_capture(self, module, inputs, output):
+        """Capture only final prompt decision vector, retaining autograd."""
+        if not self._l30_aux_active:
+            return
+        hidden = output[0] if isinstance(output, (tuple, list)) else output
+        pos = self._l30_aux_position
+        if not torch.is_tensor(hidden) or hidden.ndim != 3:
+            raise RuntimeError("L30 auxiliary decoder output must be [B,S,H]")
+        if pos is None or not 0 <= pos < hidden.shape[1]:
+            raise RuntimeError("Invalid L30 auxiliary decision token position")
+        if self._l30_aux_hidden is not None:
+            raise RuntimeError("L30 auxiliary hook executed more than once")
+        self._l30_aux_hidden = hidden[:, pos, :]
+        self._l30_aux_forward_calls += 1
+
+    def _l30_auxiliary_bce(self, state, yes_id, labels):
+        """Final frozen RMSNorm + original Yes head in FP32, without detach."""
+        if state is None or state.ndim != 2 or not state.requires_grad:
+            raise RuntimeError("L30 auxiliary hidden has no LoRA gradient path")
+        norm = self.llama_model.model.norm
+        eps = getattr(norm, "variance_epsilon", getattr(norm, "eps", None))
+        if eps is None:
+            raise RuntimeError("Final RMSNorm epsilon is unavailable")
+        with torch.autocast(device_type=state.device.type, enabled=False):
+            x = state.float()
+            x = x * torch.rsqrt(x.square().mean(-1, keepdim=True) + float(eps))
+            x = x * norm.weight.float()
+            yes_row = self.llama_model.lm_head.weight[yes_id].float()
+            aux_logit = (x * yes_row.unsqueeze(0)).sum(-1)
+            aux_loss = F.binary_cross_entropy_with_logits(
+                aux_logit, labels.float())
+        if not torch.isfinite(aux_loss):
+            raise RuntimeError("Non-finite L30 auxiliary loss")
+        return aux_loss
 
     def _target_key_projection_hook(self, module, inputs, output):
         payload = self._target_key_payload
@@ -2354,6 +2416,15 @@ class MiniGPT4Rec_v2(Rec2Base):
                     self._make_target_fusion_features(fb, samples),
                     decision_pos,
                 )
+            # Activate only for the real training forward, never teacher/eval.
+            active_l30 = bool(self.training and self.l30_aux_weight > 0)
+            self._l30_aux_active = active_l30
+            self._l30_aux_position = sample_embeds.shape[1] - 1 if active_l30 else None
+            self._l30_aux_hidden = None
+            if active_l30 and self._l30_aux_position != (
+                inputs_embeds.shape[1] - t_posi
+            ):
+                raise RuntimeError("L30 auxiliary/native Yes token position mismatch")
             try:
                 if not self.use_lora:
                     outputs = self.llama_model(
@@ -2369,7 +2440,12 @@ class MiniGPT4Rec_v2(Rec2Base):
                         return_dict=True,
                         labels=targets,
                     )
+            except BaseException:
+                self._l30_aux_hidden = None
+                raise
             finally:
+                self._l30_aux_active = False
+                self._l30_aux_position = None
                 self._target_fusion_payload = None
                 self._target_key_payload = None
 
@@ -2390,6 +2466,24 @@ class MiniGPT4Rec_v2(Rec2Base):
 
         loss = loss_rec
         ret = {"loss": loss, "loss_rec": loss_rec.detach()}
+        if self.training and self.l30_aux_weight:
+            aux_state = self._l30_aux_hidden
+            self._l30_aux_hidden = None
+            if aux_state is None:
+                raise RuntimeError("L30 auxiliary decoder never captured a state")
+            aux_loss = self._l30_auxiliary_bce(
+                aux_state, pos_ans_id, samples["label"])
+            loss = loss + self.l30_aux_weight * aux_loss
+            ret["loss"] = loss
+            ret["loss_l30_aux"] = aux_loss.detach()
+            if self._l30_aux_forward_calls <= 3 or (
+                self._l30_aux_forward_calls % 500 == 0
+            ):
+                print(f"[L30-AUX] step={self._l30_aux_forward_calls} "
+                      f"rec={loss_rec.detach().item():.6f} "
+                      f"aux={aux_loss.detach().item():.6f} "
+                      f"weighted={self.l30_aux_weight * aux_loss.detach().item():.6f}",
+                      flush=True)
 
         if self.training and self.gnn_semantic_align:
             if self.sem_adapter_on and not getattr(self, 'sem_structural_skip', False):
@@ -2801,6 +2895,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         target_fusion_mode = cfg.get("target_fusion_mode", "linear")
         target_fusion_relative_cap = cfg.get("target_fusion_relative_cap", 0.02)
         target_key_scope = cfg.get("target_key_scope", "history")
+        l30_aux_weight = cfg.get("l30_aux_weight", 0.0)
+        l30_aux_layer = cfg.get("l30_aux_layer", 30)
 
         # Only the requested new controls.
         gnn_semantic_align = cfg.get("gnn_semantic_align", False)
@@ -2871,6 +2967,8 @@ class MiniGPT4Rec_v2(Rec2Base):
             target_fusion_mode=target_fusion_mode,
             target_fusion_relative_cap=target_fusion_relative_cap,
             target_key_scope=target_key_scope,
+            l30_aux_weight=l30_aux_weight,
+            l30_aux_layer=l30_aux_layer,
             gnn_semantic_align=gnn_semantic_align,
             gnn_semantic_weight=gnn_semantic_weight,
             train_gnn_with_rec_loss=train_gnn_with_rec_loss,
