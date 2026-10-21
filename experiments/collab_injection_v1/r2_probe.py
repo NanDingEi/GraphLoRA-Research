@@ -72,6 +72,30 @@ def build_model(args):
     return cfg,runner,runner.unwrap_dist_model(runner.model),ckpt
 
 
+def get_valid_probe_loader(runner):
+    """Use the same concrete Valid DataLoader as RecBaseTask.evaluation.
+
+    RunnerBase wraps each split in MultiIterLoader for multi-dataset
+    sampling. That wrapper implements __next__ but NOT __iter__.
+    Its .loaders entries are PrefetchLoader instances and ARE iterable.
+    Accessing exactly one loader is intentional for ML-1M OOD2 so every
+    variant restarts at Valid sample 0 without exhausting a shared iterator.
+    """
+    wrapped=runner.dataloaders.get("valid")
+    loaders=getattr(wrapped,"loaders",None)
+    if not isinstance(loaders,(list,tuple)) or len(loaders)!=1:
+        raise RuntimeError(
+            "R2 requires one concrete Valid iterator inside MultiIterLoader; "
+            f"wrapper={type(wrapped).__name__} "
+            f"num_loaders={len(loaders) if loaders is not None else 'N/A'}")
+    loader=loaders[0]
+    if not callable(getattr(loader,"__iter__",None)):
+        raise RuntimeError(f"R2 concrete Valid loader is not iterable: {type(loader)}")
+    if len(loader)*3 < 512:
+        raise RuntimeError("R2 Valid loader unexpectedly too small")
+    return loader
+
+
 @torch.no_grad()
 def infer_512(cfg,runner,model,runtime,mode,n_samples):
     runtime.stats.clear()
@@ -81,7 +105,9 @@ def infer_512(cfg,runner,model,runtime,mode,n_samples):
     entry.setup_seeds(cfg)
     arrays={k:[] for k in ("user","item","label","score")}
     seen=0
-    for samples in runner.dataloaders["valid"]:
+    # Concrete PrefetchLoader, as used in RecBaseTask.evaluation.
+    # A new iter(loader) starts from batch zero for EVERY mode.
+    for samples in get_valid_probe_loader(runner):
         if seen>=n_samples:
             break
         samples=prepare_sample(samples,cuda_enabled=True)
