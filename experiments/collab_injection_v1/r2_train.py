@@ -186,11 +186,41 @@ def check_smoke_lora_update(smoke_checkpoint):
     del before,after
 
 
-def preflight():
+def locate_p2b_source(explicit=None):
+    """Locate the actual user-produced P2B configuration, no guesswork.
+
+    The original experiment is under the P0 directory on the server,
+    but the absolute timestamp and yaml name can vary. The default
+    historical path wins; otherwise require one unique existing match
+    or an explicit --p2b-source. Never generate a 'matched' baseline
+    config from guesses.
+    """
+    if explicit:
+        path=Path(explicit).expanduser().resolve()
+        if not path.is_file():
+            raise FileNotFoundError(f"Specified P2B YAML missing: {path}")
+        return path
+    if SOURCE.is_file():
+        return SOURCE.resolve()
+    root=ROOT/"logs/collab_v1"
+    matches=[]
+    for glob in ("**/*P2B*FULL*.yaml","**/*P2B*E1*.yaml"):
+        matches.extend(root.glob(glob))
+    matches=sorted({p.resolve() for p in matches if p.is_file()})
+    if len(matches)!=1:
+        raise RuntimeError(
+            "Cannot uniquely locate completed P2B train YAML. "
+            f"Found {len(matches)} candidates: {[str(p) for p in matches]}. "
+            "Pass --p2b-source with the exact P2B Full-E1 YAML; "
+            "R2 must not invent training-control hyperparameters.")
+    return matches[0]
+
+
+def preflight(source):
     if os.environ.get("CUDA_VISIBLE_DEVICES")!="0":
         raise RuntimeError("Set CUDA_VISIBLE_DEVICES=0 before R2 training")
-    if not S2.is_file() or not SOURCE.is_file():
-        raise FileNotFoundError("Missing original S2 checkpoint or P2B reference YAML")
+    if not S2.is_file() or not source.is_file():
+        raise FileNotFoundError("Missing original S2 checkpoint or matched P2B YAML")
     p=subprocess.run(["pgrep","-af","[t]rain_collm_mf_din.py|[r]2_runtime_entry.py"],
                      capture_output=True,text=True)
     if p.returncode==0 and p.stdout.strip():
@@ -210,12 +240,15 @@ def main():
     p.add_argument("--root",default="logs/collab_v1/R2_EIGHT_20261022")
     p.add_argument("--smoke-steps",type=int,default=24)
     p.add_argument("--prepare-only",action="store_true")
+    p.add_argument("--p2b-source",default=None,
+        help="Exact completed P2B FULL_E1 YAML, if autodiscovery is ambiguous")
     args=p.parse_args()
     if args.smoke_steps!=24:
         raise ValueError("Only the predefined 24-step smoke is allowed")
-    preflight()
+    source_path=locate_p2b_source(args.p2b_source)
+    preflight(source_path)
     mode,branch=probe_gate(args.round)
-    source=yaml.safe_load(SOURCE.read_text(encoding="utf-8"))
+    source=yaml.safe_load(source_path.read_text(encoding="utf-8"))
     base=Path(args.root).resolve()
     arm="R2_"+args.round
     folder=base/arm
@@ -225,7 +258,7 @@ def main():
     info={"round":args.round,"mode":mode,"gate":branch,
           "source_commit":repo_head(),"original_s2":str(S2),
           "original_s2_sha256":sha(S2),
-          "source_p2b":str(SOURCE),"source_p2b_sha256":sha(SOURCE),
+          "source_p2b":str(source_path),"source_p2b_sha256":sha(source_path),
           "status":"prepared"}
     smoke=control_config(source,mode,arm,base,24)
     full=control_config(source,mode,arm,base,None)
