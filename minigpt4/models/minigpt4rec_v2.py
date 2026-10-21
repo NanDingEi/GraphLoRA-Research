@@ -2496,12 +2496,12 @@ class MiniGPT4Rec_v2(Rec2Base):
                 # Anchor-Preserving Semantic Refinement: L_corr replaces the
                 # old unanchored L_sem
                 loss_corr = self._compute_corr_loss(fb)
-                loss = loss_rec + self.sem_corr_weight * loss_corr
+                loss = loss + self.sem_corr_weight * loss_corr
                 ret["loss"] = loss
                 ret["loss_sem"] = loss_corr.detach()
             else:
                 loss_sem = self._compute_gnn_semantic_loss(fb)
-                loss = loss_rec + self.gnn_semantic_weight * loss_sem
+                loss = loss + self.gnn_semantic_weight * loss_sem
                 ret["loss"] = loss
                 ret["loss_sem"] = loss_sem.detach()
 
