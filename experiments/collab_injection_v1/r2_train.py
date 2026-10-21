@@ -155,6 +155,37 @@ def eval_result(log):
     return rows[0]
 
 
+def check_smoke_lora_update(smoke_checkpoint):
+    """Protect against the historical AMP no-grad cache/optimizer skip bug.
+
+    Require four LoRA q/v A/B tensor changes in each of L0-L7
+    compared with the exact original S2 checkpoint, before full training.
+    """
+    import torch
+    def read(path):
+        try:
+            return torch.load(str(path),map_location="cpu",mmap=True,
+                              weights_only=False)["model"]
+        except TypeError:
+            return torch.load(str(path),map_location="cpu")["model"]
+    before=read(S2)
+    after=read(smoke_checkpoint)
+    layer_counts={i:0 for i in range(8)}
+    for k,v in after.items():
+        match=re.search(
+            r"layers\.(\d+)\.self_attn\.(?:q_proj|v_proj)\.lora_[AB]\.",
+            k)
+        if not match or k not in before:
+            continue
+        layer=int(match.group(1))
+        if layer in layer_counts and not torch.equal(before[k],v):
+            layer_counts[layer]+=1
+    if any(v!=4 for v in layer_counts.values()):
+        raise RuntimeError(f"Early LoRA smoke update failed: {layer_counts}")
+    print(f"[R2-UPDATE-CHECK] L0-L7 all 4/4 LoRA tensors updated",flush=True)
+    del before,after
+
+
 def preflight():
     if os.environ.get("CUDA_VISIBLE_DEVICES")!="0":
         raise RuntimeError("Set CUDA_VISIBLE_DEVICES=0 before R2 training")
@@ -232,6 +263,13 @@ def main():
             raise RuntimeError("R2 smoke never activated V weighting")
         if mode=="relation_v_q" and counters.get("decision_q_hook",0)<=0:
             raise RuntimeError("R2 smoke never activated decision-Q hook")
+        smoke_checkpoints=list((ROOT/"output"/base.name/arm/"SMOKE").rglob(
+            "checkpoint_0.pth"))
+        if len(smoke_checkpoints)!=1:
+            raise RuntimeError(
+                f"R2 smoke missing unique checkpoint_0: {smoke_checkpoints}")
+        check_smoke_lora_update(smoke_checkpoints[0])
+        info["smoke_checkpoint"]=str(smoke_checkpoints[0])
         info["smoke_runtime_counters"]=counters
         info["status"]="full_running"
         write()
