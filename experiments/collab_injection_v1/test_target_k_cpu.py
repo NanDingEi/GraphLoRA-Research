@@ -119,6 +119,33 @@ single, fb_count = negative(torch.tensor([11]), features[:1], nodes, penult, 10)
 assert fb_count == 1 and not torch.equal(single[0], features[0])
 print("[KEY-CPU] KS candidate mismatch and single-target fallback PASS", flush=True)
 
+# Regression for HS_ANCHOR NoneType.float(): target_k_shuffle must request
+# NGCF's return_penult=True path, just like H0/H1. Test the *live
+# expression* from compute_feedback_gcn, not a separately maintained list.
+gcn_fn = [n for n in model[0].body
+          if isinstance(n, ast.FunctionDef)
+          and n.name == "compute_feedback_gcn"]
+assert len(gcn_fn) == 1
+view_assign = [n for n in gcn_fn[0].body
+               if isinstance(n, ast.Assign)
+               and any(isinstance(t, ast.Name) and t.id == "need_gnn_view"
+                       for t in n.targets)]
+assert len(view_assign) == 1, "Missing unique need_gnn_view assignment"
+expr = compile(ast.Expression(body=view_assign[0].value),
+               str(src), "eval")
+for mode in ("target_k_no_candidate", "target_k_candidate", "target_k_shuffle"):
+    me = SimpleNamespace(collab_mode=mode, rel_inject=False,
+                         rel_rank_mod=False)
+    needed = eval(expr, {"self": me, "need_semantic": False,
+                         "need_pref": False})
+    assert bool(needed), f"{mode} must compute GNN penult"
+old = SimpleNamespace(collab_mode="legacy", rel_inject=False,
+                      rel_rank_mod=False)
+assert not eval(expr, {"self": old, "need_semantic": False,
+                       "need_pref": False})
+print("[KEY-CPU] KS/H0/H1 all request GNN penult; legacy unchanged PASS", flush=True)
+
+
 # History+target scope: user Key unchanged; the other two groups change.
 fake.target_key_scope = "history_target"
 fake._target_key_payload = (ctx, b, pos, role_ids)
