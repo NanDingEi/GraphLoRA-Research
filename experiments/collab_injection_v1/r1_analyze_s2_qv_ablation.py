@@ -16,11 +16,18 @@ import pandas as pd
 from analyze_s2_layer_complementarity import (
     auc_metrics, paired_complementarity,
 )
-from r1_eval_s2_qv_ablation import ARMS, EXPECTED_S2_AUC, EXPECTED_S2_UAUC
-
-# r1_eval_s2_qv_ablation imports training/model packages; avoid loading a
-# 7B model in CPU analysis: imports are definitions only but are heavy.
-# Use pre-registered names as a cross-check independent of GPU operation.
+# Keep CPU analysis independent of the 7B/Vicuna training imports.
+# The NPZ stores the exact arm names and Q/V coefficients and these are
+# verified against this predeclared protocol (no scores used to select arms).
+ARMS = (
+    ("R1_A_S2_QV", 0.1, 0.1),
+    ("R1_B_OFF", 0.0, 0.0),
+    ("R1_C_V_ONLY", 0.0, 0.1),
+    ("R1_D_Q_ONLY", 0.1, 0.0),
+    ("R1_E_V_HALF", 0.0, 0.05),
+)
+EXPECTED_S2_AUC = 0.7296752596287361
+EXPECTED_S2_UAUC = 0.6841670211619721
 
 def popularity_strata(train, items):
     """Train-only frequency per candidate item (ALL train rows; no labels)."""
