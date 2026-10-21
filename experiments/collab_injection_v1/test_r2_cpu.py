@@ -145,9 +145,8 @@ def test_probe_loader_contract():
     assert not hasattr(wrapper,"__iter__")
     runner=SimpleNamespace(dataloaders={"valid":wrapper})
     loader=get(runner)
-    assert [list(b["UserID"]) for b in loader]==[
-        [torch.tensor(10),torch.tensor(20),torch.tensor(30)],
-        [torch.tensor(40),torch.tensor(50),torch.tensor(60)]]
+    assert [b["UserID"].tolist() for b in loader]==[
+        [10,20,30],[40,50,60]]
     # Distinct fresh iteration restarts from the first Valid example.
     assert next(iter(get(runner)))["UserID"][0].item()==10
     wrapper.loaders.append(ConcreteValid())
