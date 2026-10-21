@@ -828,7 +828,7 @@ class MiniGPT4Rec_v2(Rec2Base):
         if not 0 <= self.l30_aux_weight <= 0.1:
             raise ValueError("L30 auxiliary BCE weight must lie in [0, 0.1]")
         if self.l30_aux_weight and (
-            collab_mode != "legacy" or int(gnn_scale) != 0.1 or
+            collab_mode != "legacy" or abs(float(gnn_scale) - 0.1) > 1e-10 or
             int(gcn_layer) != 31 or lora_config is None or
             not lora_config.use_lora
         ):
