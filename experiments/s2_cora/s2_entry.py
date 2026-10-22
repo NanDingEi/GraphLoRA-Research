@@ -53,6 +53,8 @@ def main():
     ap.add_argument("--mode", choices=("baseline", "cora"), required=True)
     ap.add_argument("--fingerprint", required=True)
     ap.add_argument("--probe-only", action="store_true")
+    ap.add_argument("--cora-active", choices=("both", "q", "v"), default="both")
+    ap.add_argument("--cora-gain", type=float, default=1.0)
     args = ap.parse_args()
     os.chdir(ROOT)
     sys.path[:0] = [str(ROOT), str(HERE)]
@@ -63,7 +65,9 @@ def main():
     runtime = None
     if args.mode == "cora":
         from s2_cora_adapter import install_cora
-        runtime = install_cora()
+        runtime = install_cora(active=args.cora_active, gain=args.cora_gain)
+        print("[S2-CORA-SETTING] active=%s gain=%g" %
+              (args.cora_active, args.cora_gain), flush=True)
 
     original = graph.MiniGPT4Rec_v2.from_config
 
@@ -105,7 +109,8 @@ def main():
             count = dict(runtime.counters)
             print("[S2-CORA-COUNTERS] "+json.dumps(count, sort_keys=True), flush=True)
             if not args.probe_only:
-                for key in ("q_cora_forward", "v_cora_forward"):
+                expected = ("q", "v") if args.cora_active == "both" else (args.cora_active,)
+                for key in (tag + "_cora_forward" for tag in expected):
                     if count.get(key, 0) <= 0:
                         raise RuntimeError(f"CoRA forward never executed: {key}")
     finally:
