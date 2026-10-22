@@ -20,9 +20,9 @@ class CollaborativeQueryGenerator(nn.Module):
             raise ValueError(f"Invalid feature_mode: {feature_mode}")
         if attention_mode not in ("full", "no_self", "no_cross"):
             raise ValueError(f"Invalid attention_mode: {attention_mode}")
+        super().__init__()
         self.feature_mode = feature_mode
         self.attention_mode = attention_mode
-        super().__init__()
         self.rank = int(rank)
         self.query = nn.Parameter(torch.randn(queries, query_dim) * 0.02)
         self.cf_project = nn.Linear(graph_dim, query_dim)
