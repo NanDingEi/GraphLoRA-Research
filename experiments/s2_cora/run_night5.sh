@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Five DISTINCT models with seed=42: TWO complete epochs each; S2 cosine horizon remains 3.
+# Five total runs (one S2 control plus four CoRA models) with seed=42: TWO complete epochs each; S2 cosine horizon remains 3.
 # GPU0 only, fully serial, FOREGROUND. No nohup, tmux or background execution.
 set -Eeuo pipefail
 cd "$(dirname "$0")/../.."
 export CUDA_VISIBLE_DEVICES=0 PYTHONUNBUFFERED=1
 EXP="experiments/s2_cora"
-LOG="logs/S2_CORA_FIVE_20261022"
+LOG="logs/S2_CORA_FIVE_20261023"
 ACTION="${1:-all}"
 case "$ACTION" in prepare|run|all|summary) ;; *) echo "Usage: $0 {prepare|run|all|summary}" >&2; exit 2;; esac
 
