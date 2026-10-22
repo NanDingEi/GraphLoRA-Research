@@ -12,7 +12,7 @@ if [[ "${CONDA_DEFAULT_ENV:-}" != "minigpt4" ]]; then
   exit 2
 fi
 
-BASELINE="tran_configs/collm_pretrain_mf_ood_scratch_rlm.yaml"
+BASELINE="${1:-tran_configs/collm_pretrain_mf_ood_scratch_rlm.yaml}"
 RUNNER="experiments/collab_injection_v1/r5_fair_pair.py"
 ENTRY="experiments/collab_injection_v1/r5_fair_entry.py"
 if [[ ! -f "$BASELINE" ]]; then
