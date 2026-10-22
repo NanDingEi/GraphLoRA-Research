@@ -55,6 +55,8 @@ def main():
     ap.add_argument("--probe-only", action="store_true")
     ap.add_argument("--cora-active", choices=("both", "q", "v"), default="both")
     ap.add_argument("--cora-gain", type=float, default=1.0)
+    ap.add_argument("--cora-feature", choices=("both", "user_only", "item_only", "interaction"), default="both")
+    ap.add_argument("--cora-attention", choices=("full", "no_self", "no_cross"), default="full")
     args = ap.parse_args()
     os.chdir(ROOT)
     sys.path[:0] = [str(ROOT), str(HERE)]
@@ -65,9 +67,12 @@ def main():
     runtime = None
     if args.mode == "cora":
         from s2_cora_adapter import install_cora
-        runtime = install_cora(active=args.cora_active, gain=args.cora_gain)
-        print("[S2-CORA-SETTING] active=%s gain=%g" %
-              (args.cora_active, args.cora_gain), flush=True)
+        runtime = install_cora(active=args.cora_active, gain=args.cora_gain,
+                               feature_mode=args.cora_feature,
+                               attention_mode=args.cora_attention)
+        print("[S2-CORA-SETTING] active=%s gain=%g feature=%s attention=%s" %
+              (args.cora_active, args.cora_gain, args.cora_feature,
+               args.cora_attention), flush=True)
 
     original = graph.MiniGPT4Rec_v2.from_config
 
