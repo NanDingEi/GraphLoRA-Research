@@ -1024,7 +1024,8 @@ class MiniGPT4Rec_v2(Rec2Base):
         need_semantic = self.training and self.gnn_semantic_align
         need_pref = self.training and self.pref_distill
         need_gnn_view = need_semantic or need_pref \
-            or self.rel_inject or self.rel_rank_mod
+            or self.rel_inject or self.rel_rank_mod \
+            or bool(getattr(self, '_s2_cora_need_view', False))
 
         if need_semantic:
             # LLM is the semantic teacher for this auxiliary objective.
@@ -1142,6 +1143,12 @@ class MiniGPT4Rec_v2(Rec2Base):
             "step": int(samples.get('epoch', 0)) * int(samples.get('num_iters_per_epoch', 0))
                     + int(samples.get('iters', 0)),
         }
+
+        if getattr(self, "_s2_cora_need_view", False):
+            if gcn_penult is None:
+                raise RuntimeError("CoRA requires NGCF 256-d penultimate features")
+            ret["sub_node_ids"] = sub_node_ids
+            ret["gnn_penult"] = gcn_penult
 
         if need_gnn_view:
             valid = local_node_ids >= 0
