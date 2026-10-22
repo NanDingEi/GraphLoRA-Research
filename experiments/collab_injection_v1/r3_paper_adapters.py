@@ -153,15 +153,17 @@ class R3Runtime:
     def init_model(self,model,*args,**kwargs):
         self.original_init(model,*args,**kwargs)
         _,rank=self._validate(model)
-        # Instantiate only the selected adapter; no unrelated parameters.
-        if self.mode=="cflora":
-            model.r3_adapter=CFLoRAMixer(rank=rank)
-        elif self.mode=="cora":
-            hidden=model.my_linears[0].out_features
-            model.r3_adapter=CollaborativeQueryGenerator(
-                hidden_size=hidden,rank=rank)
-        else:
-            raise RuntimeError("R3 model creation requires cflora or cora")
+        # Preserve S2 RNG for dataset order, LoRA dropout and warm-start
+        # training, despite the random initialization of new modules.
+        with torch.random.fork_rng(devices=[]):
+            if self.mode=="cflora":
+                model.r3_adapter=CFLoRAMixer(rank=rank)
+            elif self.mode=="cora":
+                hidden=model.my_linears[0].out_features
+                model.r3_adapter=CollaborativeQueryGenerator(
+                    hidden_size=hidden,rank=rank)
+            else:
+                raise RuntimeError("R3 model creation requires cflora or cora")
         model.r3_adapter.to(model.my_linears[0].weight.device)
         for p in model.r3_adapter.parameters():
             p.requires_grad_(True)
