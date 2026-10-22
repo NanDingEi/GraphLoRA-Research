@@ -574,6 +574,18 @@ class RunnerBase:
                 if self.evaluate_only:
                     break
 
+                # Optional one-epoch controlled experiment on the ORIGINAL
+                # max_epoch=3 cosine LR curve. Default None preserves S2.
+                _limit = self.config.run_cfg.get("stop_after_n_epochs", None)
+                if _limit is not None:
+                    _limit = int(_limit)
+                    if not 1 <= _limit <= self.max_epoch:
+                        raise ValueError("stop_after_n_epochs must lie in [1,max_epoch]")
+                    if (cur_epoch - self.start_epoch + 1) >= _limit:
+                        logging.info("[S2-EPOCH-LIMIT] completed=%d scheduler_max_epoch=%d",
+                                     _limit, self.max_epoch)
+                        break
+
                 if self.config.run_cfg.distributed:
                     dist.barrier()
                 if not self.model_to_betrained():
