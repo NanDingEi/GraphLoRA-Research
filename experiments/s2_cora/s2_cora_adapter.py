@@ -14,7 +14,14 @@ from torch.nn import functional as F
 
 class CollaborativeQueryGenerator(nn.Module):
     def __init__(self, hidden_size, graph_dim=256, rank=8,
-                 query_dim=64, queries=4):
+                 query_dim=64, queries=4, feature_mode="both",
+                 attention_mode="full"):
+        if feature_mode not in ("both", "user_only", "item_only", "interaction"):
+            raise ValueError(f"Invalid feature_mode: {feature_mode}")
+        if attention_mode not in ("full", "no_self", "no_cross"):
+            raise ValueError(f"Invalid attention_mode: {attention_mode}")
+        self.feature_mode = feature_mode
+        self.attention_mode = attention_mode
         super().__init__()
         self.rank = int(rank)
         self.query = nn.Parameter(torch.randn(queries, query_dim) * 0.02)
@@ -33,12 +40,28 @@ class CollaborativeQueryGenerator(nn.Module):
         nn.init.zeros_(self.v_up.weight)
 
     def forward(self, user, item):
-        tokens = torch.stack((user.float(), item.float()), dim=1)
+        user = user.float()
+        item = item.float()
+        if self.feature_mode == "user_only":
+            item = torch.zeros_like(item)
+        elif self.feature_mode == "item_only":
+            user = torch.zeros_like(user)
+        tokens = torch.stack((user, item), dim=1)
+        if self.feature_mode == "interaction":
+            # Explicit user-item multiplicative signal as an EXTRA context token.
+            tokens = torch.cat((tokens, (user * item).unsqueeze(1)), dim=1)
         kv = self.cf_project(tokens)
         queries = self.query.unsqueeze(0).expand(user.size(0), -1, -1)
-        q, _ = self.self_attn(queries, queries, queries, need_weights=False)
-        q = self.norm1(q + queries)
-        z, _ = self.cross_attn(q, kv, kv, need_weights=False)
+        if self.attention_mode == "no_self":
+            q = queries
+        else:
+            q_sa, _ = self.self_attn(queries, queries, queries, need_weights=False)
+            q = self.norm1(q_sa + queries)
+        if self.attention_mode == "no_cross":
+            # Preserve user/item information without learned cross-attention.
+            z = kv.mean(dim=1, keepdim=True).expand(-1, q.shape[1], -1)
+        else:
+            z, _ = self.cross_attn(q, kv, kv, need_weights=False)
         z = self.norm2(z + q)
         z = self.norm3(z + self.ff(z))
         return (1.0 + 0.5 * torch.tanh(self.rank_generator(z.mean(dim=1)))).view(
@@ -74,13 +97,15 @@ def pick_pair_features(fb, samples, model):
 
 
 class S2CoRARuntime:
-    def __init__(self, active="both", gain=1.0):
+    def __init__(self, active="both", gain=1.0, feature_mode="both", attention_mode="full"):
         if active not in ("both", "q", "v"):
             raise ValueError(f"Invalid CoRA branch {active!r}")
         if not 0 < float(gain) <= 5:
             raise ValueError(f"Invalid CoRA gain: {gain}")
         self.active = active
         self.gain = float(gain)
+        self.feature_mode = feature_mode
+        self.attention_mode = attention_mode
         self.counters = Counter()
         self.model = None
 
@@ -110,7 +135,9 @@ class S2CoRARuntime:
             # Existing S2 torch RNG stream is preserved exactly.
             with torch.random.fork_rng(devices=[]):
                 model.r3_adapter = CollaborativeQueryGenerator(
-                    hidden_size=modules["q"].out_features, rank=ranks[0])
+                    hidden_size=modules["q"].out_features, rank=ranks[0],
+                    feature_mode=runtime.feature_mode,
+                    attention_mode=runtime.attention_mode)
             model.r3_adapter.to(modules["q"].weight.device)
             model._s2_cora_need_view = False
             runtime.model = model
@@ -192,5 +219,6 @@ class S2CoRARuntime:
         return self
 
 
-def install_cora(active="both", gain=1.0):
-    return S2CoRARuntime(active=active, gain=gain).install()
+def install_cora(active="both", gain=1.0, feature_mode="both", attention_mode="full"):
+    return S2CoRARuntime(active=active, gain=gain, feature_mode=feature_mode,
+                         attention_mode=attention_mode).install()
