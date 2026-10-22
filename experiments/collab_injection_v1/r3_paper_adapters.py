@@ -175,6 +175,11 @@ class R3Runtime:
 
     def feedback(self,model,samples,samples_encode,replaced_idx,
                  inputs_embeds,attention_mask):
+        if self.mode=="off":
+            # A true untouched-S2 baseline branch for exact anchor testing.
+            return self.original_feedback(
+                model,samples,samples_encode,replaced_idx,
+                inputs_embeds,attention_mask)
         saved=model.collab_mode
         try:
             # Only ask existing GraphLoRA GNN for its 256-d penultimate view.
