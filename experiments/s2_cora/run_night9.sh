@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Nine experiments: 1 complete epoch per run; S2 cosine horizon remains 3.
+# Nine DISTINCT models with seed=42: TWO complete epochs each; S2 cosine horizon remains 3.
 # GPU0 only, fully serial, FOREGROUND. No nohup, tmux or background execution.
 set -Eeuo pipefail
 cd "$(dirname "$0")/../.."
@@ -46,7 +46,7 @@ if nvidia-smi --query-compute-apps=pid --format=csv,noheader,nounits 2>/dev/null
   exit 3
 fi
 
-echo "[NINE-LAUNCH] 9 × 1 full epoch, single GPU0, seed-matched, Valid only; $(date -Is)"
+echo "[NINE-LAUNCH] 9 different models × 2 full epochs, seed=42, single GPU0, Valid only; $(date -Is)"
 python -u "$EXP/night9.py" run 2>&1 | tee -a "$LOG/master.log"
 echo "[NINE-RESULTS]"
 cat "$LOG/summary.csv"
