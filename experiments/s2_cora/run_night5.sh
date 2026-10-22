@@ -17,6 +17,7 @@ if [[ "$ACTION" == "prepare" || "$ACTION" == "all" ]]; then
     "$EXP/s2_entry.py" \
     "$EXP/night5.py"
   python -u "$EXP/test_s2_cora_cpu.py"
+  python -u "$EXP/test_night5_plan.py"
   if [[ ! -e "$LOG" ]]; then
     python -u "$EXP/night5.py" prepare
   else
