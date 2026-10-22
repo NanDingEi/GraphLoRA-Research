@@ -74,7 +74,13 @@ def pick_pair_features(fb, samples, model):
 
 
 class S2CoRARuntime:
-    def __init__(self):
+    def __init__(self, active="both", gain=1.0):
+        if active not in ("both", "q", "v"):
+            raise ValueError(f"Invalid CoRA branch {active!r}")
+        if not 0 < float(gain) <= 5:
+            raise ValueError(f"Invalid CoRA gain: {gain}")
+        self.active = active
+        self.gain = float(gain)
         self.counters = Counter()
         self.model = None
 
@@ -139,6 +145,8 @@ class S2CoRARuntime:
                 return original_forward(mod, x)
             if mod.gcn_output is None:
                 return original_forward(mod, x)
+            if runtime.active != "both" and mod.module_tag != runtime.active:
+                return original_forward(mod, x)
             if not hasattr(mod, "_s2_cora_payload"):
                 raise RuntimeError("CoRA payload not installed before L31 forward")
             # Reproduce original S2 MyLinear BA+GNN path, then add the
@@ -173,7 +181,7 @@ class S2CoRARuntime:
             condition = low.float() * payload.float().unsqueeze(1)
             up = getattr(runtime.model.r3_adapter, mod.module_tag + "_up")
             delta = F.linear(condition, up.weight.float()).to(s2_delta.dtype)
-            result += s2_delta + delta
+            result += s2_delta + (runtime.gain * delta)
             runtime.counters[mod.module_tag+"_cora_forward"] += 1
             return result.to(prev_dtype)
 
@@ -184,5 +192,5 @@ class S2CoRARuntime:
         return self
 
 
-def install_cora():
-    return S2CoRARuntime().install()
+def install_cora(active="both", gain=1.0):
+    return S2CoRARuntime(active=active, gain=gain).install()
