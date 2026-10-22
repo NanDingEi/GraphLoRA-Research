@@ -88,6 +88,10 @@ def install_freeze(round_id):
     def patched_build(cls,cfg):
         model=original_build(cfg)
         freeze_after_s2_load(model,round_id)
+        # Snapshot before the optimizer ever sees the model.
+        model.r4_frozen_baseline_hash=frozen_hash(model)
+        print(f"[R4-FROZEN-SNAPSHOT] frozen_tensors="
+              f"{len(model.r4_frozen_baseline_hash)}",flush=True)
         return model
     graph.MiniGPT4Rec_v2.from_config=classmethod(patched_build)
 
