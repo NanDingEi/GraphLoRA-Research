@@ -61,6 +61,33 @@ def main():
             raise RuntimeError(f"Historical S2 trains all modules: {k} must be false")
     if m.get("fix_autocast_cache", False) is not False:
         raise RuntimeError("S2 historical FX flag changed: refusing a different baseline")
+    # Graph npz files are read RELATIVE to the S2 repository root even though
+    # the train/valid/test pickle paths are absolute. Reuse the archived S2
+    # graph files from the original GraphLoRA, never regenerate them.
+    graph_root = ROOT / "dataset/ml-1m"
+    reference_graph_root = Path("/home/bbx/user_lx/GraphLoRA/dataset/ml-1m")
+    for split in ("train", "valid", "test"):
+        fname = f"movie_graph_{split}.npz"
+        expected = reference_graph_root / fname
+        actual = graph_root / fname
+        if not expected.is_file():
+            raise FileNotFoundError(
+                f"Original S2 adjacency graph missing: {expected}")
+        if not actual.exists():
+            actual.parent.mkdir(parents=True, exist_ok=True)
+            actual.symlink_to(expected)
+            print(f"[S2-GRAPH-LINK] {actual} -> {expected}", flush=True)
+        if not actual.is_file():
+            raise FileNotFoundError(f"S2 graph is not a readable file: {actual}")
+        def digest(path):
+            h = hashlib.sha256()
+            with path.open("rb") as f:
+                for chunk in iter(lambda: f.read(1024 * 1024), b""):
+                    h.update(chunk)
+            return h.hexdigest()
+        if digest(actual) != digest(expected):
+            raise RuntimeError(f"S2 graph differs from original: {actual}")
+    print("[S2-GRAPH-PARITY-OK] train/valid/test exact original graph files", flush=True)
     # Never write anything into the original S2_groups_acc3 output directory.
     if ROOT_LOG.exists() or ROOT_OUT.exists():
         raise FileExistsError(f"Existing experiment files: {ROOT_LOG} / {ROOT_OUT}")
