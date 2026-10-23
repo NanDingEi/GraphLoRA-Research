@@ -443,6 +443,11 @@ class MyLinear(OriginalLinear):
 
             lora_output = self.lora_B[self.active_adapter](lora_a_output)
             result += lora_output
+            # Backward-compatible optional hook for archived rank-gate CoRA.
+            # Strict original-CoRA replaces this module forward with P(x @ A_ui),
+            # so the archived hook is NOT used or added in that experiment.
+            if getattr(self, "_no31_cora_hook", None) is not None:
+                result = self._no31_cora_hook(result, lora_a_output)
 
         return result.to(previous_dtype)
 
