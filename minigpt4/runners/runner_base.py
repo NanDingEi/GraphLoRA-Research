@@ -574,6 +574,13 @@ class RunnerBase:
                 if self.evaluate_only:
                     break
 
+                _night_epochs=int(__import__("os").environ["S2_NIGHT_EPOCHS"])
+                assert _night_epochs in (1,2)
+                if cur_epoch+1 >= _night_epochs:
+                    logging.info("[NIGHT8-STOP] trained_epochs=%d max_epoch=%d "
+                                 "Valid and checkpoint completed",cur_epoch+1,self.max_epoch)
+                    break
+
                 if self.config.run_cfg.distributed:
                     dist.barrier()
                 if not self.model_to_betrained():
