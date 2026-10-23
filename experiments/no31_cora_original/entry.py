@@ -32,8 +32,11 @@ def main():
     original_from_config=graph.MiniGPT4Rec_v2.from_config
     def build_and_verify(cls,cfg):
         model=original_from_config(cfg)
-        if len(runtime.targets)!=128:
-            raise RuntimeError("Original CoRA 128 projection modules missing")
+        if len(runtime.targets)!=runtime.expected_targets:
+            raise RuntimeError(
+                f"CoRA targets mismatch: {len(runtime.targets)} "
+                f"expected {runtime.expected_targets}"
+            )
         if any(float(m.gnn_scale)!=0 for m in model.my_linears):
             raise RuntimeError("NO31 L31 GNN injection accidentally enabled")
         if model.gnn_conf_loss_weight!=0.05 or model.s2_small_kd!=0.05:
@@ -44,8 +47,11 @@ def main():
             raise RuntimeError(f"Static LoRA A/B still trainable: {static[:4]}")
         pweights=[(n,p) for n,p in model.named_parameters()
                   if n.endswith("cora_lora_P.weight")]
-        if len(pweights)!=128:
-            raise RuntimeError(f"Found only {len(pweights)} dynamic CoRA-P projections")
+        if len(pweights)!=runtime.expected_targets:
+            raise RuntimeError(
+                f"Found {len(pweights)} dynamic CoRA-P projections, "
+                f"expected {runtime.expected_targets}"
+            )
         if any(p.shape!=(4096,16) or p.detach().count_nonzero()!=0 for _,p in pweights):
             raise RuntimeError("CoRA P not zero initialized in all attention projections")
         gen=model.cora_weight_generator
@@ -54,10 +60,21 @@ def main():
         qformer=gen.qformer.encoder.layer
         if len(qformer)!=8:
             raise RuntimeError("Expected original 8-layer QFormer")
+        if gen.input_mode != runtime.input_mode:
+            raise RuntimeError("CoRA input mode mismatch")
+        # Every selected target receives original CoRA's exact P(x @ A)
+        # forward; unselected projections do not receive dynamic weights.
+        if any(getattr(mod, "_cora_weight", "missing") != None
+               for mod in runtime.targets):
+            raise RuntimeError("Unexpected pre-active CoRA weights")
         print(
             "[CORA-ORIGINAL-PROBE-OK] QFormer=8x8 queries=4 "
-            "dynamic_A=[B,4096,16] normalized=True static_P=128 x [4096,16] "
-            "zero_init=True all_tokens=True base_LoRA_AB_frozen=True NO31_CTRKD=ON",
+            f"dynamic_A=[B,4096,16] normalized=True "
+            f"static_P={len(pweights)} x [4096,16] "
+            f"zero_init=True all_tokens=True base_LoRA_AB_frozen=True "
+            f"NO31_CTRKD=ON alpha={runtime.alpha} "
+            f"layers={runtime.layers[0]}-{runtime.layers[-1]} "
+            f"projections={','.join(runtime.projections)} input={runtime.input_mode}",
             flush=True,
         )
         if args.probe_only:
