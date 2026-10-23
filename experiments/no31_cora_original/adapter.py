@@ -10,6 +10,7 @@ We hook the matching projection forward of the installed GraphLoRA
 HuggingFace LLaMA; no dependency on a forked custom pllama.py.
 """
 from collections import Counter
+import os
 import re
 from types import MethodType
 import torch
@@ -25,9 +26,27 @@ class OriginalCoRARuntime:
         self.counters = Counter()
         self.targets = []
         self.active = False
+        # NIGHT8 overrides only through explicitly validated environment variables.
+        # No override => byte-for-byte original CoRA architecture and injection.
         self.rank = 16
-        self.alpha = 32
+        self.alpha = int(os.environ.get("NO31_CORA_ALPHA", "32"))
+        if self.alpha not in (16, 32, 64):
+            raise ValueError("NO31_CORA_ALPHA must be 16, 32 or 64")
         self.scaling = self.alpha / self.rank
+        projection_string = os.environ.get("NO31_CORA_PROJECTIONS", "q_proj,k_proj,v_proj,o_proj")
+        self.projections = tuple(projection_string.split(","))
+        if not self.projections or len(set(self.projections)) != len(self.projections):
+            raise ValueError("Duplicate/empty CoRA target projections")
+        if any(p not in ("q_proj","k_proj","v_proj","o_proj") for p in self.projections):
+            raise ValueError("Unexpected CoRA target projection")
+        layer_span = os.environ.get("NO31_CORA_LAYERS", "0-31")
+        if layer_span not in ("0-31", "16-31"):
+            raise ValueError("NO31_CORA_LAYERS must be 0-31 or 16-31")
+        self.layers = tuple(range(16, 32)) if layer_span=="16-31" else tuple(range(32))
+        self.input_mode = os.environ.get("NO31_CORA_INPUT", "concat")
+        if self.input_mode not in ("concat", "two_tokens"):
+            raise ValueError("NO31_CORA_INPUT must be concat or two_tokens")
+        self.expected_targets = len(self.projections) * len(self.layers)
 
     def install(self):
         from minigpt4.models import minigpt4rec_v2 as graph
@@ -74,6 +93,7 @@ class OriginalCoRARuntime:
                 user_embedding_size=e,
                 hidden_size=hidden,
                 r=state.rank,
+                input_mode=state.input_mode,
             )
             state.model = model
 
@@ -98,6 +118,10 @@ class OriginalCoRARuntime:
                 named.append((name, mod, layer, projection))
             if len(named) != 128 or len(seen) != 128:
                 raise RuntimeError(f"Expected 32 layers x 4 attention projections; found {len(named)}")
+            selected = [(name, mod, layer, proj) for name, mod, layer, proj in named
+                        if layer in state.layers and proj in state.projections]
+            if len(selected) != state.expected_targets:
+                raise RuntimeError(f"Invalid CoRA target selection: {len(selected)} / {state.expected_targets}")
 
             # Freeze the original standard LoRA-A/B weights. They are not
             # used by the original CoRA forward (P @ dynamic A instead).
@@ -105,7 +129,7 @@ class OriginalCoRARuntime:
                 if ".lora_A." in pname or ".lora_B." in pname:
                     param.requires_grad_(False)
 
-            for name, mod, layer, proj in named:
+            for name, mod, layer, proj in selected:
                 mod.cora_lora_P = nn.Linear(state.rank, hidden, bias=False)
                 nn.init.zeros_(mod.cora_lora_P.weight)
                 mod.cora_dropout = nn.Dropout(p=0.05)
@@ -119,7 +143,9 @@ class OriginalCoRARuntime:
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
                 f"qformer_layers=8 qformer_queries=4 full_matrix=[B,{hidden},{state.rank}] "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
-                f"frozen_CF=MF original_GNN_losses=ON",
+                f"frozen_CF=MF original_GNN_losses=ON "
+                f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
+                f"projections={','.join(state.projections)} input_mode={state.input_mode}",
                 flush=True,
             )
 
