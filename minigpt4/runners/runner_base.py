@@ -102,6 +102,9 @@ class RunnerBase:
                 "gnn": float(self.config.run_cfg.get("lr_scale_gnn", 1.0)),
                 "lora": float(self.config.run_cfg.get("lr_scale_lora", 1.0)),
                 "other": float(self.config.run_cfg.get("lr_scale_other", 1.0)),
+                # Used only when the optional CoRA adapter exists.
+                # NO31 baseline has no r3_adapter.* params and is unchanged.
+                "cora": float(self.config.run_cfg.get("lr_scale_cora", 0.25)),
             }
             import math
             for key, scale in lr_scales.items():
@@ -123,6 +126,9 @@ class RunnerBase:
                 elif n.startswith("gcn.") or n.startswith("gnn.") or                      "Wneck" in n or "gnn_proj" in n or                      (".layers." + layer_id + "." in n and
                       (n.endswith(".q_proj.bias") or n.endswith(".v_proj.bias"))):
                     part = "gnn"
+                elif n.startswith("r3_adapter."):
+                    # New CoRA branch only. No effect on historical NO31 control.
+                    part = "cora"
                 elif "lora_" in n or ".lora_" in n:
                     part = "lora"
                 else:
