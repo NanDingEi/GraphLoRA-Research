@@ -45,8 +45,9 @@ return base + delta
 initialized to exactly ZERO. There are 128 such P's.
 The **original static LoRA A/B branch is frozen AND BYPASSED** (not added).
 The previous experimental CoRA rank gate / ID-only residual / CoRA-Up are
-absent from this model path. The dormant previous CoRA hook is removed in
-this branch's `minigpt4rec_v2.py`.
+absent from this model path. For compatibility, the archived optional CoRA hook
+remains available in `minigpt4rec_v2.py`, but the original-CoRA projection
+`forward()` replacement bypasses that hook completely.
 
 ### Important distinctions vs literal author setup
 
@@ -75,17 +76,25 @@ experiment remains the user's **NO31 + CTR/KD** training task.
 Do NOT call the resulting AUC a literal reproduction of the authors'
 published numbers: the task and joint GNN supervision are different.
 
-## Download to a NEW worktree
+## Update the existing experimental directory (NO new worktree)
+
+The strict original-CoRA code is now present on the **existing** GitHub
+branch `exp/no31-ctrkd-cora-20261023`. Keep using the original directory,
+which contains the previous CoRA epoch0/epoch1 checkpoints and logs.
 
 ```bash
-cd /home/bbx/user_lx/GraphLoRA
+cd /home/bbx/user_lx/GraphLoRA_NO31_CORA
+git status --short
 git fetch https://github.com/NanDingEi/GraphLoRA-Research.git \
-  exp/no31-ctrkd-cora-original-20261023
-git worktree add --detach \
-  /home/bbx/user_lx/GraphLoRA_NO31_CORA_ORIGINAL FETCH_HEAD
-cd /home/bbx/user_lx/GraphLoRA_NO31_CORA_ORIGINAL
+  exp/no31-ctrkd-cora-20261023
+git merge --ff-only FETCH_HEAD
 conda activate minigpt4
 ```
+
+No worktree, clone, or directory creation is required by Git.
+The new experiment creates only a distinct results subdirectory under the
+same repository's `logs/` and `output/` to avoid overwriting checkpoints.
+The older `experiments/no31_cora/` methods and checkpoint files are retained.
 
 ## Validate, prepare, train
 
