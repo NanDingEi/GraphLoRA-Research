@@ -527,6 +527,15 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.gnn_semantic_align = bool(gnn_semantic_align)
         self.gnn_semantic_weight = float(gnn_semantic_weight)
         self.train_gnn_with_rec_loss = bool(train_gnn_with_rec_loss)
+        # NIGHT8: separate GNN supervision and input fusion, never layer31.
+        self.s2_input_alpha = float(os.environ.get("S2_INPUT_ALPHA","0"))
+        self.s2_small_kd = float(os.environ.get("S2_SMALL_KD","0"))
+        assert 0.0 <= self.s2_input_alpha <= 1.0
+        assert self.s2_small_kd >= 0.0
+        assert float(gnn_scale) == 0.0, "Night8 STRICTLY forbids layer31 injection"
+        assert lora_gnn == "ngcf"
+        print(f"[NIGHT8-MODEL] gnn_scale=0 alpha={self.s2_input_alpha} "
+              f"bce={float(gnn_conf_loss_weight)} kd={self.s2_small_kd}",flush=True)
 
         # Preference-level G->L distillation (v12 recipe): the GNN's group-wise
         # preference distribution is distilled into the LLM Yes-probability.
@@ -1024,7 +1033,9 @@ class MiniGPT4Rec_v2(Rec2Base):
         need_semantic = self.training and self.gnn_semantic_align
         need_pref = self.training and self.pref_distill
         need_gnn_view = need_semantic or need_pref \
-            or self.rel_inject or self.rel_rank_mod
+            or self.rel_inject or self.rel_rank_mod \
+            or self.s2_input_alpha > 0 or self.gnn_conf_loss_weight > 0 \
+            or self.s2_small_kd > 0
 
         if need_semantic:
             # LLM is the semantic teacher for this auxiliary objective.
@@ -1313,6 +1324,18 @@ class MiniGPT4Rec_v2(Rec2Base):
                 rho_t = self.sem_rho * (self.sem_decay_t2 - t) / float(self.sem_decay_t2 - self.sem_decay_t1)
         target = (1.0 - rho_t) * S_anchor + rho_t * S_L
         return ((S_star - target) ** 2)[pair_mask].mean()
+
+    def _s2_final_gnn_scores(self, fb):
+        local = fb["local_node_ids"]
+        valid = local >= 0
+        assert bool(valid.any())
+        z = fb["gcn_output"].float()
+        token_final = torch.zeros((local.shape[0],z.shape[-1]),
+                                  device=z.device,dtype=z.dtype)
+        token_final[valid] = z[local[valid]]
+        score_fb = dict(fb)
+        score_fb["token_gnn"] = token_final
+        return self._row_gnn_scores(score_fb)
 
     def _row_gnn_scores(self, fb):
         """Per-batch-row collaborative score s_G(r) = kappa * cos(z_user, z_target).
@@ -1741,6 +1764,40 @@ class MiniGPT4Rec_v2(Rec2Base):
         loss = outputs.loss
         return {"loss": loss}
 
+    def _s2_input_fusion(self, inputs_embeds, samples_encode, fb):
+        alpha = self.s2_input_alpha
+        if alpha == 0.0:
+            return inputs_embeds
+        assert "token_gnn" in fb, "Need 256-d graph penultimate embeddings"
+        node_ids = samples_encode["node_ids"]
+        local = fb["local_node_ids"]
+        valid = local >= 0
+        assert local.shape[0] == node_ids.shape[0], "node-ID order misaligned"
+        assert bool(valid.any()), "No graph nodes matched the ID tokens"
+        batch = fb["batch_indices"][valid]
+        pos = fb["token_positions"][valid]
+        assert batch.numel() == torch.unique(torch.stack([batch,pos],dim=1),dim=0).shape[0]
+        mf_embeddings = samples_encode["mf_embeddings"].index_select(0,node_ids[valid]).float()
+        g_emb = fb["token_gnn"][valid].float()
+        assert mf_embeddings.shape == g_emb.shape, (mf_embeddings.shape,g_emb.shape)
+        scaled_graph = F.normalize(g_emb,dim=-1,eps=1e-8) * mf_embeddings.norm(dim=-1,keepdim=True)
+        corrected_mf = (1.0-alpha)*mf_embeddings + alpha*scaled_graph
+        projector_dtype = next(self.llama_proj.parameters()).dtype
+        corrected_token = self.llama_proj(corrected_mf.to(dtype=projector_dtype))
+        assert corrected_token.numel() == batch.numel()*inputs_embeds.shape[-1], (
+            "Input fusion requires proj_token_num=1",corrected_token.shape)
+        corrected_token = corrected_token.reshape(-1,inputs_embeds.shape[-1])
+        out = inputs_embeds.clone()
+        out[batch,pos] = corrected_token.to(dtype=out.dtype)
+        if not getattr(self,"_s2_fusion_logged",False):
+            self._s2_fusion_logged=True
+            print(f"[NIGHT8-FUSION] alpha={alpha} ID_positions={batch.numel()} "
+                  f"MF_norm={mf_embeddings.norm(dim=-1).mean().item():.6g} "
+                  f"graph_norm={g_emb.norm(dim=-1).mean().item():.6g} "
+                  f"corrected_norm={corrected_mf.norm(dim=-1).mean().item():.6g}",
+                  flush=True)
+        return out
+
     @projector_regularized_forward
     def forward_v2(self, samples):
         user_selective_prompts = False
@@ -1795,6 +1852,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                 attention_mask
             )
 
+            inputs_embeds = self._s2_input_fusion(inputs_embeds, samples_encode, fb)
             gcn_output = fb['gcn_output']
             # Keep the original train-path post-processing exactly as in the
             # reproduced GraphLoRA baseline.
@@ -1908,6 +1966,37 @@ class MiniGPT4Rec_v2(Rec2Base):
                     f"rec->gnn={self.train_gnn_with_rec_loss}",
                     flush=True
                 )
+
+        if self.training and not self.pref_distill and (
+            self.gnn_conf_loss_weight > 0 or self.s2_small_kd > 0
+        ):
+            assert "token_gnn" in fb
+            g_scores = self._s2_final_gnn_scores(fb).float()
+            labels = samples["label"].float()
+            assert g_scores.shape == labels.shape, (g_scores.shape,labels.shape)
+            if self.gnn_conf_loss_weight > 0:
+                loss_g = F.binary_cross_entropy_with_logits(g_scores,labels)
+                loss = loss + self.gnn_conf_loss_weight*loss_g
+                ret["loss"]=loss
+                ret["loss_gctr"]=loss_g.detach()
+            if self.s2_small_kd > 0:
+                # Distil LLM preferences into GNN, without backprop into LLM
+                # from this auxiliary loss (but normal L_rec still trains LLM).
+                with torch.no_grad():
+                    target = torch.sigmoid(logits.float().detach())
+                loss_kd = F.binary_cross_entropy_with_logits(g_scores,target)
+                loss = loss + self.s2_small_kd*loss_kd
+                ret["loss"]=loss
+                ret["loss_gkd"]=loss_kd.detach()
+            if not hasattr(self,"_s2_loss_step"):
+                self._s2_loss_step=0
+            self._s2_loss_step+=1
+            if self._s2_loss_step==1 or self._s2_loss_step%500==0:
+                print(f"[NIGHT8-LOSS] step={self._s2_loss_step} "
+                      f"L_rec={loss_rec.detach().item():.6g} "
+                      f"L_gctr={ret.get('loss_gctr',torch.tensor(0.)).item():.6g} "
+                      f"L_gkd={ret.get('loss_gkd',torch.tensor(0.)).item():.6g}",
+                      flush=True)
 
         if self.training and self.pref_distill and 'cand_group' in samples:
             loss_pref = self._pref_distill_loss(fb, logits, samples)
@@ -2035,6 +2124,7 @@ class MiniGPT4Rec_v2(Rec2Base):
                     inputs_embeds,
                     attention_mask
                 )
+                inputs_embeds = self._s2_input_fusion(inputs_embeds, samples_encode, fb)
                 gcn_output = fb['gcn_output'].to(dtype=torch.float16)
                 batch_indices = fb['batch_indices']
                 token_positions = fb['token_positions']
