@@ -23,9 +23,11 @@ python -m py_compile \
   minigpt4/runners/runner_base.py \
   experiments/no31_cora/adapter.py \
   experiments/no31_cora/entry.py \
-  experiments/no31_cora/run_pair.py
+  experiments/no31_cora/run_pair.py \
+  experiments/no31_cora/test_probe_resume.py
 
 python -u experiments/no31_cora/test_cpu.py
+python -u experiments/no31_cora/test_probe_resume.py
 
 if [[ "$ACT" == "prepare" || "$ACT" == "all" ]]; then
   python -u experiments/no31_cora/run_pair.py prepare --epochs "$EPOCHS"
