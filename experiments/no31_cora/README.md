@@ -115,6 +115,52 @@ Results go to:
 - `logs/NO31_CTRKD_CORA_20261023/{no31,cora}_result.json`
 - `output/NO31_CTRKD_CORA_20261023/`
 
+## Resume the finished CoRA epoch0 for exactly one more epoch
+
+The first NO31+CTR/KD+CoRA experiment produced:
+`Valid AUC=0.635651530`, `Valid UAUC=0.595876840` at epoch0.
+The original NO31 CTR/KD control achieved `Valid AUC=0.719760366`.
+The CoRA run has **completed** epoch0 and saved
+`output/NO31_CTRKD_CORA_20261023/cora/**/checkpoint_0.pth`.
+
+To continue **only the CoRA model** for **epoch1** (no rerun of epoch0,
+no new NO31 control training), run this in the existing worktree:
+
+```bash
+cd /home/bbx/user_lx/GraphLoRA_NO31_CORA
+git fetch https://github.com/NanDingEi/GraphLoRA-Research.git exp/no31-ctrkd-cora-20261023
+git merge --ff-only FETCH_HEAD
+conda activate minigpt4
+
+# Read and verify checkpoint epoch, CoRA params, AdamW moments, AMP scaler,
+# historical CTR/KD, seed and cosine schedule: no training.
+bash experiments/no31_cora/resume_one.sh --dry-run
+
+# Resume exactly epoch 1 on GPU0, foreground.
+bash experiments/no31_cora/resume_one.sh
+```
+
+Script: `experiments/no31_cora/resume_one.py`.
+It sets `run.resume_ckpt_path` to the original `checkpoint_0.pth`,
+and `S2_NIGHT_EPOCHS=2` while preserving `run.max_epoch=3`.
+The runner restores the actual trainable model params, optimizer AdamW
+moments, AMP GradScaler, and starts at checkpoint epoch+1 = 1.
+**Setting NO31_EPOCHS=2 alone would retrain from scratch; do not do that.**
+
+New output and log roots use unique timestamps:
+`output/NO31_CTRKD_CORA_RESUME_E1_<timestamp>/` and
+`logs/NO31_CTRKD_CORA_RESUME_E1_<timestamp>/`.
+The original epoch0 checkpoint and logs are never modified. The script
+verifies the saved new `checkpoint_1.pth` and prints its Valid AUC/UAUC
+relative to the original epoch0.
+
+**Reproducibility note**: this checkpoint does **not** include the
+Python/NumPy/PyTorch random-number-generator states or dataloader state.
+The resumed epoch uses restored model/optimizer/scaler and the correct
+epoch1 learning rate, but it is not a bitwise-identical continuation of
+an uninterrupted 2-epoch run. It should be considered a genuine
+optimizer-state resume, not an exact RNG replay.
+
 ## Resume after the fixed probe-only counter bug
 
 If you ran the initial `run` launcher and it stopped immediately after
