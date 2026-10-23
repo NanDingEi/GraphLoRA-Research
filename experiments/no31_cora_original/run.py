@@ -6,6 +6,7 @@ New output dirs, Valid AUC/UAUC and checkpoints; never writes Test results.
 """
 import argparse
 import copy
+import hashlib
 from datetime import datetime
 import json
 import os
@@ -42,6 +43,29 @@ def prepare():
         raise FileNotFoundError("Pretrained NO31 MF checkpoint missing")
     if not Path(cfg["model"]["llama_model"]).is_dir():
         raise FileNotFoundError("Vicuna-7B directory missing")
+    # The original GraphLoRA NO31 training code uses graph NPZ files
+    # addressed relative to the worktree, not the external dataset YAML path.
+    # Link and SHA256-verify the historical files, without copying them.
+    src_graph=Path("/home/bbx/user_lx/GraphLoRA/dataset/ml-1m")
+    dst_graph=ROOT/"dataset/ml-1m"
+    if not src_graph.is_dir():
+        raise FileNotFoundError(src_graph)
+    dst_graph.mkdir(parents=True,exist_ok=True)
+    def checksum(path):
+        h=hashlib.sha256()
+        with path.open("rb") as stream:
+            for chunk in iter(lambda:stream.read(1048576),b""):
+                h.update(chunk)
+        return h.hexdigest()
+    for split in ("train","valid","test"):
+        original=src_graph/f"movie_graph_{split}.npz"
+        target=dst_graph/f"movie_graph_{split}.npz"
+        if not original.is_file():
+            raise FileNotFoundError(original)
+        if not target.exists() and not target.is_symlink():
+            target.symlink_to(original)
+        if not target.is_file() or checksum(original)!=checksum(target):
+            raise RuntimeError(f"Historical graph NPZ mismatch: {target}")
     # Preserve NO31 semantic alignment, projector regularization,
     # MF/NGCF finetuning, LR schedule, data splits, batching and seed.
     cfg["model"]["gnn_scale"]=0.0
