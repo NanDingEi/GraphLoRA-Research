@@ -46,6 +46,7 @@ original NO31:       LoRA-B(LoRA-A(H)), no direct L31 GNN injection
 NO31 + CoRA:         original NO31 + gain * CoRA-Up(s(user,item) * LoRA-A(H_ID))
 default gain:        0.1
 default GNN grad:    DETACHED from CoRA (GNN still learns from original CTR/KD/sem)
+CoRA LR scale:      0.25 (relative to S2 scheduler; its own optimizer group)
 ```
 
 This is an **experimental CoRA-inspired conditional LoRA adaptation**,
@@ -93,6 +94,13 @@ Or from a fresh worktree: `bash experiments/no31_cora/run.sh all`.
 
 For 2 epochs per arm, use `NO31_EPOCHS=2` on BOTH
 `prepare` and `run`.
+
+The original NO31 optimizer groups (MF/GNN/Projector/LoRA) are unchanged.
+The additional `r3_adapter.*` parameters are assigned their **own**
+`cora` LR group (multiplier `0.25`, configurable via
+`run.lr_scale_cora`). Without CoRA, no such parameter group is created.
+CPU checks verify zero-initialized identity, ID-only locality and
+nonzero Q/V up-projection gradients.
 
 The prepare step checks the historical MF/Vicuna paths and uses the
 original dataset graph NPZ files. It creates symlinks in the isolated
