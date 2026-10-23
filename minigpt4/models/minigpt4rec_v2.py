@@ -443,9 +443,6 @@ class MyLinear(OriginalLinear):
 
             lora_output = self.lora_B[self.active_adapter](lora_a_output)
             result += lora_output
-            # Optional CoRA branch; baseline NO31 exactly skips this hook.
-            if getattr(self, "_no31_cora_hook", None) is not None:
-                result = self._no31_cora_hook(result, lora_a_output)
 
         return result.to(previous_dtype)
 
