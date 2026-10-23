@@ -574,6 +574,15 @@ class RunnerBase:
                 if self.evaluate_only:
                     break
 
+                # Historical NO31 guard; preserves max_epoch=3 cosine schedule.
+                _night_epochs = int(self.config.run_cfg.get("no31_stop_after_epochs", 1))
+                assert _night_epochs in (1, 2, 3), _night_epochs
+                if cur_epoch + 1 >= _night_epochs:
+                    logging.info("[NIGHT8-STOP] trained_epochs=%d max_epoch=%d "
+                                 "Valid and checkpoint completed",
+                                 cur_epoch+1, self.max_epoch)
+                    break
+
                 if self.config.run_cfg.distributed:
                     dist.barrier()
                 if not self.model_to_betrained():
