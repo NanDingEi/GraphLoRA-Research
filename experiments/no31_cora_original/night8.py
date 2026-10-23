@@ -105,7 +105,7 @@ def build_environment(row):
 def gpu_is_in_use():
     try:
         response = subprocess.check_output(
-            ["nvidia-smi", "--query-compute-apps=pid",
+            ["nvidia-smi", "-i", "0", "--query-compute-apps=pid",
              "--format=csv,noheader,nounits"],
             text=True, stderr=subprocess.DEVNULL,
         )
@@ -255,6 +255,12 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg):
+    # Refuse costly runs unless original CoRA's full-matrix CPU smoke
+    # and every R1-R8 conditional configuration work in this environment.
+    subprocess.run(
+        [sys.executable, "experiments/no31_cora_original/test_night8_cpu.py"],
+        cwd=str(ROOT), check=True,
+    )
     if gpu_is_in_use():
         raise RuntimeError("GPU0 already has a compute process: refusing overlapping training")
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
