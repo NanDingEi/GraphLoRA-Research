@@ -113,6 +113,39 @@ def launch(arm,epoch_count,probe=False):
     suffix="_probe" if probe else "_train"
     fp=LOG/(arm+suffix+"_init.json")
     log=LOG/(arm+suffix+".log")
+    if probe and fp.is_file() and log.is_file():
+        # Init probes have no optimizer state, forward passes or checkpoints.
+        # Completed probes can be reused without modifying any existing files.
+        # An older CoRA probe was incorrectly marked failed AFTER successful
+        # model construction by checking training-only Q/V forward counters.
+        # Accept ONLY that exact known post-probe error, never other failures.
+        log_text=log.read_text(errors="replace")
+        marker=f"[NO31-PROBE-OK] mode={arm}"
+        old_counter_bug=(
+            arm == "cora"
+            and "RuntimeError: CoRA branch q never executed" in log_text
+            and '[NO31-CORA-COUNTERS] {"initialized": 1}' in log_text
+        )
+        clean=(
+            "Traceback (most recent call last):" not in log_text
+            and "[NO31-CORA-COUNTERS]" not in log_text
+        )
+        if marker not in log_text or not (clean or old_counter_bug):
+            raise RuntimeError(f"Unsafe existing probe; inspect before reuse: {log}")
+        if "Train: data epoch:" in log_text or "[NIGHT8-STOP]" in log_text:
+            raise RuntimeError(f"Probe unexpectedly contains training: {log}")
+        saved=json.loads(fp.read_text())
+        if saved.get("mode") != arm or set(saved.get("groups",{})) != {
+            "MF","GNN","Projector","LoRA"
+        }:
+            raise RuntimeError(f"Invalid probe initial fingerprint: {fp}")
+        if any(not saved["groups"][g].get("sha256") for g in
+               ("MF","GNN","Projector","LoRA")):
+            raise RuntimeError(f"Incomplete probe fingerprint: {fp}")
+        print(f"[NO31-PROBE-REUSED] {arm} "
+              f"status={'recovered-old-counter-bug' if old_counter_bug else 'clean'} "
+              f"hashes_verified", flush=True)
+        return None
     if fp.exists() or log.exists():
         raise FileExistsError(f"Previous NO31 {arm} run/probe exists: {fp}, {log}")
     cmd=[sys.executable,"-u","experiments/no31_cora/entry.py",
