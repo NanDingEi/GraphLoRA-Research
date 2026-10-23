@@ -104,15 +104,11 @@ Each trial writes its own checkpoint_0.pth to output/NO31_CORA_NIGHT8_<timestamp
 
 After resolving failure, run the missing experiment(s) explicitly:
 
-    python -u experiments/no31_cora_original/night8.py --only R5
+    python -u experiments/no31_cora_original/night8.py --run --only R5
 
 Or run the remaining suffix from a given trial (new results folder):
 
     python -u experiments/no31_cora_original/night8.py --run --start R5
-
-IMPORTANT: --only and --start require --run. For example:
-
-    python -u experiments/no31_cora_original/night8.py --run --only R5
 
 The runner checks GPU0 for another compute process and refuses
 overlapping training. It does not launch subprocesses in the background.
