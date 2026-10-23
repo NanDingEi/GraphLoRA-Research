@@ -16,12 +16,15 @@ from experiments.no31_cora_original.qformer import BertModel, BertConfig
 
 
 class PerceptualWeightsGenerator(nn.Module):
-    def __init__(self, num_queries, user_embedding_size, hidden_size, r):
+    def __init__(self, num_queries, user_embedding_size, hidden_size, r, input_mode="concat"):
         super().__init__()
         self.embedding_size = user_embedding_size
         self.r = r
         self.num_queries = num_queries
         self.hidden_size = hidden_size
+        if input_mode not in ("concat", "two_tokens"):
+            raise ValueError(f"Invalid CoRA input mode: {input_mode}")
+        self.input_mode = input_mode
         self.qformer, self.query_tokens = self._init_qformer()
         self.final = nn.Linear(user_embedding_size * 2, hidden_size * r)
         nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
@@ -43,7 +46,21 @@ class PerceptualWeightsGenerator(nn.Module):
         return qformer, query_tokens
 
     def forward(self, ui_embedding):
-        ui_embedding = ui_embedding.unsqueeze(-2)
+        if self.input_mode == "concat":
+            # Exact author implementation: one 512-d encoder token.
+            ui_embedding = ui_embedding.unsqueeze(-2)
+        else:
+            # R5 only: split user and candidate into distinct encoder tokens.
+            # Two 512-d tokens using zero-padding; no new trainable input
+            # parameters, so attention granularity is the isolated variable.
+            if ui_embedding.ndim != 2 or ui_embedding.size(-1) != 2 * self.embedding_size:
+                raise RuntimeError("Unexpected CoRA CF input for two-token mode")
+            u, i = ui_embedding.split(self.embedding_size, dim=-1)
+            ui_embedding = torch.stack(
+                [torch.cat([u, torch.zeros_like(i)], dim=-1),
+                 torch.cat([torch.zeros_like(u), i], dim=-1)],
+                dim=1,
+            )
         ui_atts = torch.ones(
             ui_embedding.size()[:-1], dtype=torch.long, device=ui_embedding.device
         )
