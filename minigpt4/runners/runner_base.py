@@ -105,6 +105,9 @@ class RunnerBase:
                 # Used only when the optional CoRA adapter exists.
                 # NO31 baseline has no r3_adapter.* params and is unchanged.
                 "cora": float(self.config.run_cfg.get("lr_scale_cora", 0.25)),
+                # Distinct from the original dynamic-A generator. Defaults
+                # to 1.0, so R1-R7 preserve current standard LoRA-P LR.
+                "cora_p": float(self.config.run_cfg.get("lr_scale_cora_p", 1.0)),
             }
             import math
             for key, scale in lr_scales.items():
@@ -129,6 +132,10 @@ class RunnerBase:
                 elif n.startswith("r3_adapter."):
                     # New CoRA branch only. No effect on historical NO31 control.
                     part = "cora"
+                elif ".cora_lora_P." in n:
+                    # R8: modify P LR only; do not change Q-Former, MF,
+                    # projector or GNN optimizer groups.
+                    part = "cora_p"
                 elif "lora_" in n or ".lora_" in n:
                     part = "lora"
                 else:
