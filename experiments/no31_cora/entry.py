@@ -104,6 +104,11 @@ def main():
     import train_collm_mf_din as train
     sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(Path(args.cfg_path).resolve())]
     train.main()
+    # The @record training wrapper can return from the model-init-only probe.
+    # In probe mode we intentionally do NOT run any L31 forward passes:
+    # Q/V execution counters must be checked ONLY after real training.
+    if args.probe_only:
+        return
     if runtime is not None:
         stats = dict(runtime.counters)
         print("[NO31-CORA-COUNTERS] " + json.dumps(stats), flush=True)
