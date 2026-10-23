@@ -84,7 +84,7 @@ class OriginalCoRARuntime:
             seen = set()
             for name, mod in model.llama_model_lora.named_modules():
                 match = re.search(
-                    r"(?:^|\\.)layers\\.(\\d+)\\.self_attn\\.(q_proj|k_proj|v_proj|o_proj)$",
+                    r"(?:^|\.)layers\.(\d+)\.self_attn\.(q_proj|k_proj|v_proj|o_proj)$",
                     name,
                 )
                 if match is None:
