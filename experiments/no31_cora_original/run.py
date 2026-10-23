@@ -116,6 +116,28 @@ def run(probe_only=False):
         raise FileExistsError(run_log)
     run_log.mkdir(parents=True,exist_ok=False)
     config=copy.deepcopy(cfg)
+    # Retry after RTX3090 OOM: reduce only per-device microbatch sizes.
+    # The prepared source YAML is intentionally left untouched: no need to
+    # run 'prepare' again, and prior checkpoints/logs remain preserved.
+    train_batch_before=int(config["run"]["batch_size_train"])
+    eval_batch_before=int(config["run"]["batch_size_eval"])
+    if (train_batch_before,eval_batch_before) not in ((3,4),(2,3)):
+        raise RuntimeError(
+            f"Unexpected prepared batch sizes: train={train_batch_before} "
+            f"eval={eval_batch_before}; refusing silent overrides"
+        )
+    config["run"]["batch_size_train"]=2
+    config["run"]["batch_size_eval"]=3
+    # Keep NO31 optimizer, scheduler, accumulation=3, CoRA QFormer,
+    # rank16, 128 Q/K/V/O projections and CTR/KD entirely unchanged.
+    if int(config["run"].get("accum_grad_iters",1)) != 3:
+        raise RuntimeError("Historical gradient accumulation unexpectedly changed")
+    print(
+        f"[CORA-ORIGINAL-BATCH] train={train_batch_before}->2 "
+        f"eval={eval_batch_before}->3 accum_grad_iters=3 "
+        f"effective_train_batch=6 (was 9)",
+        flush=True,
+    )
     config["run"]["output_dir"]=str(ROOT/"output"/f"{RUNNAME}_{stamp}")
     recipe=run_log/"train.yaml"
     recipe.write_text(yaml.safe_dump(config,sort_keys=False))
@@ -163,6 +185,7 @@ def run(probe_only=False):
         raise RuntimeError(f"Expected one final checkpoint_0.pth: {checkpoints}")
     auc,uauc=metrics[0]
     result={"valid_auc":auc,"valid_uauc":uauc,"epoch":0,
+            "batch_size_train":2,"batch_size_eval":3,"accum_grad_iters":3,
             "no31_baseline_auc":0.719760366,
             "delta_auc_vs_no31":auc-0.719760366,
             "checkpoint":str(checkpoints[0]),"log":str(logfile),"counters":counts}
