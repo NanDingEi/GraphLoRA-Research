@@ -129,9 +129,17 @@ class OriginalCoRARuntime:
                 if ".lora_A." in pname or ".lora_B." in pname:
                     param.requires_grad_(False)
 
-            for name, mod, layer, proj in selected:
-                mod.cora_lora_P = nn.Linear(state.rank, hidden, bias=False)
-                nn.init.zeros_(mod.cora_lora_P.weight)
+            # IMPORTANT: reproduce the R0 P-initialization RNG sequence
+            # even when an ablation selects fewer than 128 projections.
+            # This keeps downstream projector initialization identical
+            # rather than confounding architecture with a new RNG stream.
+            selected_ids = {(layer, proj) for _, _, layer, proj in selected}
+            for name, mod, layer, proj in named:
+                p = nn.Linear(state.rank, hidden, bias=False)
+                nn.init.zeros_(p.weight)
+                if (layer, proj) not in selected_ids:
+                    continue  # consume baseline RNG, but don't register P
+                mod.cora_lora_P = p
                 mod.cora_dropout = nn.Dropout(p=0.05)
                 mod._cora_weight = None
                 mod.forward = MethodType(state.projection_forward, mod)
