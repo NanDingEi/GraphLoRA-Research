@@ -115,6 +115,32 @@ Results go to:
 - `logs/NO31_CTRKD_CORA_20261023/{no31,cora}_result.json`
 - `output/NO31_CTRKD_CORA_20261023/`
 
+## Resume after the fixed probe-only counter bug
+
+If you ran the initial `run` launcher and it stopped immediately after
+`[NO31-PROBE-OK] mode=cora` with
+`RuntimeError: CoRA branch q never executed`, **there was no training**.
+The cause was a training-only counter assertion after an init-only probe.
+It is fixed: the probe exits without checking Q/V forwards, and the runner
+safely reuses the original NO31 and CoRA probe hashes. Only the **exact**
+legacy false-failure signature is recognized; other tracebacks stop the run.
+
+From the already created `GraphLoRA_NO31_CORA` worktree:
+
+```bash
+cd /home/bbx/user_lx/GraphLoRA_NO31_CORA
+git status --short
+git fetch https://github.com/NanDingEi/GraphLoRA-Research.git exp/no31-ctrkd-cora-20261023
+git merge --ff-only FETCH_HEAD
+conda activate minigpt4
+CUDA_VISIBLE_DEVICES=0 bash experiments/no31_cora/run.sh run
+```
+
+Do **not** run `prepare` again, delete any existing probe logs, or use
+`git reset --hard`. The launcher validates and reuses the existing hashes.
+`test_probe_resume.py` checks this CPU-side, including rejection of
+unrelated failures.
+
 ## Provenance / verification
 
 The only changes beyond the archival NO31 patch to S2 are:
