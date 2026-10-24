@@ -39,6 +39,8 @@ def main():
             "NO31_CORA_PROJECTIONS": row["projections"],
             "NO31_CORA_LAYERS": row["layers"],
             "NO31_CORA_INPUT": row["cf_input"],
+            "NO31_CORA_RESIDUAL_RATIO": "0",
+            "NO31_CORA_DEPTH_PROFILE": "uniform",
         }):
             runtime=OriginalCoRARuntime()
         assert runtime.expected_targets==selected_targets(row)==expected[row["id"]]
