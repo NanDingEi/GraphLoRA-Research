@@ -293,6 +293,21 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
     for row in rows:
         try:
             result = run_one(row, common_cfg, out)
+            # NIGHT10 begins with two exact historical anchors. Stop the sweep
+            # early if either is far from its reference, rather than spending
+            # the remaining GPU budget on an invalid comparison.
+            if name_prefix == "NO31_CORA_NIGHT10" and row.get("anchor_auc") is not None:
+                da = result["auc"] - float(row["anchor_auc"])
+                du = result["uauc"] - float(row["anchor_uauc"])
+                tol = float(row.get("anchor_tolerance", 0.02))
+                print(f"[NIGHT10-ANCHOR] {row['id']} delta_auc={da:+.6f} "
+                      f"delta_uauc={du:+.6f} tolerance={tol:.3f}", flush=True)
+                if abs(da) > tol or abs(du) > tol:
+                    raise RuntimeError(
+                        f"{row['id']} anchor drift exceeds tolerance: "
+                        f"delta_auc={da:+.6f}, delta_uauc={du:+.6f}, tolerance={tol:.3f}. "
+                        "Stop and inspect initialization/data/config before interpreting this sweep."
+                    )
         except BaseException as exc:
             (out / "failed.json").write_text(json.dumps(
                 dict(id=row["id"], reason=str(exc)),indent=2))
