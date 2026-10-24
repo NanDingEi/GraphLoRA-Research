@@ -109,9 +109,17 @@ def validate_checkpoint(row,verbose=True):
         (mc.get("gnn_semantic_align") is True,"semantic alignment ON"),
         (float(mc.get("gnn_semantic_weight",-1))==1e-4,"semantic weight=1e-4"),
         (float(mc.get("proj_reg_weight",-1))==5e-4,"projector reg=5e-4"),
+        (mc.get("fix_autocast_cache") is True,"autocast cache fix ON"),
         (mc.get("rec_model")=="MF","MF CF model"),
+        (mc.get("lora_gnn")=="ngcf","NGCF graph encoder"),
+        (int(mc.get("rec_config",{}).get("embedding_size",-1))==256,"CF dim=256"),
         (int(rc.get("seed",-1))==42,"seed42"),
         (int(rc.get("max_epoch",-1))==3,"3-epoch LR horizon"),
+        (int(rc.get("batch_size_train",-1))==2,"train batch=2"),
+        (int(rc.get("batch_size_eval",-1))==3,"eval batch=3"),
+        (int(rc.get("accum_grad_iters",-1))==4,"gradient accumulation=4"),
+        (float(rc.get("init_lr",-1))==1e-4,"initial LR=1e-4"),
+        (float(rc.get("lr_scale_cora_p",1.0))==1.0,"CoRA-P LR multiplier=1"),
     ]
     for ok,label in expected_cfg:
         if not ok:
