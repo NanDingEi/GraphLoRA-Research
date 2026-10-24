@@ -87,7 +87,11 @@ go under the corresponding output/ directory. The summary records alpha,
 projections, P LR multiplier, residual cap, depth profile, seed, Valid AUC/UAUC,
 and checkpoint paths.
 
-Interpret results conservatively: the anchors must be close to R2/F4 before
-the alpha/LR/model variants can be compared. If G1 or G2 differs substantially
-from its reference, inspect seed/data/config/initialization before interpreting
-the other arms. No improvement is guaranteed by these experiments.
+The runner automatically compares G1/G2 against their historical AUC/UAUC
+references and aborts the sweep if either metric differs by more than 0.02.
+This prevents spending the remaining GPU budget when an anchor indicates a
+configuration, data-order, or initialization mismatch. The failed arm's log
+and checkpoint are preserved for diagnosis.
+
+Interpret results conservatively: only compare alpha/LR/model variants if both
+anchors pass. No improvement is guaranteed by these experiments.
