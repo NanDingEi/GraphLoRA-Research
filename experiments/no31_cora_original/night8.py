@@ -97,6 +97,8 @@ def build_environment(row):
         "NO31_CORA_PROJECTIONS": row["projections"],
         "NO31_CORA_LAYERS": row["layers"],
         "NO31_CORA_INPUT": row["cf_input"],
+        "NO31_CORA_RESIDUAL_RATIO": str(row.get("residual_ratio", 0.0)),
+        "NO31_CORA_DEPTH_PROFILE": row.get("depth_profile", "uniform"),
         "PYTHONUNBUFFERED": "1",
     })
     return env
@@ -220,7 +222,9 @@ def run_one(row, common_cfg, root):
         f"alpha={row['alpha']}" not in text or
         f"input={row['cf_input']}" not in text or
         f"projections={row['projections']}" not in text or
-        f"layers={row['layers']}" not in text):
+        f"layers={row['layers']}" not in text or
+        f"residual_ratio={float(row.get('residual_ratio', 0.0)):g}" not in text or
+        f"depth_profile={row.get('depth_profile', 'uniform')}" not in text):
         raise RuntimeError(f"[{ident}] requested CoRA architecture not loaded")
     lr_group_lines = [s for s in text.splitlines() if "[lr-group]" in s]
     target_group = [s for s in lr_group_lines if "cora_p_wd" in s]
@@ -254,6 +258,8 @@ def run_one(row, common_cfg, root):
         targets=selected_targets(row), counts=counts,
         projections=row["projections"], layers=row["layers"],
         cf_input=row["cf_input"], alpha=row["alpha"], p_lr=row["p_lr"],
+        residual_ratio=float(row.get("residual_ratio", 0.0)),
+        depth_profile=row.get("depth_profile", "uniform"),
         seed=cfg["run"]["seed"],
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
@@ -264,7 +270,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
@@ -300,7 +306,8 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
         with (out/"summary.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31",
-                "layers","projections","cf_input","alpha","p_lr","seed","checkpoint"))
+                "layers","projections","cf_input","alpha","p_lr",
+                "residual_ratio","depth_profile","seed","checkpoint"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
