@@ -74,7 +74,8 @@ def main():
             f"zero_init=True all_tokens=True base_LoRA_AB_frozen=True "
             f"NO31_CTRKD=ON alpha={runtime.alpha} "
             f"layers={runtime.layers[0]}-{runtime.layers[-1]} "
-            f"projections={','.join(runtime.projections)} input={runtime.input_mode}",
+            f"projections={','.join(runtime.projections)} input={runtime.input_mode} "
+            f"residual_ratio={runtime.residual_ratio:g} depth_profile={runtime.depth_profile}",
             flush=True,
         )
         if args.probe_only:
