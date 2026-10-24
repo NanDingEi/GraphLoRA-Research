@@ -30,8 +30,8 @@ class OriginalCoRARuntime:
         # No override => byte-for-byte original CoRA architecture and injection.
         self.rank = 16
         self.alpha = int(os.environ.get("NO31_CORA_ALPHA", "32"))
-        if self.alpha not in (16, 32, 64):
-            raise ValueError("NO31_CORA_ALPHA must be 16, 32 or 64")
+        if self.alpha not in (16, 32, 48, 64, 96):
+            raise ValueError("NO31_CORA_ALPHA must be one of 16, 32, 48, 64, 96")
         self.scaling = self.alpha / self.rank
         projection_string = os.environ.get("NO31_CORA_PROJECTIONS", "q_proj,k_proj,v_proj,o_proj")
         self.projections = tuple(projection_string.split(","))
