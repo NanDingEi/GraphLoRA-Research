@@ -69,7 +69,23 @@ output/NO31_CORA_ORIGINAL_20261023_234005_110337/20261023234/checkpoint_0.pth.
 It must find nonzero P weights in **all of L0–L7**. This is the
 fixed-autocast R0 checkpoint, not the failed earlier R0.
 
-## Run in the foreground, serial, GPU0
+## Run only the first four F1–F4 (recommended initial batch)
+
+    python experiments/no31_cora_original/followup8.py --plan --first 4
+
+    CUDA_VISIBLE_DEVICES=0 \
+    python -u experiments/no31_cora_original/followup8.py --run --first 4
+
+This runs F1 then F2 then F3 then F4, and stops. F5–F8 are *not*
+started. All four share a single timestamped FOLLOWUP8 log directory and
+summary.csv. To run F5–F8 separately later use:
+
+    CUDA_VISIBLE_DEVICES=0 \
+    python -u experiments/no31_cora_original/followup8.py --run --start F5
+
+The second batch gets its own timestamp; it does not overwrite F1–F4.
+
+## Run all eight in the foreground, serial, GPU0
 
     CUDA_VISIBLE_DEVICES=0 \
     python -u experiments/no31_cora_original/followup8.py --run
