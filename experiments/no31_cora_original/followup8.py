@@ -105,6 +105,8 @@ def main():
     modes.add_argument("--check-fixed-r0",action="store_true")
     parser.add_argument("--only",choices=list(LOOKUP))
     parser.add_argument("--start",choices=list(LOOKUP))
+    parser.add_argument("--first",type=int,choices=range(1,9),metavar="N",
+                        help="Run or preview only the first N experiments (e.g. --first 4 means F1-F4)")
     parser.add_argument(
         "--skip-check-fixed-r0",action="store_true",
         help="Only if the historical fixed R0 checkpoint has been removed "
@@ -114,8 +116,8 @@ def main():
     if args.check_fixed_r0:
         core.precheck(FIXED_R0_CHECKPOINT)
         return
-    if args.only and args.start:
-        parser.error("--only and --start cannot be combined")
+    if sum(x is not None for x in (args.only,args.start,args.first)) > 1:
+        parser.error("--only, --start and --first cannot be combined")
     if (args.only or args.start) and not args.run:
         parser.error("--only and --start require --run")
     chosen=FOLLOWUP8
@@ -124,6 +126,8 @@ def main():
     elif args.start:
         ids=list(LOOKUP)
         chosen=FOLLOWUP8[ids.index(args.start):]
+    elif args.first is not None:
+        chosen=FOLLOWUP8[:args.first]
     cfg=plan(chosen)
     if args.plan:
         return
