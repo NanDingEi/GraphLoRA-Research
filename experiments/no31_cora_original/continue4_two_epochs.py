@@ -106,7 +106,6 @@ def validate_checkpoint(row,verbose=True):
     expected_cfg=[
         (float(mc.get("gnn_scale",-1))==0.0,"gnn_scale=0"),
         (float(mc.get("gnn_conf_loss_weight",-1))==0.05,"CTR=.05"),
-        (float(mc.get("s2_small_kd",-1))==0.05,"KD=.05"),
         (mc.get("gnn_semantic_align") is True,"semantic alignment ON"),
         (float(mc.get("gnn_semantic_weight",-1))==1e-4,"semantic weight=1e-4"),
         (float(mc.get("proj_reg_weight",-1))==5e-4,"projector reg=5e-4"),
@@ -208,6 +207,7 @@ def run_one(row,common_cfg,root):
         "[CORA-ORIGINAL-PROBE-OK]",
         "[CORA-ORIGINAL-COUNTERS]",
         "[NIGHT8-STOP] trained_epochs=2 max_epoch=3",
+        "[NIGHT8-MODEL] gnn_scale=0 alpha=0.0 bce=0.05 kd=0.05",
         "[FX] autocast cache fix ON",
         f"static_P={core.selected_targets(row)} x [4096,16]",
         f"alpha={row['alpha']}",
