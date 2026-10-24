@@ -218,7 +218,9 @@ def run_one(row, common_cfg, root):
         raise RuntimeError(f"[{ident}] verification marker missing: {log_file}")
     if (f"static_P={selected_targets(row)} x [4096,16]" not in text or
         f"alpha={row['alpha']}" not in text or
-        f"input={row['cf_input']}" not in text):
+        f"input={row['cf_input']}" not in text or
+        f"projections={row['projections']}" not in text or
+        f"layers={row['layers']}" not in text):
         raise RuntimeError(f"[{ident}] requested CoRA architecture not loaded")
     lr_group_lines = [s for s in text.splitlines() if "[lr-group]" in s]
     target_group = [s for s in lr_group_lines if "cora_p_wd" in s]
