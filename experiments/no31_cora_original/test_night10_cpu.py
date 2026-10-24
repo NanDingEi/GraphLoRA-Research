@@ -42,7 +42,8 @@ def main():
         rt=runtime_for(row)
         assert rt.alpha==row["alpha"]
         assert rt.scaling==row["alpha"]/16
-        assert rt.expected_targets==128 if row["projections"]=="q_proj,k_proj,v_proj,o_proj" else 64
+        expected_targets = 128 if row["projections"]=="q_proj,k_proj,v_proj,o_proj" else 64
+        assert rt.expected_targets==expected_targets
         assert rt.residual_ratio==row["residual_ratio"]
         assert rt.depth_profile==row["depth_profile"]
         assert rt.input_mode=="concat" and rt.layers==tuple(range(32))
