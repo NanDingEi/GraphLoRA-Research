@@ -165,6 +165,11 @@ def run_one(row, common_cfg, root):
     exp_dir.mkdir(parents=False, exist_ok=False)
     cfg = yaml.safe_load(yaml.safe_dump(common_cfg))
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
+    # Follow-up experiments vary only the explicitly listed random seed.
+    # Existing R1-R8 recipes omit seed and remain seed42.
+    cfg["run"]["seed"] = int(row.get("seed", 42))
+    if cfg["run"]["seed"] not in (42,43):
+        raise ValueError(f"Unapproved seed for CoRA follow-up: {cfg['run']['seed']}")
     cfg["run"]["output_dir"] = str(ROOT / "output" / root.name / ident)
     cfg["run"]["valid_splits"] = ["valid"]
     cfg["run"]["test_splits"] = []
@@ -178,7 +183,8 @@ def run_one(row, common_cfg, root):
         "--cfg-path", str(config_path),
     ]
     print(f"[NIGHT8-START] {ident} {row['title']} "
-          f"selected_projections={selected_targets(row)} log={exp_dir/'train.log'}",
+          f"seed={cfg['run']['seed']} selected_projections={selected_targets(row)} "
+          f"log={exp_dir/'train.log'}",
           flush=True)
     log_file=exp_dir / "train.log"
     with log_file.open("x", encoding="utf-8") as saved:
@@ -246,6 +252,7 @@ def run_one(row, common_cfg, root):
         targets=selected_targets(row), counts=counts,
         projections=row["projections"], layers=row["layers"],
         cf_input=row["cf_input"], alpha=row["alpha"], p_lr=row["p_lr"],
+        seed=cfg["run"]["seed"],
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
     print("[NIGHT8-RESULT] %s ValidAUC=%.9f ValidUAUC=%.9f "
@@ -254,7 +261,9 @@ def run_one(row, common_cfg, root):
     return result
 
 
-def run_trials(rows, common_cfg):
+def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8"):
+        raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
     subprocess.run(
@@ -264,7 +273,7 @@ def run_trials(rows, common_cfg):
     if gpu_is_in_use():
         raise RuntimeError("GPU0 already has a compute process: refusing overlapping training")
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S_%f")
-    out = ROOT / "logs" / f"NO31_CORA_NIGHT8_{stamp}"
+    out = ROOT / "logs" / f"{name_prefix}_{stamp}"
     out.mkdir(exist_ok=False, parents=True)
     (out / "plan.json").write_text(json.dumps(
         dict(experiments=rows, source_config=str(READY),
@@ -289,7 +298,7 @@ def run_trials(rows, common_cfg):
         with (out/"summary.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31",
-                "layers","projections","cf_input","alpha","p_lr","checkpoint"))
+                "layers","projections","cf_input","alpha","p_lr","seed","checkpoint"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
