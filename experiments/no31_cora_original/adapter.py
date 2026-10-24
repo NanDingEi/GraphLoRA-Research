@@ -26,12 +26,17 @@ class OriginalCoRARuntime:
         self.counters = Counter()
         self.targets = []
         self.active = False
-        # NIGHT8 overrides only through explicitly validated environment variables.
-        # No override => byte-for-byte original CoRA architecture and injection.
+        # Optional experiment controls default to the original CoRA equation.
         self.rank = 16
         self.alpha = int(os.environ.get("NO31_CORA_ALPHA", "32"))
-        if self.alpha not in (16, 32, 48, 64, 96):
-            raise ValueError("NO31_CORA_ALPHA must be one of 16, 32, 48, 64, 96")
+        if self.alpha not in (16, 32, 48, 52, 56, 60, 64, 96):
+            raise ValueError("Unsupported NO31_CORA_ALPHA")
+        self.residual_ratio = float(os.environ.get("NO31_CORA_RESIDUAL_RATIO", "0"))
+        if not 0.0 <= self.residual_ratio <= 1.0:
+            raise ValueError("NO31_CORA_RESIDUAL_RATIO must be in [0, 1]")
+        self.depth_profile = os.environ.get("NO31_CORA_DEPTH_PROFILE", "uniform")
+        if self.depth_profile not in ("uniform", "late_linear"):
+            raise ValueError("NO31_CORA_DEPTH_PROFILE must be uniform or late_linear")
         self.scaling = self.alpha / self.rank
         projection_string = os.environ.get("NO31_CORA_PROJECTIONS", "q_proj,k_proj,v_proj,o_proj")
         self.projections = tuple(projection_string.split(","))
@@ -142,6 +147,7 @@ class OriginalCoRARuntime:
                 mod.cora_lora_P = p
                 mod.cora_dropout = nn.Dropout(p=0.05)
                 mod._cora_weight = None
+                mod.cora_layer_index = layer
                 mod.forward = MethodType(state.projection_forward, mod)
                 state.targets.append(mod)
             model.cora_fixed_user.requires_grad_(False)
@@ -153,7 +159,8 @@ class OriginalCoRARuntime:
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
                 f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
-                f"projections={','.join(state.projections)} input_mode={state.input_mode}",
+                f"projections={','.join(state.projections)} input_mode={state.input_mode} "
+                f"residual_ratio={state.residual_ratio:g} depth_profile={state.depth_profile}",
                 flush=True,
             )
 
@@ -214,11 +221,34 @@ class OriginalCoRARuntime:
             mod._cora_weight = None
         self.active = False
 
+    def layer_scale(self, layer_index):
+        """Optional fixed depth profile; uniform is the original CoRA behavior."""
+        if self.depth_profile == "uniform":
+            return 1.0
+        if self.depth_profile == "late_linear":
+            return 0.5 + 0.5 * float(layer_index) / 31.0
+        raise RuntimeError(f"Unsupported depth profile {self.depth_profile}")
+
+    def apply_residual_controls(self, base, residual, layer_index):
+        """Apply opt-in depth scaling and per-token residual/base norm clipping."""
+        scale = self.layer_scale(layer_index)
+        if scale != 1.0:
+            residual = residual * scale
+        if self.residual_ratio > 0.0:
+            # Detach norms so clipping caps the branch magnitude without adding
+            # a gradient path through the norm-based scale itself.
+            base_norm = base.float().norm(dim=-1, keepdim=True).detach()
+            residual_norm = residual.float().norm(dim=-1, keepdim=True).detach()
+            max_norm = self.residual_ratio * base_norm
+            factor = (max_norm / residual_norm.clamp_min(1e-6)).clamp(max=1.0)
+            residual = residual * factor.to(dtype=residual.dtype)
+        return residual
+
     def projection_forward(self, module, x):
         """Exactly PLora's P(bmm(x, w)) + base W x, across ALL tokens.
 
-        This function replaces PEFT's ordinary A/B and MyLinear forward.
-        Hence GraphLoRA NO31's inactive L31 injector cannot run here.
+        Optional experimental controls act only on the CoRA residual branch;
+        uniform/no clipping preserves the original equation.
         """
         base = F.linear(x, module.weight, bias=module.bias)
         w = module._cora_weight
@@ -233,6 +263,7 @@ class OriginalCoRARuntime:
         x_fp = module.cora_dropout(x).to(dtype=module.cora_lora_P.weight.dtype)
         weighted = torch.bmm(x_fp, w.to(dtype=x_fp.dtype))
         residual = module.cora_lora_P(weighted) * self.scaling
+        residual = self.apply_residual_controls(base, residual, module.cora_layer_index)
         self.counters["projection_forwards"] += 1
         return (base + residual.to(dtype=base.dtype)).to(x.dtype)
 
