@@ -58,9 +58,44 @@ def main():
         print(f"[NIGHT12-CPU] {row['id']} mode={runtime.injection_mode} "
               f"targets={runtime.expected_targets} alpha={runtime.alpha}", flush=True)
 
+    # Architecture-only modules must not shift the global RNG stream used
+    # later for P initialization and the training sampler.
+    def rng_after_generator(mode):
+        torch.manual_seed(314159)
+        _ = PerceptualWeightsGenerator(
+            num_queries=4, user_embedding_size=16, hidden_size=32, r=4,
+            input_mode="concat", injection_mode=mode,
+        )
+        return torch.get_rng_state().clone()
+
+    shared_rng = rng_after_generator("shared")
+    for mode in ("typed_tokens", "interaction_tokens", "layer_conditioned", "token_gate"):
+        assert torch.equal(shared_rng, rng_after_generator(mode)), (
+            f"{mode} consumed the global RNG stream"
+        )
+
+    # M3/M4 are neutral at initialization: their generated A must match shared CoRA.
+    torch.manual_seed(271828)
+    features = torch.randn(3, 32)
+    torch.manual_seed(161803)
+    shared_gen = PerceptualWeightsGenerator(
+        num_queries=4, user_embedding_size=16, hidden_size=32, r=4,
+        input_mode="concat", injection_mode="shared",
+    ).eval()
+    shared_weight = shared_gen(features)
+    for mode in ("layer_conditioned", "token_gate"):
+        torch.manual_seed(161803)
+        neutral_gen = PerceptualWeightsGenerator(
+            num_queries=4, user_embedding_size=16, hidden_size=32, r=4,
+            input_mode="concat", injection_mode=mode,
+        ).eval()
+        neutral_weight = neutral_gen(features)
+        assert torch.equal(shared_weight, neutral_weight), (
+            f"{mode} changed the initial dynamic basis before training"
+        )
+
     # Small-dimension forward tests exercise all generator architectures.
     torch.manual_seed(42)
-    features = torch.randn(3, 32)
     outputs = {}
     for mode in ("shared", "typed_tokens", "interaction_tokens",
                  "layer_conditioned", "token_gate"):
@@ -116,7 +151,7 @@ def main():
     ))
     assert mod.abs().max().item() < 0.05
     print("[NIGHT12-CPU-PASS] four structural modes, generator shapes, "
-          "normalization, layer conditioning and neutral token gate verified",
+          "normalization, neutral M3/M4 initialization and RNG-stream parity verified",
           flush=True)
 
 
