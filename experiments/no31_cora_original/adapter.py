@@ -76,7 +76,27 @@ class OriginalCoRARuntime:
             "layer_conditioned", "token_gate",
         ):
             raise ValueError(f"Unsupported NO31_CORA_INJECTION_MODE: {self.injection_mode}")
+        rank_profile_text = os.environ.get("NO31_CORA_RANK_PROFILE", "uniform")
+        if rank_profile_text == "uniform":
+            self.rank_profile = None
+        elif rank_profile_text == "4-6-8-10":
+            self.rank_profile = (4, 6, 8, 10)
+            if self.layers != tuple(range(32)):
+                raise ValueError("Grouped-rank CoRA requires all 32 Transformer layers")
+            if self.projections != ("q_proj", "k_proj", "v_proj", "o_proj"):
+                raise ValueError("Grouped-rank CoRA requires Q/K/V/O in every layer")
+            if self.input_mode != "concat" or self.injection_mode != "shared":
+                raise ValueError("Grouped-rank CoRA requires the original shared/concat path")
+        else:
+            raise ValueError("NO31_CORA_RANK_PROFILE must be uniform or 4-6-8-10")
         self.expected_targets = len(self.projections) * len(self.layers)
+
+    def rank_for_layer(self, layer_index):
+        if self.rank_profile is None:
+            return self.rank
+        if not 0 <= int(layer_index) < 32:
+            raise ValueError(f"Invalid Transformer layer index: {layer_index}")
+        return self.rank_profile[int(layer_index) // 8]
 
     def install(self):
         from minigpt4.models import minigpt4rec_v2 as graph
@@ -125,6 +145,7 @@ class OriginalCoRARuntime:
                 r=state.rank,
                 input_mode=state.input_mode,
                 injection_mode=state.injection_mode,
+                rank_profile=state.rank_profile,
             )
             if state.injection_mode == "token_gate":
                 # Keep the sampler/P-init RNG stream identical to shared CoRA.
@@ -177,8 +198,19 @@ class OriginalCoRARuntime:
             # rather than confounding architecture with a new RNG stream.
             selected_ids = {(layer, proj) for _, _, layer, proj in selected}
             for name, mod, layer, proj in named:
-                p = nn.Linear(state.rank, hidden, bias=False)
-                nn.init.zeros_(p.weight)
+                p_rank = state.rank_for_layer(layer)
+                if state.rank_profile is None:
+                    p = nn.Linear(p_rank, hidden, bias=False)
+                    nn.init.zeros_(p.weight)
+                else:
+                    # P is zero-initialized; do not let its rank-dependent
+                    # temporary Linear initialization perturb later RNG draws.
+                    _p_rng = torch.get_rng_state()
+                    try:
+                        p = nn.Linear(p_rank, hidden, bias=False)
+                        nn.init.zeros_(p.weight)
+                    finally:
+                        torch.set_rng_state(_p_rng)
                 if (layer, proj) not in selected_ids:
                     continue  # consume baseline RNG, but don't register P
                 mod.cora_lora_P = p
@@ -187,6 +219,7 @@ class OriginalCoRARuntime:
                 mod._cora_condition = None
                 mod.cora_layer_index = layer
                 mod.cora_projection_name = proj
+                mod.cora_rank = p_rank
                 mod.forward = MethodType(state.projection_forward, mod)
                 state.targets.append(mod)
             model.cora_fixed_user.requires_grad_(False)
@@ -198,9 +231,14 @@ class OriginalCoRARuntime:
                 f"{key}={state.projection_scales[key]:g}"
                 for key in ("q_proj", "k_proj", "v_proj", "o_proj")
             )
+            rank_summary = (
+                "uniform16" if state.rank_profile is None
+                else "L0-7:4,L8-15:6,L16-23:8,L24-31:10"
+            )
             print(
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
                 f"qformer_layers=8 qformer_queries=4 full_matrix=[B,{hidden},{state.rank}] "
+                f"rank_profile={rank_summary} group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
                 f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
@@ -227,19 +265,30 @@ class OriginalCoRARuntime:
             )
             # Original implementation uses MF [u, i] 256+256, not NGCF
             # penultimate states and not a learned per-rank gate.
-            if state.injection_mode == "layer_conditioned":
+            if state.rank_profile is not None:
+                weights_by_rank = model.cora_weight_generator(pair)
+                condition = None
+            elif state.injection_mode == "layer_conditioned":
                 w, condition = model.cora_weight_generator(pair, return_condition=True)
+                weights_by_rank = {state.rank: w}
             else:
                 w = model.cora_weight_generator(pair)
                 condition = None
-            if w.shape != (users.numel(), 4096, state.rank):
-                raise RuntimeError(f"CoRA full LoRA-A shape invalid: {w.shape}")
-            if not torch.isfinite(w).all():
-                raise RuntimeError("CoRA generated non-finite weights")
+                weights_by_rank = {state.rank: w}
+            for rank, w in weights_by_rank.items():
+                if w.shape != (users.numel(), 4096, int(rank)):
+                    raise RuntimeError(
+                        f"CoRA dynamic LoRA-A shape invalid for rank {rank}: {w.shape}"
+                    )
+                if not torch.isfinite(w).all():
+                    raise RuntimeError(f"CoRA generated non-finite weights for rank {rank}")
             if state.targets[0]._cora_weight is not None:
                 raise RuntimeError("Stale CoRA weights were not cleared")
             for mod in state.targets:
-                mod._cora_weight = w
+                rank = state.rank_for_layer(mod.cora_layer_index)
+                if rank not in weights_by_rank:
+                    raise RuntimeError(f"Missing dynamic CoRA basis for rank {rank}")
+                mod._cora_weight = weights_by_rank[rank]
                 mod._cora_condition = condition
             state.active = True
             state.counters["conditioned_batches"] += 1
@@ -313,8 +362,9 @@ class OriginalCoRARuntime:
             # Other model calls (if any) outside a sampled user/item batch
             # are disallowed: strict reproduction cannot use base-only LLM.
             raise RuntimeError("Original-CoRA requires a user/item-conditioned LLM forward")
-        if x.ndim != 3 or x.shape[0] != w.shape[0] or x.shape[-1] != 4096:
-            raise RuntimeError(f"CoRA mismatch x={x.shape}, w={w.shape}")
+        if (x.ndim != 3 or x.shape[0] != w.shape[0] or x.shape[-1] != 4096
+                or w.shape[-1] != module.cora_rank):
+            raise RuntimeError(f"CoRA mismatch x={x.shape}, w={w.shape}, rank={module.cora_rank}")
         x_fp = module.cora_dropout(x).to(dtype=module.cora_lora_P.weight.dtype)
         if self.injection_mode == "layer_conditioned":
             condition = module._cora_condition
