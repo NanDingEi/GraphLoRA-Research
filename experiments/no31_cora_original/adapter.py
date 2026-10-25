@@ -92,8 +92,16 @@ class OriginalCoRARuntime:
                 "NO31_CORA_RANK_PROFILE must be uniform, 4-6-8-10 or 12-14-18-20"
             )
         self.group_projector_mode = os.environ.get("NO31_CORA_GROUP_PROJECTORS", "off")
-        if self.group_projector_mode not in ("off", "shared", "group4"):
-            raise ValueError("NO31_CORA_GROUP_PROJECTORS must be off/shared/group4")
+        self.group_count_by_mode = {
+            "off": 0, "shared": 1, "group2": 2, "group4": 4, "group8": 8,
+            "shared_group4": 4, "shared_trunk4": 4, "rank_group4": 4,
+            "group4_linear": 4,
+        }
+        if self.group_projector_mode not in self.group_count_by_mode:
+            raise ValueError(
+                f"Unsupported NO31_CORA_GROUP_PROJECTORS={self.group_projector_mode}"
+            )
+        self.group_count = self.group_count_by_mode[self.group_projector_mode]
         if self.group_projector_mode != "off" and (
             self.rank_profile is not None or self.input_mode != "concat"
             or self.injection_mode != "shared"
@@ -102,6 +110,11 @@ class OriginalCoRARuntime:
         ):
             raise ValueError("Group projectors require G2 rank16, full32 QKVO, concat/shared")
         self.expected_targets = len(self.projections) * len(self.layers)
+
+    def group_for_layer(self, layer_index):
+        if self.group_projector_mode == "off":
+            raise ValueError("group_for_layer is only used in group-projector modes")
+        return min(int(layer_index) // (32 // self.group_count), self.group_count - 1)
 
     def rank_for_layer(self, layer_index):
         if self.rank_profile is None:
@@ -291,8 +304,11 @@ class OriginalCoRARuntime:
             # penultimate states and not a learned per-rank gate.
             if state.group_projector_mode != "off":
                 weights_by_group = model.cora_weight_generator(pair)
-                if set(weights_by_group) != {0, 1, 2, 3}:
-                    raise RuntimeError("Group projectors must return four rank16 matrices")
+                if set(weights_by_group) != set(range(state.group_count)):
+                    raise RuntimeError(
+                        f"Group projector output ids mismatch: {sorted(weights_by_group)} "
+                        f"expected={list(range(state.group_count))}"
+                    )
                 for group_idx, matrix in weights_by_group.items():
                     if matrix.shape != (users.numel(), 4096, 16):
                         raise RuntimeError(
@@ -324,7 +340,7 @@ class OriginalCoRARuntime:
                 raise RuntimeError("Stale CoRA weights were not cleared")
             for mod in state.targets:
                 if state.group_projector_mode != "off":
-                    group_idx = int(mod.cora_layer_index) // 8
+                    group_idx = state.group_for_layer(mod.cora_layer_index)
                     mod._cora_weight = weights_by_group[group_idx]
                 else:
                     rank = state.rank_for_layer(mod.cora_layer_index)
