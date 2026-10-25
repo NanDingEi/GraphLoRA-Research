@@ -39,6 +39,7 @@ def main():
             "NO31_CORA_PROJECTIONS": row["projections"],
             "NO31_CORA_LAYERS": row["layers"],
             "NO31_CORA_INPUT": row["cf_input"],
+            "NO31_CORA_INJECTION_MODE": "shared",
             "NO31_CORA_RESIDUAL_RATIO": "0",
             "NO31_CORA_DEPTH_PROFILE": "uniform",
             "NO31_CORA_PROJECTION_SCALES": "q_proj=1,k_proj=1,v_proj=1,o_proj=1",
@@ -48,6 +49,7 @@ def main():
         assert runtime.alpha==row["alpha"]
         assert runtime.scaling==row["alpha"]/16
         assert runtime.input_mode==row["cf_input"]
+        assert runtime.injection_mode=="shared"
         print(f"[NIGHT8-CPU] {row['id']} target_modules={runtime.expected_targets} "
               f"alpha={runtime.alpha} input={runtime.input_mode}")
     # Generator shape and input-mode intervention; use reduced dimensions
