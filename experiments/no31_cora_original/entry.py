@@ -83,9 +83,13 @@ def main():
                for mod in runtime.targets):
             raise RuntimeError("Unexpected pre-active CoRA weights")
         if runtime.rank_profile:
-            dynamic_desc = "groupwise [B,4096,r_g], r_g=4/6/8/10"
-            p_desc = f"static_P={len(pweights)} x [4096,grouped ranks 4/6/8/10]"
-            rank_desc = "L0-7:4,L8-15:6,L16-23:8,L24-31:10"
+            rank_text = "/".join(map(str, runtime.rank_profile))
+            dynamic_desc = f"groupwise [B,4096,r_g], r_g={rank_text}"
+            p_desc = f"static_P={len(pweights)} x [4096,grouped ranks {rank_text}]"
+            rank_desc = ",".join(
+                f"L{j*8}-{j*8+7}:{rank}"
+                for j, rank in enumerate(runtime.rank_profile)
+            )
         else:
             dynamic_desc = "[B,4096,16]"
             p_desc = f"static_P={len(pweights)} x [4096,16]"
