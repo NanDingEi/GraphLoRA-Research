@@ -38,6 +38,7 @@ def make_runtime(row):
         "NO31_CORA_RESIDUAL_RATIO": "0",
         "NO31_CORA_DEPTH_PROFILE": "uniform",
         "NO31_CORA_PROJECTION_SCALES": UNIFORM,
+        "NO31_CORA_RANK_PROFILE": "uniform",
     }):
         return OriginalCoRARuntime()
 
