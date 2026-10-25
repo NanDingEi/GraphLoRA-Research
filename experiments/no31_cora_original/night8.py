@@ -26,6 +26,8 @@ BASELINE_AUC = 0.719760366
 BASELINE_UAUC = 0.685106415
 CORA_R0_AUC = 0.6337559472796233
 CORA_R0_UAUC = 0.5931980355032019
+G2_AUC = 0.7301218951846701
+G2_UAUC = 0.68804101129963
 
 # R0 (not rerun): QKVO layers 0..31, concatenated [u;i] as one CF token,
 # alpha32, rank16, static P LR multiplier=1, fix_autocast_cache=True.
@@ -153,8 +155,8 @@ def precheck(path):
 def plan(rows):
     cfg = prepared_config()
     print("[NIGHT8-PLAN] Baselines: NO31 AUC=%.9f UAUC=%.9f; "
-          "repaired CoRA R0 AUC=%.9f UAUC=%.9f"
-          % (BASELINE_AUC, BASELINE_UAUC,CORA_R0_AUC,CORA_R0_UAUC))
+          "CoRA R0 AUC=%.9f UAUC=%.9f; G2 rank16 alpha48 AUC=%.9f UAUC=%.9f"
+          % (BASELINE_AUC, BASELINE_UAUC, CORA_R0_AUC, CORA_R0_UAUC, G2_AUC, G2_UAUC))
     print("[NIGHT8-COMMON] prepared=%s train_bs=2 eval_bs=3 accum=4 "
           "seed42 CTR=.05 KD=.05 fix_autocast_cache=True rank16 "
           "fresh_init=YES 1epoch Valid-only GPU0 foreground" % READY)
@@ -268,6 +270,8 @@ def run_one(row, common_cfg, root):
         id=ident, title=row["title"], auc=auc, uauc=uauc,
         delta_vs_no31=auc-BASELINE_AUC,
         delta_vs_cora_r0=auc-CORA_R0_AUC,
+        delta_vs_g2=auc-G2_AUC,
+        delta_uauc_vs_g2=uauc-G2_UAUC,
         checkpoint=str(checkpoints[0]),
         log=str(log_file),
         targets=selected_targets(row), counts=counts,
@@ -338,7 +342,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
             f.write(json.dumps(result)+"\n")
         with (out/"summary.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.DictWriter(f,fieldnames=(
-                "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31",
+                "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31","delta_vs_g2","delta_uauc_vs_g2",
                 "layers","projections","cf_input","injection_mode","rank_profile","alpha","p_lr",
                 "residual_ratio","depth_profile","projection_scales","seed","checkpoint"))
             writer.writeheader()
