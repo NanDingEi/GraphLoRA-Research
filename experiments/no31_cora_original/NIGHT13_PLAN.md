@@ -32,6 +32,6 @@ This is a single architecture experiment, not a parameter sweep. It tests whethe
 
     CUDA_VISIBLE_DEVICES=0 python -u experiments/no31_cora_original/night13.py --run
 
-The run is foreground and serial. The runner refuses to start if GPU 0 is occupied. It saves a timestamped `logs/NO31_CORA_NIGHT13_*/GROUPED_RANK_4_6_8_10/train.log`, a `result.json`, a `summary.csv`, and `checkpoint_0.pth`.
+The run is foreground and serial. The runner refuses to start if GPU 0 is occupied. It saves the per-run `summary.csv` at `logs/NO31_CORA_NIGHT13_<timestamp>/summary.csv`, detailed `train.log` and `result.json` under `logs/NO31_CORA_NIGHT13_<timestamp>/GROUPED_RANK_4_6_8_10/`, and `checkpoint_0.pth` under the corresponding timestamped `output/NO31_CORA_NIGHT13_<timestamp>/GROUPED_RANK_4_6_8_10/` directory.
 
 The summary reports AUC/UAUC and deltas against NO31, the original CoRA R0, and the strongest alpha-48 rank-16 G2 reference (AUC 0.7301218952, UAUC 0.6880410113).
