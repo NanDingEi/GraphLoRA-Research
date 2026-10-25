@@ -79,8 +79,8 @@ class OriginalCoRARuntime:
         rank_profile_text = os.environ.get("NO31_CORA_RANK_PROFILE", "uniform")
         if rank_profile_text == "uniform":
             self.rank_profile = None
-        elif rank_profile_text == "4-6-8-10":
-            self.rank_profile = (4, 6, 8, 10)
+        elif rank_profile_text in ("4-6-8-10", "12-14-18-20"):
+            self.rank_profile = tuple(map(int, rank_profile_text.split("-")))
             if self.layers != tuple(range(32)):
                 raise ValueError("Grouped-rank CoRA requires all 32 Transformer layers")
             if self.projections != ("q_proj", "k_proj", "v_proj", "o_proj"):
@@ -88,7 +88,9 @@ class OriginalCoRARuntime:
             if self.input_mode != "concat" or self.injection_mode != "shared":
                 raise ValueError("Grouped-rank CoRA requires the original shared/concat path")
         else:
-            raise ValueError("NO31_CORA_RANK_PROFILE must be uniform or 4-6-8-10")
+            raise ValueError(
+                "NO31_CORA_RANK_PROFILE must be uniform, 4-6-8-10 or 12-14-18-20"
+            )
         self.expected_targets = len(self.projections) * len(self.layers)
 
     def rank_for_layer(self, layer_index):
@@ -231,14 +233,20 @@ class OriginalCoRARuntime:
                 f"{key}={state.projection_scales[key]:g}"
                 for key in ("q_proj", "k_proj", "v_proj", "o_proj")
             )
-            rank_summary = (
-                "uniform16" if state.rank_profile is None
-                else "4-6-8-10 (L0-7:4,L8-15:6,L16-23:8,L24-31:10)"
-            )
-            generator_shape_summary = (
-                f"[B,{hidden},16]" if state.rank_profile is None
-                else f"groupwise [B,{hidden},r_g], r_g=4/6/8/10"
-            )
+            if state.rank_profile is None:
+                rank_summary = "uniform16"
+                generator_shape_summary = f"[B,{hidden},16]"
+            else:
+                rank_text = "-".join(str(rank) for rank in state.rank_profile)
+                layer_text = ",".join(
+                    f"L{group*8}-{group*8+7}:{rank}"
+                    for group, rank in enumerate(state.rank_profile)
+                )
+                rank_summary = f"{rank_text} ({layer_text})"
+                generator_shape_summary = (
+                    f"groupwise [B,{hidden},r_g], "
+                    f"r_g={'/'.join(map(str,state.rank_profile))}"
+                )
             print(
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
                 f"qformer_layers=8 qformer_queries=4 dynamic_A={generator_shape_summary} "
