@@ -31,6 +31,7 @@ def runtime_for(row):
         "NO31_CORA_INPUT":row["cf_input"],
         "NO31_CORA_RESIDUAL_RATIO":row["residual_ratio"],
         "NO31_CORA_DEPTH_PROFILE":row["depth_profile"],
+        "NO31_CORA_PROJECTION_SCALES":"q_proj=1,k_proj=1,v_proj=1,o_proj=1",
     }):
         return OriginalCoRARuntime()
 
