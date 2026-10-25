@@ -48,7 +48,7 @@ def main():
     print(
         "[NIGHT13-PLAN] L0-L7 rank=4; L8-L15 rank=6; "
         "L16-L23 rank=8; L24-L31 rank=10; all Q/K/V/O; "
-        "shared QFormer with four rank-specific output heads; "
+        "shared QFormer and one rank-10 output head, sliced and renormalized per group; "
         "alpha/r fixed at 3.0 in every group; seed=42; one epoch; Valid-only.",
         flush=True,
     )
