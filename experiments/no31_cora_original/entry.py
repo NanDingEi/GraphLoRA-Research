@@ -134,6 +134,16 @@ def main():
     if args.probe_only:
         return
     print("[CORA-ORIGINAL-COUNTERS] "+json.dumps(dict(runtime.counters)),flush=True)
+    if runtime.group_projector_mode != "off":
+        projector_norms = []
+        for idx, projector in enumerate(runtime.model.cora_weight_generator.group_projectors):
+            layer = projector[-1]
+            projector_norms.append({
+                "group": idx if runtime.group_projector_mode == "group4" else "all",
+                "last_weight_norm": float(layer.weight.detach().float().norm()),
+                "last_bias_norm": float(layer.bias.detach().float().norm()),
+            })
+        print("[CORA-GROUP-PROJECTORS] "+json.dumps(projector_norms), flush=True)
     if runtime.counters["conditioned_batches"]<=0 or runtime.counters["projection_forwards"]<=0:
         raise RuntimeError("CoRA full-matrix PLoRA never actually executed")
 
