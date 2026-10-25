@@ -27,8 +27,8 @@ class PerceptualWeightsGenerator(nn.Module):
         self.embedding_size = user_embedding_size
         self.rank_profile = tuple(int(v) for v in rank_profile) if rank_profile else None
         if self.rank_profile is not None:
-            if len(self.rank_profile) != 4 or self.rank_profile != (4, 6, 8, 10):
-                raise ValueError("Only the verified four-group rank profile (4,6,8,10) is supported")
+            if self.rank_profile not in ((4, 6, 8, 10), (12, 14, 18, 20)):
+                raise ValueError("Grouped CoRA rank profile must be 4-6-8-10 or 12-14-18-20")
             if injection_mode != "shared" or input_mode != "concat":
                 raise ValueError("Grouped-rank CoRA requires the original shared/concat input path")
             self.r = max(self.rank_profile)
@@ -49,17 +49,31 @@ class PerceptualWeightsGenerator(nn.Module):
         if self.rank_profile is None:
             self.final = nn.Linear(user_embedding_size * 2, hidden_size * r)
             nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
-        else:
-            # Keep one shared rank-10 dynamic-A head, as in original CoRA.
-            # Each depth group takes a prefix of the rank channels and
-            # renormalizes that group's flattened basis. This changes the
-            # layerwise rank allocation without adding four independent heads.
+        elif self.rank_profile == (4, 6, 8, 10):
+            # Preserve the previously evaluated compressed rank-10 architecture.
             _rank_head_rng = torch.get_rng_state()
             try:
                 self.final = nn.Linear(user_embedding_size * 2, hidden_size * self.r)
                 nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
             finally:
                 torch.set_rng_state(_rank_head_rng)
+        else:
+            # Parameter-matched rank profile: preserve the *exact* G2
+            # 512 -> (4096*16) output head, and add only four high-rank
+            # channels via a compact 512 -> 32 -> (4096*4) nonlinear branch.
+            # P budget is identical to G2 and new head params are ~0.56M,
+            # instead of ~8.4M for a naive dense rank-20 head.
+            self.final = nn.Linear(user_embedding_size * 2, hidden_size * 16)
+            nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
+            _extra_head_rng = torch.get_rng_state()
+            try:
+                self.extra_rank_head = nn.Sequential(
+                    nn.Linear(user_embedding_size * 2, 32),
+                    nn.GELU(),
+                    nn.Linear(32, hidden_size * 4),
+                )
+            finally:
+                torch.set_rng_state(_extra_head_rng)
 
         # Architecture-specific parameters must not consume the global RNG
         # stream used later by P-layer initialization and the training sampler.
@@ -165,17 +179,26 @@ class PerceptualWeightsGenerator(nn.Module):
             use_cache=True,
             return_dict=True,
         )
-        # Each group gets a rank-specific dynamic basis from its own output
-        # head, while all four heads share the same user-item-conditioned
-        # QFormer representation. Normalize each full flattened basis exactly
-        # as in the original CoRA equation before reshaping it to [B,H,r_g].
+        # All four layers groups reuse one QFormer representation and a
+        # shared collection of rank channels; each group takes a prefix and
+        # normalizes the selected channels, as in original CoRA.
         if self.rank_profile is not None:
             if return_condition:
                 raise ValueError("return_condition is not used by grouped-rank CoRA")
             batch_size = encoder_states.size(0)
-            raw = self.final(query_output.last_hidden_state).mean(dim=1, keepdim=True)
-            # Keep rank channels aligned per hidden dimension: [B,1,H,Rmax].
-            raw = raw.view(batch_size, 1, self.hidden_size, self.r)
+            q_states = query_output.last_hidden_state
+            raw = self.final(q_states).mean(dim=1, keepdim=True)
+            if self.rank_profile == (12, 14, 18, 20):
+                # G2-compatible first 16 channels plus four extra channels;
+                # extra head is nonlinear, so it is not merely a linear
+                # re-expression of the existing 16 channels.
+                base = raw.view(batch_size, 1, self.hidden_size, 16)
+                extras = self.extra_rank_head(q_states).mean(
+                    dim=1, keepdim=True
+                ).view(batch_size, 1, self.hidden_size, 4)
+                raw = torch.cat((base, extras), dim=-1)
+            else:
+                raw = raw.view(batch_size, 1, self.hidden_size, self.r)
             grouped_weights = {}
             for rank in self.rank_profile:
                 flat = raw[..., :rank].reshape(batch_size, 1, self.hidden_size * rank)
