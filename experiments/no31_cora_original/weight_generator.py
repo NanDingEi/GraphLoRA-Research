@@ -40,40 +40,49 @@ class PerceptualWeightsGenerator(nn.Module):
         self.final = nn.Linear(user_embedding_size * 2, hidden_size * r)
         nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
 
-        # Structural variant M1/M2: expose user and candidate as separate,
-        # role-marked encoder tokens instead of one concatenated token.
-        # The projection is shared so the ablation tests token structure,
-        # not unrelated user/item projection capacity.
-        if injection_mode in ("typed_tokens", "interaction_tokens"):
-            width = user_embedding_size * 2
-            self.entity_projection = nn.Linear(user_embedding_size, width)
-            self.user_type = nn.Parameter(torch.empty(1, 1, width))
-            self.item_type = nn.Parameter(torch.empty(1, 1, width))
-            nn.init.normal_(self.user_type, mean=0.0, std=0.02)
-            nn.init.normal_(self.item_type, mean=0.0, std=0.02)
+        # Architecture-specific parameters must not consume the global RNG
+        # stream used later by P-layer initialization and the training sampler.
+        # Otherwise identical seed/config runs silently get different example
+        # orders merely because one variant has extra parameters. Initialize the
+        # extra modules from the current stream, then restore that stream.
+        _global_cpu_rng = torch.get_rng_state()
+        try:
+            # Structural variant M1/M2: expose user and candidate as separate,
+            # role-marked encoder tokens instead of one concatenated token.
+            # The projection is shared so the ablation tests token structure,
+            # not unrelated user/item projection capacity.
+            if injection_mode in ("typed_tokens", "interaction_tokens"):
+                width = user_embedding_size * 2
+                self.entity_projection = nn.Linear(user_embedding_size, width)
+                self.user_type = nn.Parameter(torch.empty(1, 1, width))
+                self.item_type = nn.Parameter(torch.empty(1, 1, width))
+                nn.init.normal_(self.user_type, mean=0.0, std=0.02)
+                nn.init.normal_(self.item_type, mean=0.0, std=0.02)
 
-        # Structural variant M2: an explicit user-item compatibility token.
-        if injection_mode == "interaction_tokens":
-            width = user_embedding_size * 2
-            self.interaction_projection = nn.Linear(user_embedding_size, width)
-            self.interaction_type = nn.Parameter(torch.empty(1, 1, width))
-            nn.init.normal_(self.interaction_type, mean=0.0, std=0.02)
+            # Structural variant M2: an explicit user-item compatibility token.
+            if injection_mode == "interaction_tokens":
+                width = user_embedding_size * 2
+                self.interaction_projection = nn.Linear(user_embedding_size, width)
+                self.interaction_type = nn.Parameter(torch.empty(1, 1, width))
+                nn.init.normal_(self.interaction_type, mean=0.0, std=0.02)
 
-        # Structural variant M3: layer-specific rank-channel modulation is
-        # conditioned on both the MF pair summary and the layer identity.
-        # Small output initialization keeps the first forward near the
-        # shared-CoRA equation without disabling gradients to the conditioner.
-        if injection_mode == "layer_conditioned":
-            width = user_embedding_size * 2
-            self.layer_embedding = nn.Embedding(32, 32)
-            self.layer_modulator = nn.Sequential(
-                nn.Linear(width + 32, 128),
-                nn.GELU(),
-                nn.Linear(128, r),
-            )
-            nn.init.normal_(self.layer_embedding.weight, mean=0.0, std=0.02)
-            nn.init.normal_(self.layer_modulator[-1].weight, mean=0.0, std=1e-3)
-            nn.init.zeros_(self.layer_modulator[-1].bias)
+            # Structural variant M3: layer-specific rank-channel modulation is
+            # conditioned on both the MF pair summary and the layer identity.
+            # Small output initialization keeps the first forward near the
+            # shared-CoRA equation without disabling gradients to the conditioner.
+            if injection_mode == "layer_conditioned":
+                width = user_embedding_size * 2
+                self.layer_embedding = nn.Embedding(32, 32)
+                self.layer_modulator = nn.Sequential(
+                    nn.Linear(width + 32, 128),
+                    nn.GELU(),
+                    nn.Linear(128, r),
+                )
+                nn.init.normal_(self.layer_embedding.weight, mean=0.0, std=0.02)
+                nn.init.normal_(self.layer_modulator[-1].weight, mean=0.0, std=1e-3)
+                nn.init.zeros_(self.layer_modulator[-1].bias)
+        finally:
+            torch.set_rng_state(_global_cpu_rng)
 
     def _init_qformer(self):
         config = BertConfig()
