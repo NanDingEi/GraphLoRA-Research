@@ -70,6 +70,12 @@ class OriginalCoRARuntime:
         self.input_mode = os.environ.get("NO31_CORA_INPUT", "concat")
         if self.input_mode not in ("concat", "two_tokens"):
             raise ValueError("NO31_CORA_INPUT must be concat or two_tokens")
+        self.injection_mode = os.environ.get("NO31_CORA_INJECTION_MODE", "shared")
+        if self.injection_mode not in (
+            "shared", "typed_tokens", "interaction_tokens",
+            "layer_conditioned", "token_gate",
+        ):
+            raise ValueError(f"Unsupported NO31_CORA_INJECTION_MODE: {self.injection_mode}")
         self.expected_targets = len(self.projections) * len(self.layers)
 
     def install(self):
@@ -118,7 +124,14 @@ class OriginalCoRARuntime:
                 hidden_size=hidden,
                 r=state.rank,
                 input_mode=state.input_mode,
+                injection_mode=state.injection_mode,
             )
+            if state.injection_mode == "token_gate":
+                # Shared token-wise gate across all layers/projections. 2*sigmoid(0)=1,
+                # so the forward initially matches the ungated CoRA residual.
+                model.cora_token_gate = nn.Linear(hidden, 1)
+                nn.init.zeros_(model.cora_token_gate.weight)
+                nn.init.zeros_(model.cora_token_gate.bias)
             state.model = model
 
             # All 32 Transformer layers, all attention Q/K/V/O modules,
@@ -166,6 +179,7 @@ class OriginalCoRARuntime:
                 mod.cora_lora_P = p
                 mod.cora_dropout = nn.Dropout(p=0.05)
                 mod._cora_weight = None
+                mod._cora_condition = None
                 mod.cora_layer_index = layer
                 mod.cora_projection_name = proj
                 mod.forward = MethodType(state.projection_forward, mod)
@@ -184,6 +198,7 @@ class OriginalCoRARuntime:
                 f"frozen_CF=MF original_GNN_losses=ON "
                 f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
                 f"projections={','.join(state.projections)} input_mode={state.input_mode} "
+                f"injection_mode={state.injection_mode} "
                 f"residual_ratio={state.residual_ratio:g} depth_profile={state.depth_profile} "
                 f"projection_scales={projection_scale_summary}",
                 flush=True,
@@ -205,7 +220,11 @@ class OriginalCoRARuntime:
             )
             # Original implementation uses MF [u, i] 256+256, not NGCF
             # penultimate states and not a learned per-rank gate.
-            w = model.cora_weight_generator(pair)
+            if state.injection_mode == "layer_conditioned":
+                w, condition = model.cora_weight_generator(pair, return_condition=True)
+            else:
+                w = model.cora_weight_generator(pair)
+                condition = None
             if w.shape != (users.numel(), 4096, state.rank):
                 raise RuntimeError(f"CoRA full LoRA-A shape invalid: {w.shape}")
             if not torch.isfinite(w).all():
@@ -214,6 +233,7 @@ class OriginalCoRARuntime:
                 raise RuntimeError("Stale CoRA weights were not cleared")
             for mod in state.targets:
                 mod._cora_weight = w
+                mod._cora_condition = condition
             state.active = True
             state.counters["conditioned_batches"] += 1
             # Keep untouched NO31 GNN semantic/CTR/KD data flow. Its
@@ -244,6 +264,7 @@ class OriginalCoRARuntime:
             return
         for mod in self.targets:
             mod._cora_weight = None
+            mod._cora_condition = None
         self.active = False
 
     def layer_scale(self, layer_index):
@@ -288,8 +309,25 @@ class OriginalCoRARuntime:
         if x.ndim != 3 or x.shape[0] != w.shape[0] or x.shape[-1] != 4096:
             raise RuntimeError(f"CoRA mismatch x={x.shape}, w={w.shape}")
         x_fp = module.cora_dropout(x).to(dtype=module.cora_lora_P.weight.dtype)
+        if self.injection_mode == "layer_conditioned":
+            condition = module._cora_condition
+            if condition is None:
+                raise RuntimeError("Layer-conditioned CoRA is missing its pair condition")
+            layer_ids = torch.full(
+                (condition.shape[0],), int(module.cora_layer_index),
+                dtype=torch.long, device=condition.device,
+            )
+            layer_embedding = self.model.cora_weight_generator.layer_embedding(layer_ids)
+            layer_input = torch.cat((condition, layer_embedding), dim=-1)
+            rank_modulation = torch.tanh(
+                self.model.cora_weight_generator.layer_modulator(layer_input)
+            )
+            w = w * (1.0 + rank_modulation.unsqueeze(1).to(dtype=w.dtype))
         weighted = torch.bmm(x_fp, w.to(dtype=x_fp.dtype))
         residual = module.cora_lora_P(weighted) * self.scaling
+        if self.injection_mode == "token_gate":
+            token_gate = 2.0 * torch.sigmoid(self.model.cora_token_gate(x.float()))
+            residual = residual * token_gate.to(dtype=residual.dtype)
         residual = self.apply_residual_controls(
             base, residual, module.cora_layer_index, module.cora_projection_name
         )
