@@ -80,20 +80,33 @@ def main():
             raise RuntimeError("CoRA injection mode mismatch")
         if gen.group_projector_mode != runtime.group_projector_mode:
             raise RuntimeError("CoRA group projector mode mismatch")
-        expected_group_projectors = {
-            "off": 0, "shared": 1, "group4": 4
+        expected_projector_modules = {
+            "off": 0, "shared": 1, "group2": 2, "group4": 4, "group8": 8,
+            "shared_group4": 5, "shared_trunk4": 0, "rank_group4": 0,
+            "group4_linear": 4,
         }[runtime.group_projector_mode]
         projectors = getattr(gen, "group_projectors", [])
-        if len(projectors) != expected_group_projectors:
-            raise RuntimeError("CoRA group projector module count mismatch")
+        if len(projectors) != expected_projector_modules:
+            raise RuntimeError(
+                f"CoRA projector module count mismatch: mode={runtime.group_projector_mode} "
+                f"got={len(projectors)} expected={expected_projector_modules}"
+            )
         if runtime.group_projector_mode != "off":
             if runtime.rank_profile is not None or gen.r != 16:
                 raise RuntimeError("Group projector mode must preserve rank16")
-            for projector in projectors:
+            zero_output_layers = []
+            if projectors:
+                zero_output_layers.extend(projector[-1] for projector in projectors)
+            if runtime.group_projector_mode == "shared_trunk4":
+                zero_output_layers.extend(gen.group_projector_heads)
+            if runtime.group_projector_mode == "rank_group4":
+                if torch.count_nonzero(gen.group_rank_delta.detach()).item() != 0:
+                    raise RuntimeError("Rank-space group deltas must start at zero")
+            for layer in zero_output_layers:
                 if any(torch.count_nonzero(p).item() != 0 for p in (
-                    projector[-1].weight.detach(), projector[-1].bias.detach()
+                    layer.weight.detach(), layer.bias.detach()
                 )):
-                    raise RuntimeError("Group projector not identity-initialized")
+                    raise RuntimeError("Group projector output must be identity-initialized")
         # Every selected target receives original CoRA's exact P(x @ A)
         # forward; unselected projections do not receive dynamic weights.
         if any(getattr(mod, "_cora_weight", "missing") != None
@@ -135,13 +148,26 @@ def main():
         return
     print("[CORA-ORIGINAL-COUNTERS] "+json.dumps(dict(runtime.counters)),flush=True)
     if runtime.group_projector_mode != "off":
+        gen = runtime.model.cora_weight_generator
         projector_norms = []
-        for idx, projector in enumerate(runtime.model.cora_weight_generator.group_projectors):
+        for idx, projector in enumerate(getattr(gen, "group_projectors", [])):
             layer = projector[-1]
             projector_norms.append({
-                "group": idx if runtime.group_projector_mode == "group4" else "all",
+                "module": idx,
                 "last_weight_norm": float(layer.weight.detach().float().norm()),
                 "last_bias_norm": float(layer.bias.detach().float().norm()),
+            })
+        if runtime.group_projector_mode == "shared_trunk4":
+            for idx, layer in enumerate(gen.group_projector_heads):
+                projector_norms.append({
+                    "module": f"head{idx}",
+                    "last_weight_norm": float(layer.weight.detach().float().norm()),
+                    "last_bias_norm": float(layer.bias.detach().float().norm()),
+                })
+        if runtime.group_projector_mode == "rank_group4":
+            projector_norms.append({
+                "module": "rank_delta",
+                "norm": float(gen.group_rank_delta.detach().float().norm()),
             })
         print("[CORA-GROUP-PROJECTORS] "+json.dumps(projector_norms), flush=True)
     if runtime.counters["conditioned_batches"]<=0 or runtime.counters["projection_forwards"]<=0:
