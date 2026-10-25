@@ -54,7 +54,7 @@ def main():
                 f"expected {runtime.expected_targets}"
             )
         for name, param in pweights:
-            match = re.search(r"layers\\.(\\d+)\\.self_attn", name)
+            match = re.search(r"layers\.(\d+)\.self_attn", name)
             if match is None:
                 raise RuntimeError(f"Cannot identify Transformer layer for CoRA-P: {name}")
             layer = int(match.group(1))
