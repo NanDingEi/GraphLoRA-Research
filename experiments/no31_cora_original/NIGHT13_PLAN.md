@@ -11,7 +11,7 @@ This experiment adds one new architecture on top of the current best original-Co
 
 The original MF user/item concatenation, frozen MF conditioning snapshot, shared 8-layer QFormer, all-token residual injection, all Q/K/V/O targets, NO31 CTR/KD/semantic losses, data split, seed, optimizer settings, and one-epoch valid-only evaluation remain unchanged.
 
-The QFormer is shared across all four groups. Four rank-specific output heads generate normalized dynamic A matrices in one QFormer pass. Each layer/projection has a zero-initialized P matrix whose input width matches its group's rank. The forward remains:
+The QFormer and one rank-10 output head are shared across all four groups. Each group takes the first 4, 6, 8, or 10 rank channels per hidden dimension from this common basis, then renormalizes the flattened group-specific dynamic A matrix. This preserves the original CoRA design of a shared user-item-conditioned basis and changes only the rank allocation, without introducing four independent generator heads. Each layer/projection has a zero-initialized P matrix whose input width matches its group's rank. The forward remains:
 
     y = W x + 3.0 * P_(layer,projection) (x @ A_(user,item,group))
 
