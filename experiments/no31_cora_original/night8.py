@@ -305,7 +305,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
                 da = result["auc"] - float(row["anchor_auc"])
                 du = result["uauc"] - float(row["anchor_uauc"])
                 tol = float(row.get("anchor_tolerance", 0.02))
-                print(f"[NIGHT10-ANCHOR] {row['id']} delta_auc={da:+.6f} "
+                print(f"[{name_prefix}-ANCHOR] {row['id']} delta_auc={da:+.6f} "
                       f"delta_uauc={du:+.6f} tolerance={tol:.3f}", flush=True)
                 if abs(da) > tol or abs(du) > tol:
                     raise RuntimeError(
