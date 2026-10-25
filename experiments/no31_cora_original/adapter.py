@@ -233,7 +233,7 @@ class OriginalCoRARuntime:
             )
             rank_summary = (
                 "uniform16" if state.rank_profile is None
-                else "L0-7:4,L8-15:6,L16-23:8,L24-31:10"
+                else "4-6-8-10 (L0-7:4,L8-15:6,L16-23:8,L24-31:10)"
             )
             print(
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
