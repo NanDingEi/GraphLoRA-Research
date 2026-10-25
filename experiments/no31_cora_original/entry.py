@@ -28,6 +28,7 @@ def main():
     os.chdir(ROOT)
     sys.path.insert(0,str(ROOT))
     from experiments.no31_cora_original.adapter import install_original_cora
+    import torch
     from minigpt4.models import minigpt4rec_v2 as graph
     runtime=install_original_cora()
     original_from_config=graph.MiniGPT4Rec_v2.from_config
@@ -77,6 +78,22 @@ def main():
             raise RuntimeError("CoRA input mode mismatch")
         if gen.injection_mode != runtime.injection_mode:
             raise RuntimeError("CoRA injection mode mismatch")
+        if gen.group_projector_mode != runtime.group_projector_mode:
+            raise RuntimeError("CoRA group projector mode mismatch")
+        expected_group_projectors = {
+            "off": 0, "shared": 1, "group4": 4
+        }[runtime.group_projector_mode]
+        projectors = getattr(gen, "group_projectors", [])
+        if len(projectors) != expected_group_projectors:
+            raise RuntimeError("CoRA group projector module count mismatch")
+        if runtime.group_projector_mode != "off":
+            if runtime.rank_profile is not None or gen.r != 16:
+                raise RuntimeError("Group projector mode must preserve rank16")
+            for projector in projectors:
+                if any(torch.count_nonzero(p).item() != 0 for p in (
+                    projector[-1].weight.detach(), projector[-1].bias.detach()
+                )):
+                    raise RuntimeError("Group projector not identity-initialized")
         # Every selected target receives original CoRA's exact P(x @ A)
         # forward; unselected projections do not receive dynamic weights.
         if any(getattr(mod, "_cora_weight", "missing") != None
@@ -103,6 +120,7 @@ def main():
             f"layers={runtime.layers[0]}-{runtime.layers[-1]} "
             f"projections={','.join(runtime.projections)} input={runtime.input_mode} "
             f"injection_mode={runtime.injection_mode} "
+            f"group_projectors={runtime.group_projector_mode} "
             f"residual_ratio={runtime.residual_ratio:g} depth_profile={runtime.depth_profile}",
             flush=True,
         )
