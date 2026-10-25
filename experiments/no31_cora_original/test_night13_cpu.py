@@ -72,10 +72,9 @@ def main():
         for weight in weights.values()
     )
     loss.backward()
-    for rank in (4, 6, 8, 10):
-        grad = generator.final_heads[str(rank)].weight.grad
-        assert grad is not None and torch.isfinite(grad).all()
-        assert grad.abs().sum().item() > 0, f"rank-{rank} head has no gradient"
+    grad = generator.final.weight.grad
+    assert grad is not None and torch.isfinite(grad).all()
+    assert grad.abs().sum().item() > 0, "shared rank-10 output head has no gradient"
 
     print(
         "[NIGHT13-CPU-PASS] layer boundaries, 128 targets, alpha/r=3, "
