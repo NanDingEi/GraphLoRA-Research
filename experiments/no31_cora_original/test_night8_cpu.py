@@ -43,6 +43,7 @@ def main():
             "NO31_CORA_RESIDUAL_RATIO": "0",
             "NO31_CORA_DEPTH_PROFILE": "uniform",
             "NO31_CORA_PROJECTION_SCALES": "q_proj=1,k_proj=1,v_proj=1,o_proj=1",
+            "NO31_CORA_RANK_PROFILE": "uniform",
         }):
             runtime=OriginalCoRARuntime()
         assert runtime.expected_targets==selected_targets(row)==expected[row["id"]]
