@@ -127,11 +127,16 @@ class OriginalCoRARuntime:
                 injection_mode=state.injection_mode,
             )
             if state.injection_mode == "token_gate":
-                # Shared token-wise gate across all layers/projections. 2*sigmoid(0)=1,
-                # so the forward initially matches the ungated CoRA residual.
-                model.cora_token_gate = nn.Linear(hidden, 1)
-                nn.init.zeros_(model.cora_token_gate.weight)
-                nn.init.zeros_(model.cora_token_gate.bias)
+                # Keep the sampler/P-init RNG stream identical to shared CoRA.
+                # The gate is zero-initialized anyway; its constructor must not
+                # shift all later random draws for this architecture ablation.
+                _global_cpu_rng = torch.get_rng_state()
+                try:
+                    model.cora_token_gate = nn.Linear(hidden, 1)
+                    nn.init.zeros_(model.cora_token_gate.weight)
+                    nn.init.zeros_(model.cora_token_gate.bias)
+                finally:
+                    torch.set_rng_state(_global_cpu_rng)
             state.model = model
 
             # All 32 Transformer layers, all attention Q/K/V/O modules,
