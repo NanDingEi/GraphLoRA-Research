@@ -91,6 +91,16 @@ class OriginalCoRARuntime:
             raise ValueError(
                 "NO31_CORA_RANK_PROFILE must be uniform, 4-6-8-10 or 12-14-18-20"
             )
+        self.group_projector_mode = os.environ.get("NO31_CORA_GROUP_PROJECTORS", "off")
+        if self.group_projector_mode not in ("off", "shared", "group4"):
+            raise ValueError("NO31_CORA_GROUP_PROJECTORS must be off/shared/group4")
+        if self.group_projector_mode != "off" and (
+            self.rank_profile is not None or self.input_mode != "concat"
+            or self.injection_mode != "shared"
+            or self.layers != tuple(range(32))
+            or self.projections != ("q_proj", "k_proj", "v_proj", "o_proj")
+        ):
+            raise ValueError("Group projectors require G2 rank16, full32 QKVO, concat/shared")
         self.expected_targets = len(self.projections) * len(self.layers)
 
     def rank_for_layer(self, layer_index):
@@ -148,6 +158,7 @@ class OriginalCoRARuntime:
                 input_mode=state.input_mode,
                 injection_mode=state.injection_mode,
                 rank_profile=state.rank_profile,
+                group_projector_mode=state.group_projector_mode,
             )
             if state.injection_mode == "token_gate":
                 # Keep the sampler/P-init RNG stream identical to shared CoRA.
@@ -250,7 +261,8 @@ class OriginalCoRARuntime:
             print(
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
                 f"qformer_layers=8 qformer_queries=4 dynamic_A={generator_shape_summary} "
-                f"rank_profile={rank_summary} group_scaling={state.scaling:g} "
+                f"rank_profile={rank_summary} group_projectors={state.group_projector_mode} "
+                f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
                 f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
@@ -277,7 +289,20 @@ class OriginalCoRARuntime:
             )
             # Original implementation uses MF [u, i] 256+256, not NGCF
             # penultimate states and not a learned per-rank gate.
-            if state.rank_profile is not None:
+            if state.group_projector_mode != "off":
+                weights_by_group = model.cora_weight_generator(pair)
+                if set(weights_by_group) != {0, 1, 2, 3}:
+                    raise RuntimeError("Group projectors must return four rank16 matrices")
+                for group_idx, matrix in weights_by_group.items():
+                    if matrix.shape != (users.numel(), 4096, 16):
+                        raise RuntimeError(
+                            f"Invalid group {group_idx} CoRA A shape: {matrix.shape}"
+                        )
+                    if not torch.isfinite(matrix).all():
+                        raise RuntimeError(f"Group {group_idx} CoRA A is nonfinite")
+                condition = None
+                weights_by_rank = None
+            elif state.rank_profile is not None:
                 weights_by_rank = model.cora_weight_generator(pair)
                 condition = None
             elif state.injection_mode == "layer_conditioned":
@@ -287,20 +312,25 @@ class OriginalCoRARuntime:
                 w = model.cora_weight_generator(pair)
                 condition = None
                 weights_by_rank = {state.rank: w}
-            for rank, w in weights_by_rank.items():
-                if w.shape != (users.numel(), 4096, int(rank)):
-                    raise RuntimeError(
-                        f"CoRA dynamic LoRA-A shape invalid for rank {rank}: {w.shape}"
-                    )
-                if not torch.isfinite(w).all():
-                    raise RuntimeError(f"CoRA generated non-finite weights for rank {rank}")
+            if weights_by_rank is not None:
+                for rank, w in weights_by_rank.items():
+                    if w.shape != (users.numel(), 4096, int(rank)):
+                        raise RuntimeError(
+                            f"CoRA dynamic LoRA-A shape invalid for rank {rank}: {w.shape}"
+                        )
+                    if not torch.isfinite(w).all():
+                        raise RuntimeError(f"CoRA generated non-finite weights for rank {rank}")
             if state.targets[0]._cora_weight is not None:
                 raise RuntimeError("Stale CoRA weights were not cleared")
             for mod in state.targets:
-                rank = state.rank_for_layer(mod.cora_layer_index)
-                if rank not in weights_by_rank:
-                    raise RuntimeError(f"Missing dynamic CoRA basis for rank {rank}")
-                mod._cora_weight = weights_by_rank[rank]
+                if state.group_projector_mode != "off":
+                    group_idx = int(mod.cora_layer_index) // 8
+                    mod._cora_weight = weights_by_group[group_idx]
+                else:
+                    rank = state.rank_for_layer(mod.cora_layer_index)
+                    if rank not in weights_by_rank:
+                        raise RuntimeError(f"Missing dynamic CoRA basis for rank {rank}")
+                    mod._cora_weight = weights_by_rank[rank]
                 mod._cora_condition = condition
             state.active = True
             state.counters["conditioned_batches"] += 1
