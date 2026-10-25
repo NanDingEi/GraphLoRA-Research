@@ -286,8 +286,10 @@ def run_one(row, common_cfg, root):
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
     print("[NIGHT8-RESULT] %s ValidAUC=%.9f ValidUAUC=%.9f "
-          "delta_vs_R0=%+.9f delta_vs_NO31=%+.9f"
-          % (ident,auc,uauc,auc-CORA_R0_AUC,auc-BASELINE_AUC), flush=True)
+          "delta_vs_R0=%+.9f delta_vs_NO31=%+.9f "
+          "delta_vs_G2=%+.9f delta_UAUC_vs_G2=%+.9f"
+          % (ident,auc,uauc,auc-CORA_R0_AUC,auc-BASELINE_AUC,
+             auc-G2_AUC,uauc-G2_UAUC), flush=True)
     return result
 
 
