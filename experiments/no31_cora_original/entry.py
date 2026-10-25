@@ -87,7 +87,7 @@ def main():
             p_desc = f"static_P={len(pweights)} x [4096,grouped ranks 4/6/8/10]"
             rank_desc = "L0-7:4,L8-15:6,L16-23:8,L24-31:10"
         else:
-            dynamic_desc = " [B,4096,16]"
+            dynamic_desc = "[B,4096,16]"
             p_desc = f"static_P={len(pweights)} x [4096,16]"
             rank_desc = "uniform16"
         print(
