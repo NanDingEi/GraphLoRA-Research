@@ -22,9 +22,18 @@ class PerceptualWeightsGenerator(nn.Module):
         input_mode="concat",
         injection_mode="shared",
         rank_profile=None,
+        group_projector_mode="off",
     ):
         super().__init__()
         self.embedding_size = user_embedding_size
+        self.group_projector_mode = group_projector_mode
+        if group_projector_mode not in ("off", "shared", "group4"):
+            raise ValueError("group_projector_mode must be off, shared or group4")
+        if group_projector_mode != "off":
+            if rank_profile is not None or injection_mode != "shared" or input_mode != "concat":
+                raise ValueError("Group projectors require original rank16/shared/concat CoRA")
+            if int(r) != 16:
+                raise ValueError("Group projectors require CoRA rank16")
         self.rank_profile = tuple(int(v) for v in rank_profile) if rank_profile else None
         if self.rank_profile is not None:
             if self.rank_profile not in ((4, 6, 8, 10), (12, 14, 18, 20)):
@@ -119,6 +128,29 @@ class PerceptualWeightsGenerator(nn.Module):
         finally:
             torch.set_rng_state(_global_cpu_rng)
 
+        # Optional collaborative-representation projectors (NIGHT15).
+        # They transform the four QFormer queries before the ORIGINAL final
+        # 512->(4096*16) head; the original per-layer P matrices are untouched.
+        # Zero-output initialization gives exact G2-equivalent initial forwards.
+        # RNG restoration preserves the reference G2 QFormer/final/P init stream.
+        if self.group_projector_mode != "off":
+            _projector_rng = torch.get_rng_state()
+            try:
+                count = 1 if self.group_projector_mode == "shared" else 4
+                width = self.embedding_size * 2
+                self.group_projectors = nn.ModuleList()
+                for _ in range(count):
+                    projector = nn.Sequential(
+                        nn.Linear(width, 32),
+                        nn.GELU(),
+                        nn.Linear(32, width),
+                    )
+                    nn.init.zeros_(projector[-1].weight)
+                    nn.init.zeros_(projector[-1].bias)
+                    self.group_projectors.append(projector)
+            finally:
+                torch.set_rng_state(_projector_rng)
+
     def _init_qformer(self):
         config = BertConfig()
         config.add_cross_attention = True
@@ -179,6 +211,30 @@ class PerceptualWeightsGenerator(nn.Module):
             use_cache=True,
             return_dict=True,
         )
+        # NIGHT15: the same query states are read by one shared projector or
+        # by four independent 512->32->512 residual projectors. Distinct
+        # dynamic A matrices go to four contiguous groups of eight layers.
+        if self.group_projector_mode != "off":
+            if return_condition:
+                raise ValueError("Group-projector mode does not use return_condition")
+            batch_size = encoder_states.size(0)
+            q_states = query_output.last_hidden_state
+            if self.group_projector_mode == "shared":
+                projected = q_states + self.group_projectors[0](q_states)
+                flat = self.final(projected).mean(dim=1, keepdim=True)
+                w = F.normalize(flat, p=2, dim=-1).view(
+                    batch_size, self.hidden_size, self.r
+                )
+                return {idx: w for idx in range(4)}
+            group_weights = {}
+            for idx, projector in enumerate(self.group_projectors):
+                projected = q_states + projector(q_states)
+                flat = self.final(projected).mean(dim=1, keepdim=True)
+                group_weights[idx] = F.normalize(flat, p=2, dim=-1).view(
+                    batch_size, self.hidden_size, self.r
+                )
+            return group_weights
+
         # All four layers groups reuse one QFormer representation and a
         # shared collection of rank channels; each group takes a prefix and
         # normalizes the selected channels, as in original CoRA.
