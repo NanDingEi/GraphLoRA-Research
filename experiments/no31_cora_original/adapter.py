@@ -187,6 +187,8 @@ class OriginalCoRARuntime:
             model.cora_fixed_user.requires_grad_(False)
             model.cora_fixed_item.requires_grad_(False)
             model.cora_weight_generator.to(model.cora_fixed_user.device)
+            if hasattr(model, "cora_token_gate"):
+                model.cora_token_gate.to(model.cora_fixed_user.device)
             projection_scale_summary = ",".join(
                 f"{key}={state.projection_scales[key]:g}"
                 for key in ("q_proj", "k_proj", "v_proj", "o_proj")
