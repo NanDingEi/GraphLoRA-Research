@@ -37,6 +37,7 @@ def main():
         "NO31_CORA_INPUT": "concat",
         "NO31_CORA_INJECTION_MODE": "shared",
         "NO31_CORA_RANK_PROFILE": "12-14-18-20",
+            "NO31_CORA_GROUP_PROJECTORS": "off",
         "NO31_CORA_RESIDUAL_RATIO": "0",
         "NO31_CORA_DEPTH_PROFILE": "uniform",
         "NO31_CORA_PROJECTION_SCALES": "q_proj=1,k_proj=1,v_proj=1,o_proj=1",
