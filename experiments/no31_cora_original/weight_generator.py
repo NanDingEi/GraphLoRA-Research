@@ -27,8 +27,11 @@ class PerceptualWeightsGenerator(nn.Module):
         super().__init__()
         self.embedding_size = user_embedding_size
         self.group_projector_mode = group_projector_mode
-        if group_projector_mode not in ("off", "shared", "group4"):
-            raise ValueError("group_projector_mode must be off, shared or group4")
+        if group_projector_mode not in (
+            "off", "shared", "group2", "group4", "group8",
+            "shared_group4", "shared_trunk4", "rank_group4", "group4_linear",
+        ):
+            raise ValueError(f"Unsupported group_projector_mode: {group_projector_mode}")
         if group_projector_mode != "off":
             if rank_profile is not None or injection_mode != "shared" or input_mode != "concat":
                 raise ValueError("Group projectors require original rank16/shared/concat CoRA")
@@ -128,26 +131,48 @@ class PerceptualWeightsGenerator(nn.Module):
         finally:
             torch.set_rng_state(_global_cpu_rng)
 
-        # Optional collaborative-representation projectors (NIGHT15).
-        # They transform the four QFormer queries before the ORIGINAL final
-        # 512->(4096*16) head; the original per-layer P matrices are untouched.
-        # Zero-output initialization gives exact G2-equivalent initial forwards.
-        # RNG restoration preserves the reference G2 QFormer/final/P init stream.
+        # Optional NIGHT15/NIGHT16 collaborative-representation projectors.
+        # All new paths act on QFormer queries before the original final head;
+        # the 128 per-layer CoRA-P matrices are never replaced.
+        # Every residual output starts at zero, preserving G2's initial A.
+        # Restore RNG so added architecture does not alter sampler/P init.
         if self.group_projector_mode != "off":
             _projector_rng = torch.get_rng_state()
             try:
-                count = 1 if self.group_projector_mode == "shared" else 4
                 width = self.embedding_size * 2
-                self.group_projectors = nn.ModuleList()
-                for _ in range(count):
-                    projector = nn.Sequential(
-                        nn.Linear(width, 32),
-                        nn.GELU(),
-                        nn.Linear(32, width),
+                if self.group_projector_mode in (
+                    "shared", "group2", "group4", "group8",
+                    "shared_group4", "group4_linear",
+                ):
+                    counts = {
+                        "shared": 1, "group2": 2, "group4": 4, "group8": 8,
+                        "shared_group4": 5, "group4_linear": 4,
+                    }
+                    self.group_projectors = nn.ModuleList()
+                    for _ in range(counts[self.group_projector_mode]):
+                        if self.group_projector_mode == "group4_linear":
+                            projector = nn.Sequential(nn.Linear(width, width))
+                        else:
+                            projector = nn.Sequential(
+                                nn.Linear(width, 32),
+                                nn.GELU(),
+                                nn.Linear(32, width),
+                            )
+                        nn.init.zeros_(projector[-1].weight)
+                        nn.init.zeros_(projector[-1].bias)
+                        self.group_projectors.append(projector)
+                elif self.group_projector_mode == "shared_trunk4":
+                    self.group_projector_trunk = nn.Linear(width, 32)
+                    self.group_projector_heads = nn.ModuleList(
+                        [nn.Linear(32, width) for _ in range(4)]
                     )
-                    nn.init.zeros_(projector[-1].weight)
-                    nn.init.zeros_(projector[-1].bias)
-                    self.group_projectors.append(projector)
+                    for head in self.group_projector_heads:
+                        nn.init.zeros_(head.weight)
+                        nn.init.zeros_(head.bias)
+                elif self.group_projector_mode == "rank_group4":
+                    self.group_rank_delta = nn.Parameter(
+                        torch.zeros(4, self.r, self.r)
+                    )
             finally:
                 torch.set_rng_state(_projector_rng)
 
@@ -211,28 +236,69 @@ class PerceptualWeightsGenerator(nn.Module):
             use_cache=True,
             return_dict=True,
         )
-        # NIGHT15: the same query states are read by one shared projector or
-        # by four independent 512->32->512 residual projectors. Distinct
-        # dynamic A matrices go to four contiguous groups of eight layers.
+        # NIGHT15/NIGHT16 architecture variants. All return dynamic A matrices
+        # keyed by the group id consumed by OriginalCoRARuntime.
         if self.group_projector_mode != "off":
             if return_condition:
                 raise ValueError("Group-projector mode does not use return_condition")
             batch_size = encoder_states.size(0)
             q_states = query_output.last_hidden_state
-            if self.group_projector_mode == "shared":
+            mode = self.group_projector_mode
+
+            def make_weight(projected):
+                flat = self.final(projected).mean(dim=1, keepdim=True)
+                return F.normalize(flat, p=2, dim=-1).view(
+                    batch_size, self.hidden_size, self.r
+                )
+
+            if mode == "rank_group4":
+                # Group-specific basis transformation after the original
+                # generator head. Delta=0 is exact identity in rank space.
+                raw = self.final(q_states).mean(dim=1, keepdim=True)
+                raw = raw.view(batch_size, 1, self.hidden_size, self.r)
+                eye = torch.eye(self.r, dtype=raw.dtype, device=raw.device)
+                group_weights = {}
+                for group_idx in range(4):
+                    transformed = torch.matmul(
+                        raw, eye + self.group_rank_delta[group_idx]
+                    )
+                    flat = transformed.reshape(batch_size, 1, -1)
+                    group_weights[group_idx] = F.normalize(
+                        flat, p=2, dim=-1
+                    ).view(batch_size, self.hidden_size, self.r)
+                return group_weights
+
+            if mode == "shared_trunk4":
+                shared_features = F.gelu(self.group_projector_trunk(q_states))
+                group_weights = {}
+                for group_idx, head in enumerate(self.group_projector_heads):
+                    projected = q_states + head(shared_features)
+                    group_weights[group_idx] = make_weight(projected)
+                return group_weights
+
+            if mode == "shared":
                 projected = q_states + self.group_projectors[0](q_states)
-                flat = self.final(projected).mean(dim=1, keepdim=True)
-                w = F.normalize(flat, p=2, dim=-1).view(
-                    batch_size, self.hidden_size, self.r
-                )
-                return {idx: w for idx in range(4)}
+                return {0: make_weight(projected)}
+
+            if mode == "shared_group4":
+                shared_residual = self.group_projectors[0](q_states)
+                group_weights = {}
+                for group_idx in range(4):
+                    projected = (
+                        q_states + shared_residual
+                        + self.group_projectors[group_idx + 1](q_states)
+                    )
+                    group_weights[group_idx] = make_weight(projected)
+                return group_weights
+
+            group_count = {
+                "group2": 2, "group4": 4, "group8": 8,
+                "group4_linear": 4,
+            }[mode]
             group_weights = {}
-            for idx, projector in enumerate(self.group_projectors):
-                projected = q_states + projector(q_states)
-                flat = self.final(projected).mean(dim=1, keepdim=True)
-                group_weights[idx] = F.normalize(flat, p=2, dim=-1).view(
-                    batch_size, self.hidden_size, self.r
-                )
+            for group_idx in range(group_count):
+                projected = q_states + self.group_projectors[group_idx](q_states)
+                group_weights[group_idx] = make_weight(projected)
             return group_weights
 
         # All four layers groups reuse one QFormer representation and a
