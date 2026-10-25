@@ -99,6 +99,9 @@ def build_environment(row):
         "NO31_CORA_INPUT": row["cf_input"],
         "NO31_CORA_RESIDUAL_RATIO": str(row.get("residual_ratio", 0.0)),
         "NO31_CORA_DEPTH_PROFILE": row.get("depth_profile", "uniform"),
+        "NO31_CORA_PROJECTION_SCALES": row.get(
+            "projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"
+        ),
         "PYTHONUNBUFFERED": "1",
     })
     return env
@@ -224,7 +227,8 @@ def run_one(row, common_cfg, root):
         f"projections={row['projections']}" not in text or
         f"layers={row['layers']}" not in text or
         f"residual_ratio={float(row.get('residual_ratio', 0.0)):g}" not in text or
-        f"depth_profile={row.get('depth_profile', 'uniform')}" not in text):
+        f"depth_profile={row.get('depth_profile', 'uniform')}" not in text or
+        f"projection_scales={row.get('projection_scales', 'q_proj=1,k_proj=1,v_proj=1,o_proj=1')}" not in text):
         raise RuntimeError(f"[{ident}] requested CoRA architecture not loaded")
     lr_group_lines = [s for s in text.splitlines() if "[lr-group]" in s]
     target_group = [s for s in lr_group_lines if "cora_p_wd" in s]
@@ -260,6 +264,7 @@ def run_one(row, common_cfg, root):
         cf_input=row["cf_input"], alpha=row["alpha"], p_lr=row["p_lr"],
         residual_ratio=float(row.get("residual_ratio", 0.0)),
         depth_profile=row.get("depth_profile", "uniform"),
+        projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
         seed=cfg["run"]["seed"],
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
@@ -270,7 +275,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
@@ -296,7 +301,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
             # NIGHT10 begins with two exact historical anchors. Stop the sweep
             # early if either is far from its reference, rather than spending
             # the remaining GPU budget on an invalid comparison.
-            if name_prefix == "NO31_CORA_NIGHT10" and row.get("anchor_auc") is not None:
+            if row.get("anchor_auc") is not None:
                 da = result["auc"] - float(row["anchor_auc"])
                 du = result["uauc"] - float(row["anchor_uauc"])
                 tol = float(row.get("anchor_tolerance", 0.02))
@@ -322,7 +327,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31",
                 "layers","projections","cf_input","alpha","p_lr",
-                "residual_ratio","depth_profile","seed","checkpoint"))
+                "residual_ratio","depth_profile","projection_scales","seed","checkpoint"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
