@@ -35,6 +35,7 @@ def runtime_for(row):
         "NO31_CORA_PROJECTIONS": row["projections"],
         "NO31_CORA_LAYERS": row["layers"],
         "NO31_CORA_INPUT": row["cf_input"],
+        "NO31_CORA_INJECTION_MODE": "shared",
         "NO31_CORA_RESIDUAL_RATIO": row["residual_ratio"],
         "NO31_CORA_DEPTH_PROFILE": row["depth_profile"],
         "NO31_CORA_PROJECTION_SCALES": row["projection_scales"],
