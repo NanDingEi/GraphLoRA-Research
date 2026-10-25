@@ -151,7 +151,12 @@ class PerceptualWeightsGenerator(nn.Module):
                     self.group_projectors = nn.ModuleList()
                     for _ in range(counts[self.group_projector_mode]):
                         if self.group_projector_mode == "group4_linear":
-                            projector = nn.Sequential(nn.Linear(width, width))
+                            # Parameter-matched linear bottleneck: same dimensions
+                            # as the MLP variant, but no nonlinear activation.
+                            projector = nn.Sequential(
+                                nn.Linear(width, 32),
+                                nn.Linear(32, width),
+                            )
                         else:
                             projector = nn.Sequential(
                                 nn.Linear(width, 32),
