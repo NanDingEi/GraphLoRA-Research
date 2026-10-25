@@ -228,13 +228,17 @@ def run_one(row, common_cfg, root):
         "[FX] autocast cache fix ON" not in text):
         raise RuntimeError(f"[{ident}] verification marker missing: {log_file}")
     rank_profile = row.get("rank_profile", "uniform")
-    expected_static_p = (
-        f"static_P={selected_targets(row)} x [4096,grouped ranks 4/6/8/10]"
-        if rank_profile == "4-6-8-10"
-        else f"static_P={selected_targets(row)} x [4096,16]"
-    )
+    if rank_profile == "uniform":
+        expected_static_p = f"static_P={selected_targets(row)} x [4096,16]"
+        expected_rank_log = "rank_profile=uniform16"
+    else:
+        expected_static_p = (
+            f"static_P={selected_targets(row)} x "
+            f"[4096,grouped ranks {rank_profile.replace('-', '/')}]"
+        )
+        expected_rank_log = f"rank_profile={rank_profile}"
     if (expected_static_p not in text or
-        f"rank_profile={'4-6-8-10' if rank_profile == '4-6-8-10' else 'uniform16'}" not in text or
+        expected_rank_log not in text or
         f"alpha={row['alpha']}" not in text or
         f"input={row['cf_input']}" not in text or
         f"injection_mode={row.get('injection_mode', 'shared')}" not in text or
@@ -295,7 +299,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
