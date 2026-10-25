@@ -13,6 +13,12 @@ condition source, and the unchanged NO31 MF/GNN/Projector, CTR/KD losses,
 semantic alignment, projector regularization and data split. Each arm trains
 one epoch and evaluates Valid only. No Test set is used.
 
+## Experimental-control correction (2026-10-25)
+
+The first NIGHT12 results were produced before the RNG-isolation fix. The optional M1/M2/M3 generator modules (and M4's zero-initialized gate constructor) consumed the global CPU RNG stream before the training sampler was created. Consequently, a nominally identical seed did not guarantee the same shuffled training-example order across variants. This is a fairness confound, not proof that it explains the full metric drop.
+
+The implementation now restores the global CPU RNG state after initializing architecture-specific parameters. A CPU test checks that each mode leaves the post-construction RNG state unchanged, and checks that M3/M4 generate exactly the same initial dynamic basis as shared CoRA. Re-run **all four** NIGHT12 arms after syncing this fix; do not treat the earlier M1-M4 table as the final architecture comparison. No seed or optimizer hyperparameter is changed.
+
 ## Why investigate architecture first?
 
 Current CoRA creates one dynamic matrix `W_(u,i) in [B,4096,16]` from a frozen
