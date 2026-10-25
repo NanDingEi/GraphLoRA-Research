@@ -158,7 +158,8 @@ def plan(rows):
           "CoRA R0 AUC=%.9f UAUC=%.9f; G2 rank16 alpha48 AUC=%.9f UAUC=%.9f"
           % (BASELINE_AUC, BASELINE_UAUC, CORA_R0_AUC, CORA_R0_UAUC, G2_AUC, G2_UAUC))
     print("[NIGHT8-COMMON] prepared=%s train_bs=2 eval_bs=3 accum=4 "
-          "seed42 CTR=.05 KD=.05 fix_autocast_cache=True rank16 "
+          "seed42 CTR=.05 KD=.05 fix_autocast_cache=True "
+          "base_rank16 (row rank_profile may override) "
           "fresh_init=YES 1epoch Valid-only GPU0 foreground" % READY)
     for row in rows:
         print("[NIGHT8-PLAN] %s %-35s layers=%s proj=%s "
@@ -309,7 +310,8 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
     out.mkdir(exist_ok=False, parents=True)
     (out / "plan.json").write_text(json.dumps(
         dict(experiments=rows, source_config=str(READY),
-             NO31_auc=BASELINE_AUC,CoRA_R0_auc=CORA_R0_AUC),
+             NO31_auc=BASELINE_AUC,CoRA_R0_auc=CORA_R0_AUC,
+             G2_rank16_alpha48_auc=G2_AUC,G2_rank16_alpha48_uauc=G2_UAUC),
         indent=2,
     ))
     print("[NIGHT8-ROOT] "+str(out),flush=True)
