@@ -62,6 +62,8 @@ def main():
             raise RuntimeError("Expected original 8-layer QFormer")
         if gen.input_mode != runtime.input_mode:
             raise RuntimeError("CoRA input mode mismatch")
+        if gen.injection_mode != runtime.injection_mode:
+            raise RuntimeError("CoRA injection mode mismatch")
         # Every selected target receives original CoRA's exact P(x @ A)
         # forward; unselected projections do not receive dynamic weights.
         if any(getattr(mod, "_cora_weight", "missing") != None
@@ -75,6 +77,7 @@ def main():
             f"NO31_CTRKD=ON alpha={runtime.alpha} "
             f"layers={runtime.layers[0]}-{runtime.layers[-1]} "
             f"projections={','.join(runtime.projections)} input={runtime.input_mode} "
+            f"injection_mode={runtime.injection_mode} "
             f"residual_ratio={runtime.residual_ratio:g} depth_profile={runtime.depth_profile}",
             flush=True,
         )
