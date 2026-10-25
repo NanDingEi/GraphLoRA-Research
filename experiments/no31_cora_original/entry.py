@@ -3,6 +3,7 @@
 import argparse
 import json
 import os
+import re
 from pathlib import Path
 import sys
 
@@ -52,11 +53,23 @@ def main():
                 f"Found {len(pweights)} dynamic CoRA-P projections, "
                 f"expected {runtime.expected_targets}"
             )
-        if any(p.shape!=(4096,16) or p.detach().count_nonzero()!=0 for _,p in pweights):
-            raise RuntimeError("CoRA P not zero initialized in all attention projections")
+        for name, param in pweights:
+            match = re.search(r"layers\\.(\\d+)\\.self_attn", name)
+            if match is None:
+                raise RuntimeError(f"Cannot identify Transformer layer for CoRA-P: {name}")
+            layer = int(match.group(1))
+            expected_rank = runtime.rank_for_layer(layer)
+            if param.shape != (4096, expected_rank) or param.detach().count_nonzero() != 0:
+                raise RuntimeError(
+                    f"CoRA P shape/init mismatch at layer {layer}: "
+                    f"got {tuple(param.shape)}, expected {(4096, expected_rank)} zero-init"
+                )
         gen=model.cora_weight_generator
-        if (gen.num_queries,gen.r,gen.hidden_size,gen.embedding_size)!=(4,16,4096,256):
+        expected_generator_rank = max(runtime.rank_profile) if runtime.rank_profile else 16
+        if (gen.num_queries,gen.r,gen.hidden_size,gen.embedding_size)!=(4,expected_generator_rank,4096,256):
             raise RuntimeError("Original CoRA generator architecture mismatch")
+        if gen.rank_profile != runtime.rank_profile:
+            raise RuntimeError("CoRA generator rank profile mismatch")
         qformer=gen.qformer.encoder.layer
         if len(qformer)!=8:
             raise RuntimeError("Expected original 8-layer QFormer")
@@ -69,10 +82,18 @@ def main():
         if any(getattr(mod, "_cora_weight", "missing") != None
                for mod in runtime.targets):
             raise RuntimeError("Unexpected pre-active CoRA weights")
+        if runtime.rank_profile:
+            dynamic_desc = "groupwise [B,4096,r_g], r_g=4/6/8/10"
+            p_desc = f"static_P={len(pweights)} x [4096,grouped ranks 4/6/8/10]"
+            rank_desc = "L0-7:4,L8-15:6,L16-23:8,L24-31:10"
+        else:
+            dynamic_desc = " [B,4096,16]"
+            p_desc = f"static_P={len(pweights)} x [4096,16]"
+            rank_desc = "uniform16"
         print(
             "[CORA-ORIGINAL-PROBE-OK] QFormer=8x8 queries=4 "
-            f"dynamic_A=[B,4096,16] normalized=True "
-            f"static_P={len(pweights)} x [4096,16] "
+            f"dynamic_A={dynamic_desc} normalized=True "
+            f"{p_desc} rank_profile={rank_desc} group_scaling={runtime.scaling:g} "
             f"zero_init=True all_tokens=True base_LoRA_AB_frozen=True "
             f"NO31_CTRKD=ON alpha={runtime.alpha} "
             f"layers={runtime.layers[0]}-{runtime.layers[-1]} "
