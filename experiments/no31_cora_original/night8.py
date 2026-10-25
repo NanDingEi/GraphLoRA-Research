@@ -97,6 +97,7 @@ def build_environment(row):
         "NO31_CORA_PROJECTIONS": row["projections"],
         "NO31_CORA_LAYERS": row["layers"],
         "NO31_CORA_INPUT": row["cf_input"],
+        "NO31_CORA_INJECTION_MODE": row.get("injection_mode", "shared"),
         "NO31_CORA_RESIDUAL_RATIO": str(row.get("residual_ratio", 0.0)),
         "NO31_CORA_DEPTH_PROFILE": row.get("depth_profile", "uniform"),
         "NO31_CORA_PROJECTION_SCALES": row.get(
@@ -158,9 +159,9 @@ def plan(rows):
           "fresh_init=YES 1epoch Valid-only GPU0 foreground" % READY)
     for row in rows:
         print("[NIGHT8-PLAN] %s %-35s layers=%s proj=%s "
-              "input=%s alpha=%d p_lr=%.1f P=%d"
+              "input=%s injection=%s alpha=%d p_lr=%.1f P=%d"
               % (row["id"],row["title"],row["layers"],row["projections"],
-                 row["cf_input"],row["alpha"],row["p_lr"],selected_targets(row)))
+                 row["cf_input"],row.get("injection_mode", "shared"),row["alpha"],row["p_lr"],selected_targets(row)))
     return cfg
 
 
@@ -224,6 +225,7 @@ def run_one(row, common_cfg, root):
     if (f"static_P={selected_targets(row)} x [4096,16]" not in text or
         f"alpha={row['alpha']}" not in text or
         f"input={row['cf_input']}" not in text or
+        f"injection_mode={row.get('injection_mode', 'shared')}" not in text or
         f"projections={row['projections']}" not in text or
         f"layers={row['layers']}" not in text or
         f"residual_ratio={float(row.get('residual_ratio', 0.0)):g}" not in text or
@@ -262,6 +264,7 @@ def run_one(row, common_cfg, root):
         targets=selected_targets(row), counts=counts,
         projections=row["projections"], layers=row["layers"],
         cf_input=row["cf_input"], alpha=row["alpha"], p_lr=row["p_lr"],
+        injection_mode=row.get("injection_mode", "shared"),
         residual_ratio=float(row.get("residual_ratio", 0.0)),
         depth_profile=row.get("depth_profile", "uniform"),
         projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
@@ -275,7 +278,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
@@ -326,7 +329,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
         with (out/"summary.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31",
-                "layers","projections","cf_input","alpha","p_lr",
+                "layers","projections","cf_input","injection_mode","alpha","p_lr",
                 "residual_ratio","depth_profile","projection_scales","seed","checkpoint"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
