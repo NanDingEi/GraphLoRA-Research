@@ -93,7 +93,7 @@ class OriginalCoRARuntime:
             )
         self.group_projector_mode = os.environ.get("NO31_CORA_GROUP_PROJECTORS", "off")
         self.group_count_by_mode = {
-            "off": 0, "shared": 1, "group2": 2, "group4": 4, "group8": 8,
+            "off": 0, "shared": 4, "group2": 2, "group4": 4, "group8": 8,
             "shared_group4": 4, "shared_trunk4": 4, "rank_group4": 4,
             "group4_linear": 4,
         }
