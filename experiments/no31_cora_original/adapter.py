@@ -235,9 +235,13 @@ class OriginalCoRARuntime:
                 "uniform16" if state.rank_profile is None
                 else "4-6-8-10 (L0-7:4,L8-15:6,L16-23:8,L24-31:10)"
             )
+            generator_shape_summary = (
+                f"[B,{hidden},16]" if state.rank_profile is None
+                else f"groupwise [B,{hidden},r_g], r_g=4/6/8/10"
+            )
             print(
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
-                f"qformer_layers=8 qformer_queries=4 full_matrix=[B,{hidden},{state.rank}] "
+                f"qformer_layers=8 qformer_queries=4 dynamic_A={generator_shape_summary} "
                 f"rank_profile={rank_summary} group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
