@@ -173,6 +173,10 @@ class OriginalCoRARuntime:
             model.cora_fixed_user.requires_grad_(False)
             model.cora_fixed_item.requires_grad_(False)
             model.cora_weight_generator.to(model.cora_fixed_user.device)
+            projection_scale_summary = ",".join(
+                f"{key}={state.projection_scales[key]:g}"
+                for key in ("q_proj", "k_proj", "v_proj", "o_proj")
+            )
             print(
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
                 f"qformer_layers=8 qformer_queries=4 full_matrix=[B,{hidden},{state.rank}] "
@@ -181,7 +185,7 @@ class OriginalCoRARuntime:
                 f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
                 f"projections={','.join(state.projections)} input_mode={state.input_mode} "
                 f"residual_ratio={state.residual_ratio:g} depth_profile={state.depth_profile} "
-                f"projection_scales={','.join(f'{k}={state.projection_scales[k]:g}' for k in ('q_proj','k_proj','v_proj','o_proj'))}",
+                f"projection_scales={projection_scale_summary}",
                 flush=True,
             )
 
