@@ -50,16 +50,14 @@ class PerceptualWeightsGenerator(nn.Module):
             self.final = nn.Linear(user_embedding_size * 2, hidden_size * r)
             nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
         else:
-            # Four rank-specific output heads share one QFormer pass. Preserve
-            # the CPU RNG stream so this structural branch does not change the
-            # downstream training-sampler sequence merely by adding heads.
+            # Keep one shared rank-10 dynamic-A head, as in original CoRA.
+            # Each depth group takes a prefix of the rank channels and
+            # renormalizes that group's flattened basis. This changes the
+            # layerwise rank allocation without adding four independent heads.
             _rank_head_rng = torch.get_rng_state()
             try:
-                self.final_heads = nn.ModuleDict()
-                for rank in self.rank_profile:
-                    head = nn.Linear(user_embedding_size * 2, hidden_size * rank)
-                    nn.init.kaiming_uniform_(head.weight, a=math.sqrt(5))
-                    self.final_heads[str(rank)] = head
+                self.final = nn.Linear(user_embedding_size * 2, hidden_size * self.r)
+                nn.init.kaiming_uniform_(self.final.weight, a=math.sqrt(5))
             finally:
                 torch.set_rng_state(_rank_head_rng)
 
@@ -174,12 +172,15 @@ class PerceptualWeightsGenerator(nn.Module):
         if self.rank_profile is not None:
             if return_condition:
                 raise ValueError("return_condition is not used by grouped-rank CoRA")
+            batch_size = encoder_states.size(0)
+            raw = self.final(query_output.last_hidden_state).mean(dim=1, keepdim=True)
+            # Keep rank channels aligned per hidden dimension: [B,1,H,Rmax].
+            raw = raw.view(batch_size, 1, self.hidden_size, self.r)
             grouped_weights = {}
             for rank in self.rank_profile:
-                flat = self.final_heads[str(rank)](query_output.last_hidden_state)
-                flat = flat.mean(dim=1, keepdim=True)
+                flat = raw[..., :rank].reshape(batch_size, 1, self.hidden_size * rank)
                 grouped_weights[rank] = F.normalize(flat, p=2, dim=-1).view(
-                    encoder_states.size(0), self.hidden_size, rank
+                    batch_size, self.hidden_size, rank
                 )
             return grouped_weights
 
