@@ -29,7 +29,7 @@ class OriginalCoRARuntime:
         # Optional experiment controls default to the original CoRA equation.
         self.rank = 16
         self.alpha = int(os.environ.get("NO31_CORA_ALPHA", "32"))
-        if self.alpha not in (16, 32, 48, 52, 56, 60, 64, 96):
+        if self.alpha not in (16, 32, 48, 49, 50, 51, 52, 56, 60, 64, 96):
             raise ValueError("Unsupported NO31_CORA_ALPHA")
         self.residual_ratio = float(os.environ.get("NO31_CORA_RESIDUAL_RATIO", "0"))
         if not 0.0 <= self.residual_ratio <= 1.0:
@@ -37,6 +37,25 @@ class OriginalCoRARuntime:
         self.depth_profile = os.environ.get("NO31_CORA_DEPTH_PROFILE", "uniform")
         if self.depth_profile not in ("uniform", "late_linear"):
             raise ValueError("NO31_CORA_DEPTH_PROFILE must be uniform or late_linear")
+        # Optional per-projection residual multipliers, e.g.
+        # q_proj=0.5,k_proj=0.5,v_proj=1,o_proj=1. Default is exact parity.
+        scale_text = os.environ.get(
+            "NO31_CORA_PROJECTION_SCALES",
+            "q_proj=1,k_proj=1,v_proj=1,o_proj=1",
+        )
+        self.projection_scales = {}
+        for field in scale_text.split(","):
+            key, sep, value = field.strip().partition("=")
+            if not sep or key not in ("q_proj", "k_proj", "v_proj", "o_proj"):
+                raise ValueError(f"Invalid NO31_CORA_PROJECTION_SCALES entry: {field}")
+            if key in self.projection_scales:
+                raise ValueError(f"Duplicate projection scale: {key}")
+            scale = float(value)
+            if not 0.0 <= scale <= 2.0:
+                raise ValueError(f"Projection scale must be in [0,2]: {key}={scale}")
+            self.projection_scales[key] = scale
+        if set(self.projection_scales) != {"q_proj", "k_proj", "v_proj", "o_proj"}:
+            raise ValueError("Projection scales must define Q/K/V/O exactly once")
         self.scaling = self.alpha / self.rank
         projection_string = os.environ.get("NO31_CORA_PROJECTIONS", "q_proj,k_proj,v_proj,o_proj")
         self.projections = tuple(projection_string.split(","))
@@ -148,6 +167,7 @@ class OriginalCoRARuntime:
                 mod.cora_dropout = nn.Dropout(p=0.05)
                 mod._cora_weight = None
                 mod.cora_layer_index = layer
+                mod.cora_projection_name = proj
                 mod.forward = MethodType(state.projection_forward, mod)
                 state.targets.append(mod)
             model.cora_fixed_user.requires_grad_(False)
@@ -160,7 +180,8 @@ class OriginalCoRARuntime:
                 f"frozen_CF=MF original_GNN_losses=ON "
                 f"selected_targets={len(selected)} layers={state.layers[0]}-{state.layers[-1]} "
                 f"projections={','.join(state.projections)} input_mode={state.input_mode} "
-                f"residual_ratio={state.residual_ratio:g} depth_profile={state.depth_profile}",
+                f"residual_ratio={state.residual_ratio:g} depth_profile={state.depth_profile} "
+                f"projection_scales={','.join(f'{k}={state.projection_scales[k]:g}' for k in ('q_proj','k_proj','v_proj','o_proj'))}",
                 flush=True,
             )
 
@@ -229,9 +250,11 @@ class OriginalCoRARuntime:
             return 0.5 + 0.5 * float(layer_index) / 31.0
         raise RuntimeError(f"Unsupported depth profile {self.depth_profile}")
 
-    def apply_residual_controls(self, base, residual, layer_index):
-        """Apply opt-in depth scaling and per-token residual/base norm clipping."""
+    def apply_residual_controls(self, base, residual, layer_index, projection=None):
+        """Apply opt-in projection/depth scaling and residual/base norm clipping."""
         scale = self.layer_scale(layer_index)
+        projection_scale = self.projection_scales.get(projection, 1.0)
+        scale *= projection_scale
         if scale != 1.0:
             residual = residual * scale
         if self.residual_ratio > 0.0:
@@ -263,7 +286,9 @@ class OriginalCoRARuntime:
         x_fp = module.cora_dropout(x).to(dtype=module.cora_lora_P.weight.dtype)
         weighted = torch.bmm(x_fp, w.to(dtype=x_fp.dtype))
         residual = module.cora_lora_P(weighted) * self.scaling
-        residual = self.apply_residual_controls(base, residual, module.cora_layer_index)
+        residual = self.apply_residual_controls(
+            base, residual, module.cora_layer_index, module.cora_projection_name
+        )
         self.counters["projection_forwards"] += 1
         return (base + residual.to(dtype=base.dtype)).to(x.dtype)
 
