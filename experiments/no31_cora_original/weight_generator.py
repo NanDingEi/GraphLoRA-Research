@@ -283,7 +283,10 @@ class PerceptualWeightsGenerator(nn.Module):
 
             if mode == "shared":
                 projected = q_states + self.group_projectors[0](q_states)
-                return {0: make_weight(projected)}
+                weight = make_weight(projected)
+                # Keep one shared generator but expose the same A under each
+                # 8-layer group id expected by the adapter/runtime.
+                return {group_idx: weight for group_idx in range(4)}
 
             if mode == "shared_group4":
                 shared_residual = self.group_projectors[0](q_states)
