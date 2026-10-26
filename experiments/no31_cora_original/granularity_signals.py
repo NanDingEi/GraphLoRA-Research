@@ -2,8 +2,8 @@
 
 Coarse: the original entity-level MF pair [user; target].
 Fine: target-conditioned user-target and target-history interaction features.
-The coarse path is exactly the original CoRA input; the fine path is norm-matched
-to it so the comparison is not dominated by input magnitude.
+All fine variants are norm-matched to the original pair so comparisons are not
+dominated by input magnitude. Padding-safe history pooling is shared by all modes.
 """
 import torch
 import torch.nn.functional as F
@@ -16,16 +16,14 @@ def build_coarse_fine_signals(
     user_table,
     item_table,
     padding_idx=0,
+    return_components=False,
 ):
-    """Return (coarse, fine), each [batch, 2 * embedding_dim].
+    """Return coarse/fine [B, 2D] signals, optionally with separate components.
 
-    Args:
-        user_ids: user indices, shape [B].
-        target_item_ids: candidate item indices, shape [B].
-        history_item_ids: padded history indices, shape [B, H]. Padding is
-            ignored when constructing the target-conditioned history summary.
-        user_table/item_table: frozen MF embedding tables.
-        padding_idx: item-table index used for history padding.
+    When return_components is true, also return user-target-only and
+    target-history-only interaction vectors. Each component is zero-padded into
+    the corresponding half of the 2D vector and norm-matched to the original
+    [user; target] MF pair. The default two-value API remains backward compatible.
     """
     if user_table.ndim != 2 or item_table.ndim != 2:
         raise ValueError("MF embedding tables must be rank-2 tensors")
@@ -68,12 +66,10 @@ def build_coarse_fine_signals(
     user = user_table[user_ids].float()
     target = item_table[target_item_ids].float()
 
-    # Coarse/entity-level signal deliberately preserves the original CoRA input
-    # equation and scale: [MF user embedding ; MF target embedding].
+    # Preserve the exact original CoRA condition and scale.
     coarse = torch.cat((user, target), dim=-1)
+    coarse_norm = coarse.norm(dim=-1, keepdim=True).clamp_min(1e-8)
 
-    # Fine/target-conditioned signal: attend to history items by their MF
-    # similarity to the current candidate, then represent explicit interactions.
     user_n = F.normalize(user, dim=-1)
     target_n = F.normalize(target, dim=-1)
     history = item_table[history_item_ids].float()
@@ -93,14 +89,28 @@ def build_coarse_fine_signals(
     history_n = F.normalize(history_context, dim=-1)
     user_target_interaction = F.normalize(user_n * target_n, dim=-1)
     target_history_interaction = F.normalize(target_n * history_n, dim=-1)
+
     fine_unit = F.normalize(
         torch.cat((user_target_interaction, target_history_interaction), dim=-1),
         dim=-1,
     )
-    # Match each fine vector's norm to the original [u;i] pair. This keeps
-    # coarse-only exactly on the old input path and avoids scale-only effects.
-    fine = fine_unit * coarse.norm(dim=-1, keepdim=True).clamp_min(1e-8)
+    fine = fine_unit * coarse_norm
 
     if not torch.isfinite(coarse).all() or not torch.isfinite(fine).all():
         raise FloatingPointError("Non-finite coarse/fine collaborative signal")
-    return coarse, fine
+    if not return_components:
+        return coarse, fine
+
+    zeros = torch.zeros_like(user_target_interaction)
+    user_item_unit = F.normalize(
+        torch.cat((user_target_interaction, zeros), dim=-1), dim=-1
+    )
+    history_unit = F.normalize(
+        torch.cat((zeros, target_history_interaction), dim=-1), dim=-1
+    )
+    user_item_fine = user_item_unit * coarse_norm
+    target_history_fine = history_unit * coarse_norm
+    if (not torch.isfinite(user_item_fine).all()
+            or not torch.isfinite(target_history_fine).all()):
+        raise FloatingPointError("Non-finite fine-component signal")
+    return coarse, fine, user_item_fine, target_history_fine
