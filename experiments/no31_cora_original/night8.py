@@ -107,6 +107,7 @@ def build_environment(row):
         ),
         "NO31_CORA_RANK_PROFILE": row.get("rank_profile", "uniform"),
         "NO31_CORA_GROUP_PROJECTORS": row.get("group_projectors", "off"),
+        "NO31_CORA_GRANULARITY_MODE": row.get("granularity_mode", "original"),
         "PYTHONUNBUFFERED": "1",
     })
     return env
@@ -242,6 +243,7 @@ def run_one(row, common_cfg, root):
     if (expected_static_p not in text or
         expected_rank_log not in text or
         f"group_projectors={row.get('group_projectors','off')}" not in text or
+        f"granularity_mode={row.get('granularity_mode', 'original')}" not in text or
         f"alpha={row['alpha']}" not in text or
         f"input={row['cf_input']}" not in text or
         f"injection_mode={row.get('injection_mode', 'shared')}" not in text or
@@ -303,7 +305,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
