@@ -95,8 +95,17 @@ def main():
             delta = merged - base
             if scales[group] == 0:
                 assert torch.equal(merged, base), (mode, group)
-            assert (delta.float().norm(dim=(1, 2))
-                    <= 0.1 * base.float().norm(dim=(1, 2)) + 1e-5).all()
+            base_norm = base.float().norm(dim=(1, 2))
+            delta_norm = delta.float().norm(dim=(1, 2))
+            assert (delta_norm <= 0.1 * base_norm + 1e-5).all()
+            if scales[group] > 0:
+                # Random residuals exceed the cap, so the configured group
+                # coefficient must remain visible after clipping.
+                ratio = delta_norm / base_norm.clamp_min(1e-8)
+                assert torch.allclose(
+                    ratio, torch.full_like(ratio, 0.1 * scales[group]),
+                    atol=1e-4, rtol=1e-4,
+                ), (mode, group, ratio, scales[group])
             if mode == "r8":
                 assert torch.equal(delta[..., :8], torch.zeros_like(delta[..., :8]))
         print(f"[NIGHT19-CPU] {mode}: group scales={scales}")
