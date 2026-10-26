@@ -213,11 +213,12 @@ class OriginalCoRARuntime:
         scale = self.fine_residual_group_scale(group_idx)
         if scale == 0.0:
             return base
-        residual = residual * scale
+        # Clip the unscaled branch first, then apply the layer coefficient.
+        # Otherwise clipping could cancel the intended coarse-to-fine schedule.
         base_norm = base.detach().float().norm(dim=(1, 2), keepdim=True)
         residual_norm = residual.detach().float().norm(dim=(1, 2), keepdim=True)
         factor = (0.1 * base_norm / residual_norm.clamp_min(1e-8)).clamp(max=1.0)
-        residual = residual * factor.to(dtype=residual.dtype)
+        residual = residual * factor.to(dtype=residual.dtype) * scale
         return base + residual
 
     def install(self):
