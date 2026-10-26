@@ -31,6 +31,12 @@ class OriginalCoRARuntime:
         self.granularity_mode = os.environ.get("NO31_CORA_GRANULARITY_MODE", "original")
         if self.granularity_mode not in ("original", "fine", "coarse_gate", "dual"):
             raise ValueError(f"Unsupported granularity mode: {self.granularity_mode}")
+        self.fine_residual_mode = os.environ.get("NO31_CORA_FINE_RESIDUAL_MODE", "off")
+        if self.fine_residual_mode not in (
+            "off", "r8", "r16", "late8", "late4",
+            "coarse_to_fine", "fine_to_coarse", "history", "user_item",
+        ):
+            raise ValueError(f"Unsupported fine residual mode: {self.fine_residual_mode}")
         self.rank = 16
         self.alpha = int(os.environ.get("NO31_CORA_ALPHA", "32"))
         if self.alpha not in (16, 32, 48, 49, 50, 51, 52, 56, 60, 64, 96):
@@ -107,6 +113,8 @@ class OriginalCoRARuntime:
                 f"Unsupported NO31_CORA_GROUP_PROJECTORS={self.group_projector_mode}"
             )
         self.group_count = self.group_count_by_mode[self.group_projector_mode]
+        if self.fine_residual_mode != "off" and self.group_projector_mode != "group8":
+            raise ValueError("Fine residual experiments require group8 projectors")
         if self.group_projector_mode != "off" and (
             self.rank_profile is not None or self.input_mode != "concat"
             or self.injection_mode != "shared"
@@ -175,6 +183,44 @@ class OriginalCoRARuntime:
             raise ValueError(f"Invalid Transformer layer index: {layer_index}")
         return self.rank_profile[int(layer_index) // 8]
 
+    def fine_residual_group_scale(self, group_idx):
+        """Fixed layer-group coefficient for the NIGHT19 fine residual branch."""
+        if not 0 <= int(group_idx) < 8:
+            raise ValueError(f"Invalid group index for fine residual: {group_idx}")
+        mode = self.fine_residual_mode
+        if mode in ("off", "r8", "r16", "history", "user_item"):
+            return 1.0
+        if mode == "late8":
+            return 1.0 if group_idx >= 6 else 0.0
+        if mode == "late4":
+            return 1.0 if group_idx >= 7 else 0.0
+        if mode == "coarse_to_fine":
+            return (0.0, 0.0, 0.0, 0.0, 0.25, 0.5, 0.75, 1.0)[group_idx]
+        if mode == "fine_to_coarse":
+            return (1.0, 0.75, 0.5, 0.25, 0.0, 0.0, 0.0, 0.0)[group_idx]
+        raise RuntimeError(f"Unsupported fine residual mode: {mode}")
+
+    def apply_fine_residual(self, base, residual, group_idx):
+        """Add a rank-/depth-controlled residual capped at 10% of base-A norm."""
+        mode = self.fine_residual_mode
+        if mode == "off":
+            return base
+        if mode == "r8":
+            # Restrict fine updates to the latter 8 of 16 rank channels.
+            residual = torch.cat(
+                (torch.zeros_like(residual[..., :8]), residual[..., 8:]), dim=-1
+            )
+        scale = self.fine_residual_group_scale(group_idx)
+        if scale == 0.0:
+            return base
+        # Clip the unscaled branch first, then apply the layer coefficient.
+        # Otherwise clipping could cancel the intended coarse-to-fine schedule.
+        base_norm = base.detach().float().norm(dim=(1, 2), keepdim=True)
+        residual_norm = residual.detach().float().norm(dim=(1, 2), keepdim=True)
+        factor = (0.1 * base_norm / residual_norm.clamp_min(1e-8)).clamp(max=1.0)
+        residual = residual * factor.to(dtype=residual.dtype) * scale
+        return base + residual
+
     def install(self):
         from minigpt4.models import minigpt4rec_v2 as graph
         if getattr(graph, "_original_cora_installed", False):
@@ -225,6 +271,21 @@ class OriginalCoRARuntime:
                 rank_profile=state.rank_profile,
                 group_projector_mode=state.group_projector_mode,
             )
+            if state.fine_residual_mode != "off":
+                # Compact residual head: <=2.2M parameters, rather than a
+                # second dense 512 -> (4096*16) projection. Zero-init makes
+                # the new branch an exact no-op at initialization.
+                _fine_head_rng = torch.get_rng_state()
+                try:
+                    model.cora_weight_generator.fine_residual_head = nn.Sequential(
+                        nn.Linear(2 * e, 32),
+                        nn.GELU(),
+                        nn.Linear(32, hidden * state.rank),
+                    )
+                    nn.init.zeros_(model.cora_weight_generator.fine_residual_head[-1].weight)
+                    nn.init.zeros_(model.cora_weight_generator.fine_residual_head[-1].bias)
+                finally:
+                    torch.set_rng_state(_fine_head_rng)
             if state.granularity_mode in ("dual", "coarse_gate"):
                 # Gate 8 of 16 CoRA rank channels. Exact identity at init.
                 # New params belong to the generator's existing optimizer group.
@@ -342,6 +403,7 @@ class OriginalCoRARuntime:
                 f"qformer_layers=8 qformer_queries=4 dynamic_A={generator_shape_summary} "
                 f"rank_profile={rank_summary} group_projectors={state.group_projector_mode} "
                 f"granularity_mode={state.granularity_mode} "
+                f"fine_residual_mode={state.fine_residual_mode} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
@@ -368,15 +430,26 @@ class OriginalCoRARuntime:
                 (model.cora_fixed_user[users], model.cora_fixed_item[items]), dim=-1
             )
             fine = None
-            if state.granularity_mode != "original":
+            fine_user_item = None
+            fine_target_history = None
+            if (state.granularity_mode != "original"
+                    or state.fine_residual_mode != "off"):
                 history = samples.get("InteractedItemIDs_pad")
                 if history is None:
                     raise RuntimeError("Granularity mode requires padded history item IDs")
-                coarse, fine = build_coarse_fine_signals(
-                    users, items, history, model.cora_fixed_user,
-                    model.cora_fixed_item,
-                    padding_idx=int(model.rec_encoder.padding_index),
-                )
+                if state.fine_residual_mode != "off":
+                    coarse, fine, fine_user_item, fine_target_history = build_coarse_fine_signals(
+                        users, items, history, model.cora_fixed_user,
+                        model.cora_fixed_item,
+                        padding_idx=int(model.rec_encoder.padding_index),
+                        return_components=True,
+                    )
+                else:
+                    coarse, fine = build_coarse_fine_signals(
+                        users, items, history, model.cora_fixed_user,
+                        model.cora_fixed_item,
+                        padding_idx=int(model.rec_encoder.padding_index),
+                    )
                 if state.granularity_mode == "fine":
                     pair = fine
                 else:
@@ -398,6 +471,22 @@ class OriginalCoRARuntime:
             # penultimate states and not a learned per-rank gate.
             if state.group_projector_mode != "off":
                 weights_by_group = model.cora_weight_generator(pair)
+                if state.fine_residual_mode != "off":
+                    if state.fine_residual_mode == "history":
+                        residual_input = fine_target_history
+                    elif state.fine_residual_mode == "user_item":
+                        residual_input = fine_user_item
+                    else:
+                        residual_input = fine
+                    if residual_input is None:
+                        raise RuntimeError("Fine residual signal was not constructed")
+                    fine_residual = model.cora_weight_generator.fine_residual_head(
+                        residual_input
+                    ).view(users.numel(), 4096, state.rank)
+                    weights_by_group = {
+                        group_idx: state.apply_fine_residual(weight, fine_residual, group_idx)
+                        for group_idx, weight in weights_by_group.items()
+                    }
                 if state.granularity_mode in ("dual", "coarse_gate"):
                     weights_by_group = {
                         group: route_rank_channels(weight)
