@@ -95,7 +95,8 @@ class OriginalCoRARuntime:
         self.group_count_by_mode = {
             "off": 0, "shared": 4, "group2": 2, "group4": 4, "group8": 8,
             "shared_group4": 4, "shared_trunk4": 4, "rank_group4": 4,
-            "group4_linear": 4,
+            "group4_linear": 4, "coarse_to_fine": 8, "fine_to_coarse": 8,
+            "hierarchical_residual": 8,
         }
         if self.group_projector_mode not in self.group_count_by_mode:
             raise ValueError(
@@ -114,7 +115,54 @@ class OriginalCoRARuntime:
     def group_for_layer(self, layer_index):
         if self.group_projector_mode == "off":
             raise ValueError("group_for_layer is only used in group-projector modes")
-        return min(int(layer_index) // (32 // self.group_count), self.group_count - 1)
+        layer = int(layer_index)
+        if not 0 <= layer < 32:
+            raise ValueError(f"Invalid Transformer layer index: {layer}")
+
+        mode = self.group_projector_mode
+        if mode in ("coarse_to_fine", "hierarchical_residual"):
+            # 2 x 8-layer groups, then 2 x 4-layer groups, then 4 x 2-layer groups.
+            if layer < 8:
+                return 0
+            if layer < 16:
+                return 1
+            if layer < 20:
+                return 2
+            if layer < 24:
+                return 3
+            return 4 + (layer - 24) // 2
+
+        if mode == "fine_to_coarse":
+            # 4 x 2-layer groups, then 2 x 4-layer groups, then 2 x 8-layer groups.
+            if layer < 8:
+                return layer // 2
+            if layer < 16:
+                return 4 + (layer - 8) // 4
+            if layer < 24:
+                return 6
+            return 7
+
+        return min(layer // (32 // self.group_count), self.group_count - 1)
+
+    def group_schedule_description(self):
+        mode = self.group_projector_mode
+        if mode in ("coarse_to_fine", "hierarchical_residual"):
+            return (
+                "L0-7:g0,L8-15:g1,L16-19:g2,L20-23:g3,"
+                "L24-25:g4,L26-27:g5,L28-29:g6,L30-31:g7"
+            )
+        if mode == "fine_to_coarse":
+            return (
+                "L0-1:g0,L2-3:g1,L4-5:g2,L6-7:g3,"
+                "L8-11:g4,L12-15:g5,L16-23:g6,L24-31:g7"
+            )
+        if mode == "off":
+            return "off"
+        group_width = 32 // self.group_count
+        return ",".join(
+            f"L{idx * group_width}-{(idx + 1) * group_width - 1}:g{idx}"
+            for idx in range(self.group_count)
+        )
 
     def rank_for_layer(self, layer_index):
         if self.rank_profile is None:
