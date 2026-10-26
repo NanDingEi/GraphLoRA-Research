@@ -18,6 +18,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from experiments.no31_cora_original.weight_generator import PerceptualWeightsGenerator
+from experiments.no31_cora_original.granularity_signals import build_coarse_fine_signals
 
 
 class OriginalCoRARuntime:
@@ -27,6 +28,9 @@ class OriginalCoRARuntime:
         self.targets = []
         self.active = False
         # Optional experiment controls default to the original CoRA equation.
+        self.granularity_mode = os.environ.get("NO31_CORA_GRANULARITY_MODE", "original")
+        if self.granularity_mode not in ("original", "fine", "coarse_gate", "dual"):
+            raise ValueError(f"Unsupported granularity mode: {self.granularity_mode}")
         self.rank = 16
         self.alpha = int(os.environ.get("NO31_CORA_ALPHA", "32"))
         if self.alpha not in (16, 32, 48, 49, 50, 51, 52, 56, 60, 64, 96):
@@ -221,6 +225,20 @@ class OriginalCoRARuntime:
                 rank_profile=state.rank_profile,
                 group_projector_mode=state.group_projector_mode,
             )
+            if state.granularity_mode in ("dual", "coarse_gate"):
+                # Gate 8 of 16 CoRA rank channels. Exact identity at init.
+                # New params belong to the generator's existing optimizer group.
+                saved_rng = torch.get_rng_state()
+                try:
+                    model.cora_weight_generator.fine_rank_gate = nn.Sequential(
+                        nn.Linear(2 * e, 64),
+                        nn.GELU(),
+                        nn.Linear(64, 8),
+                    )
+                    nn.init.zeros_(model.cora_weight_generator.fine_rank_gate[-1].weight)
+                    nn.init.zeros_(model.cora_weight_generator.fine_rank_gate[-1].bias)
+                finally:
+                    torch.set_rng_state(saved_rng)
             if state.injection_mode == "token_gate":
                 # Keep the sampler/P-init RNG stream identical to shared CoRA.
                 # The gate is zero-initialized anyway; its constructor must not
@@ -323,6 +341,7 @@ class OriginalCoRARuntime:
                 f"[CORA-ORIGINAL-INIT] rank={state.rank} alpha={state.alpha} "
                 f"qformer_layers=8 qformer_queries=4 dynamic_A={generator_shape_summary} "
                 f"rank_profile={rank_summary} group_projectors={state.group_projector_mode} "
+                f"granularity_mode={state.granularity_mode} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
@@ -348,10 +367,42 @@ class OriginalCoRARuntime:
             pair = torch.cat(
                 (model.cora_fixed_user[users], model.cora_fixed_item[items]), dim=-1
             )
+            fine = None
+            if state.granularity_mode != "original":
+                history = samples.get("InteractedItemIDs_pad")
+                if history is None:
+                    raise RuntimeError("Granularity mode requires padded history item IDs")
+                coarse, fine = build_coarse_fine_signals(
+                    users, items, history, model.cora_fixed_user,
+                    model.cora_fixed_item,
+                    padding_idx=int(model.rec_encoder.padding_index),
+                )
+                if state.granularity_mode == "fine":
+                    pair = fine
+                else:
+                    pair = coarse
+
+            def route_rank_channels(weight):
+                if state.granularity_mode not in ("dual", "coarse_gate"):
+                    return weight
+                signal = fine if state.granularity_mode == "dual" else pair
+                gate = 0.1 * torch.tanh(
+                    model.cora_weight_generator.fine_rank_gate(signal)
+                )
+                factor = torch.cat(
+                    (torch.ones_like(gate), 1.0 + gate), dim=-1
+                )
+                return weight * factor.unsqueeze(1)
+
             # Original implementation uses MF [u, i] 256+256, not NGCF
             # penultimate states and not a learned per-rank gate.
             if state.group_projector_mode != "off":
                 weights_by_group = model.cora_weight_generator(pair)
+                if state.granularity_mode in ("dual", "coarse_gate"):
+                    weights_by_group = {
+                        group: route_rank_channels(weight)
+                        for group, weight in weights_by_group.items()
+                    }
                 if set(weights_by_group) != set(range(state.group_count)):
                     raise RuntimeError(
                         f"Group projector output ids mismatch: {sorted(weights_by_group)} "
@@ -374,6 +425,7 @@ class OriginalCoRARuntime:
                 weights_by_rank = {state.rank: w}
             else:
                 w = model.cora_weight_generator(pair)
+                w = route_rank_channels(w)
                 condition = None
                 weights_by_rank = {state.rank: w}
             if weights_by_rank is not None:
