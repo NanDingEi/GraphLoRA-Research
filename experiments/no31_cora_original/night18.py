@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """NIGHT18: explicit collaborative granularity, same E0 CoRA architecture.
 
-Runs: E0 original MF pair, fine-only, coarse-only rank gate, dual rank gate.
+Runs: fine-only, coarse-only rank gate, dual rank gate.
+Historical NIGHT17 E0 is the fixed baseline; it is NOT retrained.
 All preserve rank16 / alpha48 / QKVO 0-31 / group8 / seed42 / CTR+KD,
 with no Transformer-layer schedule change.
 """
@@ -22,10 +23,10 @@ BASE = dict(
     projection_scales="q_proj=1,k_proj=1,v_proj=1,o_proj=1", seed=42,
 )
 
+E0_VALID_AUC = 0.7299284744316927
+E0_VALID_UAUC = 0.6866122315446266
+
 EXPERIMENTS = [
-    dict(id="G0_E0_ORIGINAL", title="Exact E0 control: frozen MF pair", granularity_mode="original",
-         anchor_auc=0.7299284744316927, anchor_uauc=0.6866122315446266,
-         anchor_tolerance=0.02),
     dict(id="G1_FINE_ONLY", title="Replace CoRA condition with target-history interaction",
          granularity_mode="fine"),
     dict(id="G2_COARSE_GATE", title="Keep E0 condition, learn 8-rank coarse gate",
@@ -47,6 +48,12 @@ def main():
     args = p.parse_args()
 
     cfg = core.plan([BY_ID[args.only]] if args.only else EXPERIMENTS)
+    print(
+        f"[NIGHT18-FIXED-BASELINE] NIGHT17 E0 historic Valid "
+        f"AUC={E0_VALID_AUC:.9f} UAUC={E0_VALID_UAUC:.9f}; "
+        "reuse checkpoint/results, never rerun baseline.",
+        flush=True,
+    )
     if args.plan:
         return
     subprocess.run(
