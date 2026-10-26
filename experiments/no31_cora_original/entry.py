@@ -83,7 +83,8 @@ def main():
         expected_projector_modules = {
             "off": 0, "shared": 1, "group2": 2, "group4": 4, "group8": 8,
             "shared_group4": 5, "shared_trunk4": 0, "rank_group4": 0,
-            "group4_linear": 4,
+            "group4_linear": 4, "coarse_to_fine": 8, "fine_to_coarse": 8,
+            "hierarchical_residual": 8,
         }[runtime.group_projector_mode]
         projectors = getattr(gen, "group_projectors", [])
         if len(projectors) != expected_projector_modules:
@@ -134,6 +135,7 @@ def main():
             f"projections={','.join(runtime.projections)} input={runtime.input_mode} "
             f"injection_mode={runtime.injection_mode} "
             f"group_projectors={runtime.group_projector_mode} "
+            f"group_schedule={runtime.group_schedule_description()} "
             f"residual_ratio={runtime.residual_ratio:g} depth_profile={runtime.depth_profile}",
             flush=True,
         )
