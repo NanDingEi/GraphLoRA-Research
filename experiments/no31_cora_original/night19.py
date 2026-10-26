@@ -58,6 +58,28 @@ for row in EXPERIMENTS:
 BY_ID = {row["id"]: row for row in EXPERIMENTS}
 
 
+def plan(rows):
+    cfg = core.prepared_config()
+    print(
+        "[NIGHT19-BASELINE] Historical NIGHT17 E0 Valid "
+        "AUC=0.729928474 UAUC=0.686612232; never retrain baseline.",
+        flush=True,
+    )
+    print(
+        "[NIGHT19-COMMON] rank16 alpha48 QKVO L0-31 group8; original coarse MF "
+        "condition preserved; seed42 CTR=.05 KD=.05; one epoch; Valid only; "
+        "GPU0 serial foreground.",
+        flush=True,
+    )
+    for row in rows:
+        print(
+            f"[NIGHT19-PLAN] {row['id']} mode={row['fine_residual_mode']} "
+            f"title={row['title']}",
+            flush=True,
+        )
+    return cfg
+
+
 def main():
     parser = argparse.ArgumentParser()
     action = parser.add_mutually_exclusive_group(required=True)
@@ -67,12 +89,7 @@ def main():
     args = parser.parse_args()
 
     rows = [BY_ID[args.only]] if args.only else EXPERIMENTS
-    cfg = core.plan(rows)
-    print(
-        "[NIGHT19-BASELINE] Reuse historical NIGHT17 E0 Valid "
-        "AUC=0.729928474 UAUC=0.686612232; no baseline retraining.",
-        flush=True,
-    )
+    cfg = plan(rows)
     if args.plan:
         return
 
