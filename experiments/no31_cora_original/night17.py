@@ -19,6 +19,7 @@ EXPERIMENTS = [
         id="E0_UNIFORM_4LAYER_CONTROL",
         title="Control: eight independent projectors, four Transformer layers each",
         group_projectors="group8",
+        group_schedule="uniform 4-layer groups: L0-3,L4-7,L8-11,L12-15,L16-19,L20-23,L24-27,L28-31",
         anchor_auc=0.7299284744316927,
         anchor_uauc=0.6866122315446266,
         anchor_tolerance=0.02,
@@ -27,16 +28,19 @@ EXPERIMENTS = [
         id="E1_COARSE_TO_FINE",
         title="Coarse-to-fine: 8L groups, then 4L groups, then 2L groups",
         group_projectors="coarse_to_fine",
+        group_schedule="L0-7,L8-15,L16-19,L20-23,L24-25,L26-27,L28-29,L30-31",
     ),
     dict(
         id="E2_FINE_TO_COARSE",
         title="Fine-to-coarse: 2L groups, then 4L groups, then 8L groups",
         group_projectors="fine_to_coarse",
+        group_schedule="L0-1,L2-3,L4-5,L6-7,L8-11,L12-15,L16-23,L24-31",
     ),
     dict(
         id="E3_HIERARCHICAL_RESIDUAL",
         title="Shared residual mapping plus progressively stronger group residuals",
         group_projectors="hierarchical_residual",
+        group_schedule="C2F groups; shared branch plus residual scales 0/7..7/7",
     ),
 ]
 
