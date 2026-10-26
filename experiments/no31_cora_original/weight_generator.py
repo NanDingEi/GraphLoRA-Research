@@ -30,6 +30,7 @@ class PerceptualWeightsGenerator(nn.Module):
         if group_projector_mode not in (
             "off", "shared", "group2", "group4", "group8",
             "shared_group4", "shared_trunk4", "rank_group4", "group4_linear",
+            "coarse_to_fine", "fine_to_coarse", "hierarchical_residual",
         ):
             raise ValueError(f"Unsupported group_projector_mode: {group_projector_mode}")
         if group_projector_mode != "off":
@@ -143,10 +144,13 @@ class PerceptualWeightsGenerator(nn.Module):
                 if self.group_projector_mode in (
                     "shared", "group2", "group4", "group8",
                     "shared_group4", "group4_linear",
+                    "coarse_to_fine", "fine_to_coarse", "hierarchical_residual",
                 ):
                     counts = {
                         "shared": 1, "group2": 2, "group4": 4, "group8": 8,
                         "shared_group4": 5, "group4_linear": 4,
+                        "coarse_to_fine": 8, "fine_to_coarse": 8,
+                        "hierarchical_residual": 8,
                     }
                     self.group_projectors = nn.ModuleList()
                     for _ in range(counts[self.group_projector_mode]):
@@ -299,9 +303,24 @@ class PerceptualWeightsGenerator(nn.Module):
                     group_weights[group_idx] = make_weight(projected)
                 return group_weights
 
+            if mode == "hierarchical_residual":
+                # Eight modules total: one shared residual branch and seven
+                # group-specific branches. Group 0 uses only the shared branch;
+                # later groups progressively increase their residual weight.
+                shared_residual = self.group_projectors[0](q_states)
+                group_weights = {}
+                for group_idx in range(8):
+                    projected = q_states + shared_residual
+                    if group_idx > 0:
+                        residual = self.group_projectors[group_idx](q_states)
+                        projected = projected + (group_idx / 7.0) * residual
+                    group_weights[group_idx] = make_weight(projected)
+                return group_weights
+
             group_count = {
                 "group2": 2, "group4": 4, "group8": 8,
                 "group4_linear": 4,
+                "coarse_to_fine": 8, "fine_to_coarse": 8,
             }[mode]
             group_weights = {}
             for group_idx in range(group_count):
