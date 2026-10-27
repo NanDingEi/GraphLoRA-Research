@@ -2,6 +2,7 @@
 """NIGHT22 CPU-only: 8 factorial loss recipes + exact NIGHT13 runtime guard."""
 import ast
 import os
+import subprocess
 import sys
 from pathlib import Path
 from types import SimpleNamespace
@@ -44,6 +45,33 @@ def mock_rank410():
 
 
 def main():
+    # Reproduce the exact way the GPU runner launches entry.py:
+    # execute by file path with no inherited PYTHONPATH.
+    # Regression guard for imports attempted before adding repo root to sys.path.
+    environment = dict(os.environ)
+    environment.update({
+        "PYTHONPATH": "",
+        "CUDA_VISIBLE_DEVICES": "0",
+        "S2_INPUT_ALPHA": "0",
+        "S2_SMALL_KD": "0.05",
+        "NO31_CORA_LOSS_ABLATION": "n22_base",
+    })
+    import_probe = subprocess.run(
+        [
+            sys.executable, "-I", "experiments/no31_cora_original/entry.py",
+            "--cfg-path", "/unused/night22/cpu-import-check.yaml",
+            "--check-night22-imports",
+        ],
+        cwd=str(ROOT), env=environment,
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, check=False,
+    )
+    if import_probe.returncode or "[NIGHT22-DIRECT-ENTRY-IMPORT-PASS]" not in import_probe.stdout:
+        raise RuntimeError(
+            "NIGHT22 direct entry.py import preflight failed:\n"
+            + import_probe.stdout
+        )
+    print("[NIGHT22-CPU] isolated direct entry.py imports PASS", flush=True)
     night22.validate()
     expected_ids = (
         "R0_BASE_ALL_ON", "R1_NO_CTR", "R2_NO_KD", "R3_NO_CTR_KD",
