@@ -101,6 +101,11 @@ Check the complete source-side model audit:
 `[semantic]`, `[projector-reg]`, and (when CTR or KD is enabled)
 `[NIGHT8-LOSS]`.
 
+The generated `factorial_interactions.json` quantifies how CTR behaves with
+KD on versus KD off (`CTR_x_KD_interaction`), and the analogous semantic x
+projector contrast, for both AUC and UAUC. These are descriptive
+**single-seed** contrasts, not significance tests.
+
 Each `summary.csv` row has its actual `loss_ctr/loss_kd/loss_sem/loss_proj`
 weights and `delta_vs_retrained_rank410_auc/uauc`. This **current
 retrained R0**, not the historical NIGHT17 E0 / generic CoRA R0, is the
