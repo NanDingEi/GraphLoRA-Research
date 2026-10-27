@@ -27,6 +27,11 @@ def main():
         "no_sem": (.05, .05, 0., 5e-4),
         "no_proj": (.05, .05, 1e-4, 0.),
     }
+    # Script execution sets sys.path[0] to this file's directory, not
+    # necessarily repository root. NIGHT22 imports must happen only after
+    # the root has been added, before any training/model allocation.
+    if str(ROOT) not in sys.path:
+        sys.path.insert(0, str(ROOT))
     from experiments.no31_cora_original.night22_loss_spec import (
         LOSS_SPECS as NIGHT22_LOSS_SPECS, verify_rank410,
     )
