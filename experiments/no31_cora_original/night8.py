@@ -275,6 +275,34 @@ def run_one(row, common_cfg, root):
     if len(metric_rows) != 1:
         raise RuntimeError(f"[{ident}] expected exactly 1 Valid: {metric_rows}")
 
+    if row.get("collab_mode", "off") != "off":
+        required_n20 = (
+            "[CORA-N20-DATA]", "[CORA-N20-PROBE-OK]",
+            "[CORA-N20-HEAD-NORMS]",
+        )
+        if any(marker not in text for marker in required_n20):
+            raise RuntimeError(f"[{ident}] NIGHT20 data/parameter audit marker missing")
+        head_logs = re.findall(
+            r"\[CORA-N20-HEAD-NORMS\]\s*(\{[^\n]*\})", text
+        )
+        if len(head_logs) != 1:
+            raise RuntimeError(f"[{ident}] expected one NIGHT20 head-norm audit")
+        heads = json.loads(head_logs[0])
+        mode = row["collab_mode"]
+        for name in ("coarse", "fine"):
+            stats = heads[name]
+            norm = float(stats["last_weight_norm"]) + float(stats["last_bias_norm"])
+            active = (
+                (name == "coarse" and mode != "fine_only")
+                or (name == "fine" and mode != "coarse_only")
+            )
+            if (active and norm <= 0) or (not active and norm != 0):
+                raise RuntimeError(
+                    f"[{ident}] {name} head unexpectedly {'untrained' if active else 'changed'}: "
+                    f"norm={norm}, mode={mode}"
+                )
+        print(f"[NIGHT20-HEAD-AUDIT-PASS] {ident}: {heads}", flush=True)
+
     ctr_logs = re.findall(r"\[CORA-ORIGINAL-COUNTERS\]\s*(\{[^\n]*\})",text)
     counts = json.loads(ctr_logs[-1])
     if counts.get("projection_forwards",0) < selected_targets(row):
