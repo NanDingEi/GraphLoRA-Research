@@ -82,7 +82,14 @@ def projector_regularized_forward(forward_fn):
     def wrapped(self, *args, **kwargs):
         result = forward_fn(self, *args, **kwargs)
         weight = float(getattr(self, 'proj_reg_weight', 0.0))
-        if not (self.training and torch.is_grad_enabled() and weight > 0.0):
+        # NIGHT21 A4: keep the same 64-item sampling operation as E0
+        # while giving it exactly zero loss weight. This isolates the
+        # projector *loss* from unrelated RNG-stream perturbations.
+        import os
+        shadow = os.environ.get('NO31_CORA_PROJECTOR_SHADOW', '0') == '1'
+        if shadow and weight != 0.0:
+            raise RuntimeError('NIGHT21 projector shadow requires weight=0')
+        if not (self.training and torch.is_grad_enabled() and (weight > 0.0 or shadow)):
             return result
 
         if not isinstance(result, dict) or 'loss' not in result:
