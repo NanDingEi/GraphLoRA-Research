@@ -273,6 +273,34 @@ def run_one(row, common_cfg, root):
         f"depth_profile={row.get('depth_profile', 'uniform')}" not in text or
         f"projection_scales={row.get('projection_scales', 'q_proj=1,k_proj=1,v_proj=1,o_proj=1')}" not in text):
         raise RuntimeError(f"[{ident}] requested CoRA architecture not loaded")
+    if row.get("loss_ablation"):
+        arm = row["loss_ablation"]
+        if f"[NIGHT21-LOSS-CONFIG] arm={arm} " not in text:
+            raise RuntimeError(f"[{ident}] missing NIGHT21 actual model loss audit")
+        for marker in ("[NIGHT8-LOSS]", "[projector-reg]", "[semantic]"):
+            if marker not in text:
+                raise RuntimeError(
+                    f"[{ident}] missing expected loss component log {marker}"
+                )
+        lines = re.findall(r"\[NIGHT8-LOSS\][^\n]*", text)
+        if arm == "no_ctr" and any(
+            not re.search(r"L_gctr=0(?:\.0+)?(?:\s|$)", ln) for ln in lines
+        ):
+            raise RuntimeError(f"[{ident}] CTR unexpectedly nonzero")
+        if arm == "no_kd" and any(
+            not re.search(r"L_gkd=0(?:\.0+)?(?:\s|$)", ln) for ln in lines
+        ):
+            raise RuntimeError(f"[{ident}] KD unexpectedly nonzero")
+        if arm == "no_sem" and not re.search(
+            r"\[semantic\][^\n]*corr_w=0(?:\.0+)?(?:\s|$)", text
+        ):
+            raise RuntimeError(f"[{ident}] semantic objective was not zero-weighted")
+        if arm == "no_proj" and not re.search(
+            r"\[projector-reg\][^\n]*weighted=0\.0+", text
+        ):
+            raise RuntimeError(f"[{ident}] projection regularizer not zero-weighted")
+        print(f"[NIGHT21-LOSS-AUDIT-PASS] {ident} disabled={arm}", flush=True)
+
     lr_group_lines = [s for s in text.splitlines() if "[lr-group]" in s]
     target_group = [s for s in lr_group_lines if "cora_p_wd" in s]
     expected_scale = f"scale={row['p_lr']:.4g}"
@@ -344,6 +372,11 @@ def run_one(row, common_cfg, root):
         projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
         rank_profile=row.get("rank_profile", "uniform"),
         seed=cfg["run"]["seed"],
+        loss_ablation=row.get("loss_ablation", ""),
+        loss_ctr=float(row.get("loss_ctr", 0.05)),
+        loss_kd=float(row.get("loss_kd", 0.05)),
+        loss_sem=float(row.get("loss_sem", 1e-4)),
+        loss_proj=float(row.get("loss_proj", 5e-4)),
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
     print("[NIGHT8-RESULT] %s ValidAUC=%.9f ValidUAUC=%.9f "
@@ -408,7 +441,8 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31","delta_vs_g2","delta_uauc_vs_g2",
                 "layers","projections","cf_input","injection_mode","rank_profile","group_projectors","fine_residual_mode","collab_mode","alpha","p_lr",
-                "residual_ratio","depth_profile","projection_scales","seed","checkpoint"))
+                "residual_ratio","depth_profile","projection_scales","seed","checkpoint",
+                "loss_ablation","loss_ctr","loss_kd","loss_sem","loss_proj"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
