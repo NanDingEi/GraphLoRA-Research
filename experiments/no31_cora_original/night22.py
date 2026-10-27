@@ -6,6 +6,7 @@ If the independently retrained baseline deviates >0.015 AUC or UAUC from the
 user-reported historical Valid (.727748, .683007), STOP before R1.
 """
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -129,9 +130,49 @@ def main():
         )
     print("[NIGHT22-PREFLIGHT-PASS] rank410 original CoRA + 8-arm loss guards",
           flush=True)
+    before = set((ROOT / "logs").glob("NO31_CORA_NIGHT22_*"))
     core.run_trials(
         EXPERIMENTS, cfg, name_prefix="NO31_CORA_NIGHT22"
     )
+    created = set((ROOT / "logs").glob("NO31_CORA_NIGHT22_*")) - before
+    if len(created) != 1:
+        raise RuntimeError(
+            f"Expected exactly one new NIGHT22 output directory, found {created}"
+        )
+    report_dir = next(iter(created))
+    results = [
+        json.loads(line) for line in
+        (report_dir / "results.jsonl").read_text().splitlines() if line.strip()
+    ]
+    if [r["id"] for r in results] != [r["id"] for r in EXPERIMENTS]:
+        raise RuntimeError("NIGHT22 report expected 8 correctly ordered results")
+    def interaction(metric):
+        v = [r[metric] for r in results]
+        return {
+            "history_reference": (
+                HISTORIC_AUC if metric == "auc" else HISTORIC_UAUC
+            ),
+            "rerun_baseline": v[0],
+            "CTR_effect_when_KD_on": v[0] - v[1],
+            "CTR_effect_when_KD_off": v[2] - v[3],
+            "KD_effect_when_CTR_on": v[0] - v[2],
+            "KD_effect_when_CTR_off": v[1] - v[3],
+            "CTR_x_KD_interaction": v[0] - v[1] - v[2] + v[3],
+            "SEM_x_PROJ_interaction": v[0] - v[4] - v[5] + v[6],
+            "all_aux_vs_all_off": v[0] - v[7],
+        }
+    report = {
+        "interpretation": (
+            "Descriptive one-seed 2x2 interaction contrasts. Not a 16-arm "
+            "full factorial and not a statistical significance test."
+        ),
+        "auc": interaction("auc"),
+        "uauc": interaction("uauc"),
+    }
+    (report_dir / "factorial_interactions.json").write_text(
+        json.dumps(report, indent=2)
+    )
+    print("[NIGHT22-INTERACTIONS] " + json.dumps(report), flush=True)
 
 
 if __name__ == "__main__":
