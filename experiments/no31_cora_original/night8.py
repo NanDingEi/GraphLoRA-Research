@@ -277,6 +277,10 @@ def run_one(row, common_cfg, root):
         arm = row["loss_ablation"]
         if f"[NIGHT21-LOSS-CONFIG] arm={arm} " not in text:
             raise RuntimeError(f"[{ident}] missing NIGHT21 actual model loss audit")
+        if f"[CORA-NIGHT21-ADAPTER-CONFIG] arm={arm} " not in text:
+            raise RuntimeError(
+                f"[{ident}] missing CoRA adapter-level NIGHT21 loss gate audit"
+            )
         for marker in ("[NIGHT8-LOSS]", "[projector-reg]", "[semantic]"):
             if marker not in text:
                 raise RuntimeError(
