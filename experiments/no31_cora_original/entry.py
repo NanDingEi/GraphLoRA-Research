@@ -73,6 +73,27 @@ def main():
                 raise RuntimeError("NIGHT21 must use historical E0, not NIGHT19/20")
             if runtime.group_projector_mode != "group8":
                 raise RuntimeError("NIGHT21 requires NIGHT17 E0 group8")
+            # Presence of a loss in the forward does not prove that its
+            # target module is trainable; print a minimal parameter-path audit.
+            projector_trainable = sum(
+                p.numel() for p in model.llama_proj.parameters() if p.requires_grad
+            ) if model.llama_proj is not None else 0
+            gnn_trainable = sum(
+                p.numel() for p in model.gcn.parameters() if p.requires_grad
+            ) if model.gcn is not None else 0
+            cora_trainable = sum(
+                p.numel() for p in model.cora_weight_generator.parameters()
+                if p.requires_grad
+            )
+            print(
+                f"[NIGHT21-GRAD-PATH] arm={ablation} "
+                f"llama_proj_trainable={projector_trainable} "
+                f"gnn_trainable={gnn_trainable} "
+                f"cora_generator_trainable={cora_trainable} "
+                f"kappa_trainable={model.gnn_conf_kappa.requires_grad} "
+                "gnn_scale=0 input_alpha=0",
+                flush=True,
+            )
             print(
                 f"[NIGHT21-LOSS-CONFIG] arm={ablation} "
                 f"CTR={actual[0]:g} KD={actual[1]:g} "
