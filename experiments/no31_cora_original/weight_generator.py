@@ -216,7 +216,7 @@ class PerceptualWeightsGenerator(nn.Module):
         )
         return torch.cat((user_token, item_token, interaction_token), dim=1)
 
-    def forward(self, ui_embedding, return_condition=False):
+    def forward(self, ui_embedding, return_condition=False, collab_features=None):
         if self.injection_mode in ("typed_tokens", "interaction_tokens"):
             encoder_states = self._encoder_tokens(ui_embedding)
         elif self.input_mode == "concat":
@@ -323,8 +323,49 @@ class PerceptualWeightsGenerator(nn.Module):
                 "coarse_to_fine": 8, "fine_to_coarse": 8,
             }[mode]
             group_weights = {}
+            if collab_features is not None:
+                if mode != "group8" or not hasattr(self, "n20_coarse_head"):
+                    raise RuntimeError("NIGHT20 condition only supports original group8")
+                c, f = collab_features
+                # Feature widths are 2*MF_dim+2 (coarse) and 2*MF_dim+1
+                # (fine). In production MF_dim=256 -> 514/513; the CPU
+                # preflight intentionally uses MF_dim=16 -> 34/33.
+                expected_coarse = (batch_size, 2 * self.embedding_size + 2)
+                expected_fine = (batch_size, 2 * self.embedding_size + 1)
+                if tuple(c.shape) != expected_coarse or tuple(f.shape) != expected_fine:
+                    raise RuntimeError(
+                        f"NIGHT20 feature mismatch: coarse={tuple(c.shape)} "
+                        f"expected={expected_coarse}; fine={tuple(f.shape)} "
+                        f"expected={expected_fine}"
+                    )
+                if (self.n20_coarse_head[0].in_features != expected_coarse[1]
+                        or self.n20_fine_head[0].in_features != expected_fine[1]
+                        or self.n20_coarse_head[-1].out_features != q_states.shape[-1]
+                        or self.n20_fine_head[-1].out_features != q_states.shape[-1]):
+                    raise RuntimeError(
+                        "NIGHT20 condition head dimensions do not match "
+                        "the MF feature width and QFormer hidden width"
+                    )
+                dc = self.n20_coarse_head(c).unsqueeze(1)
+                df = self.n20_fine_head(f).unsqueeze(1)
+                # Cap each branch to at most 10% of original QFormer q-norm.
+                # Detach norm factors to avoid unnatural gradient paths
+                # through the clip radius; zero-init is exactly identity.
+                qnorm = q_states.detach().float().norm(dim=-1, keepdim=True).mean(dim=1, keepdim=True)
+                def clip_to_q(d):
+                    dn = d.detach().float().norm(dim=-1, keepdim=True)
+                    factor = (self.n20_query_cap * qnorm / dn.clamp_min(1e-8)).clamp(max=1.)
+                    return d * factor.to(d.dtype)
+                dc, df = clip_to_q(dc), clip_to_q(df)
             for group_idx in range(group_count):
-                projected = q_states + self.group_projectors[group_idx](q_states)
+                if collab_features is not None:
+                    alpha, beta = self.n20_schedule[group_idx]
+                    # Insert coarse/fine conditions BEFORE the unchanged
+                    # group8 projector and final dynamic-A head.
+                    projected_in = q_states + alpha * dc + beta * df
+                else:
+                    projected_in = q_states
+                projected = projected_in + self.group_projectors[group_idx](projected_in)
                 group_weights[group_idx] = make_weight(projected)
             return group_weights
 

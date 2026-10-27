@@ -109,6 +109,9 @@ def build_environment(row):
         "NO31_CORA_GROUP_PROJECTORS": row.get("group_projectors", "off"),
         "NO31_CORA_GRANULARITY_MODE": row.get("granularity_mode", "original"),
         "NO31_CORA_FINE_RESIDUAL_MODE": row.get("fine_residual_mode", "off"),
+        "NO31_CORA_COLLAB_MODE": row.get("collab_mode", "off"),
+        "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
+        "NO31_CORA_COLLAB_TRAIN_PATH": row.get("collab_train_path", ""),
         "PYTHONUNBUFFERED": "1",
     })
     return env
@@ -247,6 +250,7 @@ def run_one(row, common_cfg, root):
         f"group_projectors={row.get('group_projectors','off')}" not in text or
         f"granularity_mode={row.get('granularity_mode', 'original')}" not in text or
         f"fine_residual_mode={row.get('fine_residual_mode', 'off')}" not in text or
+        f"collab_mode={row.get('collab_mode', 'off')}" not in text or
         f"alpha={row['alpha']}" not in text or
         f"input={row['cf_input']}" not in text or
         f"injection_mode={row.get('injection_mode', 'shared')}" not in text or
@@ -271,6 +275,34 @@ def run_one(row, common_cfg, root):
     if len(metric_rows) != 1:
         raise RuntimeError(f"[{ident}] expected exactly 1 Valid: {metric_rows}")
 
+    if row.get("collab_mode", "off") != "off":
+        required_n20 = (
+            "[CORA-N20-DATA]", "[CORA-N20-PROBE-OK]",
+            "[CORA-N20-HEAD-NORMS]",
+        )
+        if any(marker not in text for marker in required_n20):
+            raise RuntimeError(f"[{ident}] NIGHT20 data/parameter audit marker missing")
+        head_logs = re.findall(
+            r"\[CORA-N20-HEAD-NORMS\]\s*(\{[^\n]*\})", text
+        )
+        if len(head_logs) != 1:
+            raise RuntimeError(f"[{ident}] expected one NIGHT20 head-norm audit")
+        heads = json.loads(head_logs[0])
+        mode = row["collab_mode"]
+        for name in ("coarse", "fine"):
+            stats = heads[name]
+            norm = float(stats["last_weight_norm"]) + float(stats["last_bias_norm"])
+            active = (
+                (name == "coarse" and mode != "fine_only")
+                or (name == "fine" and mode != "coarse_only")
+            )
+            if (active and norm <= 0) or (not active and norm != 0):
+                raise RuntimeError(
+                    f"[{ident}] {name} head unexpectedly {'untrained' if active else 'changed'}: "
+                    f"norm={norm}, mode={mode}"
+                )
+        print(f"[NIGHT20-HEAD-AUDIT-PASS] {ident}: {heads}", flush=True)
+
     ctr_logs = re.findall(r"\[CORA-ORIGINAL-COUNTERS\]\s*(\{[^\n]*\})",text)
     counts = json.loads(ctr_logs[-1])
     if counts.get("projection_forwards",0) < selected_targets(row):
@@ -293,6 +325,7 @@ def run_one(row, common_cfg, root):
         injection_mode=row.get("injection_mode", "shared"),
         group_projectors=row.get("group_projectors", "off"),
         fine_residual_mode=row.get("fine_residual_mode", "off"),
+        collab_mode=row.get("collab_mode", "off"),
         residual_ratio=float(row.get("residual_ratio", 0.0)),
         depth_profile=row.get("depth_profile", "uniform"),
         projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
@@ -309,7 +342,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
@@ -361,7 +394,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
         with (out/"summary.csv").open("w",encoding="utf-8",newline="") as f:
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31","delta_vs_g2","delta_uauc_vs_g2",
-                "layers","projections","cf_input","injection_mode","rank_profile","group_projectors","fine_residual_mode","alpha","p_lr",
+                "layers","projections","cf_input","injection_mode","rank_profile","group_projectors","fine_residual_mode","collab_mode","alpha","p_lr",
                 "residual_ratio","depth_profile","projection_scales","seed","checkpoint"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})

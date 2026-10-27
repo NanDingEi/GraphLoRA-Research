@@ -46,6 +46,7 @@ def main():
             "NO31_CORA_RANK_PROFILE": "uniform",
             "NO31_CORA_GROUP_PROJECTORS": "off",
             "NO31_CORA_FINE_RESIDUAL_MODE": "off",
+            "NO31_CORA_COLLAB_MODE": "off",
         }):
             runtime=OriginalCoRARuntime()
         assert runtime.expected_targets==selected_targets(row)==expected[row["id"]]
