@@ -377,8 +377,17 @@ def run_one(row, common_cfg, root):
         loss_kd=float(row.get("loss_kd", 0.05)),
         loss_sem=float(row.get("loss_sem", 1e-4)),
         loss_proj=float(row.get("loss_proj", 5e-4)),
+        delta_vs_healthy_e0_auc=auc-0.7299284744316927,
+        delta_vs_healthy_e0_uauc=uauc-0.6866122315446266,
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
+    if row.get("loss_ablation"):
+        print(
+            f"[NIGHT21-E0-DELTA] {ident} "
+            f"delta_auc={result['delta_vs_healthy_e0_auc']:+.9f} "
+            f"delta_uauc={result['delta_vs_healthy_e0_uauc']:+.9f}",
+            flush=True,
+        )
     print("[NIGHT8-RESULT] %s ValidAUC=%.9f ValidUAUC=%.9f "
           "delta_vs_R0=%+.9f delta_vs_NO31=%+.9f "
           "delta_vs_G2=%+.9f delta_UAUC_vs_G2=%+.9f"
@@ -442,7 +451,8 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31","delta_vs_g2","delta_uauc_vs_g2",
                 "layers","projections","cf_input","injection_mode","rank_profile","group_projectors","fine_residual_mode","collab_mode","alpha","p_lr",
                 "residual_ratio","depth_profile","projection_scales","seed","checkpoint",
-                "loss_ablation","loss_ctr","loss_kd","loss_sem","loss_proj"))
+                "loss_ablation","loss_ctr","loss_kd","loss_sem","loss_proj",
+                "delta_vs_healthy_e0_auc","delta_vs_healthy_e0_uauc"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
