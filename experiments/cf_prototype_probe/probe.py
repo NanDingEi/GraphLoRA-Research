@@ -9,7 +9,6 @@ P3: exact decomposition, coverage, variance and residual-energy diagnostics.
 """
 import argparse
 import csv
-import hashlib
 import json
 from datetime import datetime
 from pathlib import Path
@@ -164,12 +163,12 @@ def global_metrics(user, label, score):
     }
 
 
-def within_group_pairs(user, group_id, label, original, residual):
+def within_group_pairs(user, group_id, label, original, residual, popularity):
     """Within (user, group) the coarse term is constant: AUC identity is expected."""
     # Build a flat key for efficient unique grouping, including no padding cluster.
     keys = np.column_stack((user, group_id))
     unique, inverse = np.unique(keys, axis=0, return_inverse=True)
-    auc_orig, auc_resid, total_rows, pair_count = [], [], 0, 0
+    auc_orig, auc_resid, auc_pop, total_rows, pair_count = [], [], [], 0, 0
     for g in range(unique.shape[0]):
         ix = np.flatnonzero(inverse == g)
         yy = label[ix]
@@ -181,6 +180,7 @@ def within_group_pairs(user, group_id, label, original, residual):
         total_rows += int(ix.size)
         auc_orig.append(float(roc_auc_score(yy, original[ix])))
         auc_resid.append(float(roc_auc_score(yy, residual[ix])))
+        auc_pop.append(float(roc_auc_score(yy, popularity[ix])))
     return {
         "eligible_user_cluster_groups": len(auc_orig),
         "eligible_rows": total_rows,
@@ -188,6 +188,7 @@ def within_group_pairs(user, group_id, label, original, residual):
         "comparable_pos_neg_pairs": pair_count,
         "mean_original_mf_auc": float(np.mean(auc_orig)) if auc_orig else None,
         "mean_fine_residual_auc": float(np.mean(auc_resid)) if auc_resid else None,
+        "mean_item_popularity_auc": float(np.mean(auc_pop)) if auc_pop else None,
         "max_auc_difference": float(np.max(np.abs(
             np.array(auc_orig) - np.array(auc_resid)
         ))) if auc_orig else None,
@@ -196,7 +197,7 @@ def within_group_pairs(user, group_id, label, original, residual):
     }
 
 
-def evaluate(users, items, train_active, groups, centers, valid):
+def evaluate(users, items, train_active, groups, centers, valid, popularity):
     u, i, labels = valid
     base = np.einsum("bd,bd->b", users[u], items[i])
     coarse = np.einsum("bd,bd->b", users[u], centers[groups[i]])
@@ -212,7 +213,9 @@ def evaluate(users, items, train_active, groups, centers, valid):
             "within_cluster_fine": global_metrics(u, labels, fine),
             "coarse_plus_fine": global_metrics(u, labels, coarse + fine),
         },
-        "p2_within_group": within_group_pairs(u, groups[i], labels, base, fine),
+        "p2_within_group": within_group_pairs(
+            u, groups[i], labels, base, fine, popularity[i]
+        ),
         "p3_decomposition": {
             "max_absolute_score_error": maxerr,
             "mean_absolute_score_error": float(error.mean()),
@@ -256,6 +259,11 @@ def run(args):
     cooc, train_active, unique_pos_edges = train_positive_graph(
         train, len(user_emb), len(item_emb),
     )
+    # A non-parametric within-community ranking baseline, TRAIN ONLY.
+    tu, ti, ty = train
+    item_popularity = np.log1p(
+        np.bincount(ti[ty == 1], minlength=len(item_emb)).astype(np.float64)
+    )
     outdir = Path(args.output_dir) if args.output_dir else (
         Path("logs") / ("CF_PROTOTYPE_PROBE_" + datetime.now().strftime("%Y%m%d_%H%M%S"))
     )
@@ -279,7 +287,10 @@ def run(args):
         groups, centers, nconnected, nfallback = communities_from_cooc(
             cooc, item_emb, k, args.seed,
         )
-        result = evaluate(user_emb, item_emb, train_active, groups, centers, valid)
+        result = evaluate(
+            user_emb, item_emb, train_active, groups, centers, valid,
+            item_popularity,
+        )
         # Null control: random item community IDs with identical group sizes.
         rng = np.random.default_rng(args.seed + 1000 + k)
         shuffled = groups.copy()
@@ -287,6 +298,7 @@ def run(args):
         null_centers = centers_from_assignment(item_emb, shuffled, k)
         random_result = evaluate(
             user_emb, item_emb, train_active, shuffled, null_centers, valid,
+            item_popularity,
         )
         result["p1_null_control"] = {
             "random_size_matched_coarse": random_result["metrics"]["prototype_coarse"],
@@ -297,12 +309,12 @@ def run(args):
         result["connected_items"] = nconnected
         result["mf_assigned_disconnected_items"] = nfallback
         (outdir / f"metrics_k{k}.json").write_text(json.dumps(result, indent=2))
+        residual_embeddings = item_emb - centers[np.maximum(groups, 0)]
+        residual_embeddings[0] = 0  # item ID 0 is padding, never a candidate
         np.savez_compressed(
             outdir / f"prototypes_k{k}.npz",
             item_to_cluster=groups, prototypes=centers.astype(np.float32),
-            mf_residual=(item_emb -
-                         np.where(np.arange(len(groups))[:, None] == 0, 0,
-                                  centers[np.maximum(groups, 0)])).astype(np.float32),
+            mf_residual=residual_embeddings.astype(np.float32),
             item_connected_in_graph=(np.asarray(cooc.sum(axis=1)).ravel() > 0),
         )
         m = result["metrics"]
@@ -324,6 +336,7 @@ def run(args):
             "random_residual_energy_ratio":
                 result["p1_null_control"]["random_size_matched_residual_energy"],
             "within_group_AUC": p2["mean_fine_residual_auc"],
+            "within_group_item_popularity_AUC": p2["mean_item_popularity_auc"],
             "within_group_rows": p2["eligible_rows"],
             "within_group_pairs": p2["comparable_pos_neg_pairs"],
             "decomposition_maxerr": p3["max_absolute_score_error"],
