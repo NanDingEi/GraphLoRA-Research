@@ -249,6 +249,14 @@ def run_one(row, common_cfg, root):
             child.wait()
             raise
     if code:
+        # Emit the actual exception from the child, not just the parent
+        # wrapper traceback. Keep original train.log untouched.
+        tail = log_file.read_text(encoding="utf-8", errors="replace").splitlines()[-45:]
+        print(
+            f"[{ident}-CHILD-TRACEBACK] subprocess failed exit={code} "
+            f"log={log_file}\n" + "\n".join(tail),
+            flush=True,
+        )
         raise RuntimeError(f"[{ident}] training failed exit={code}: {log_file}")
 
     text = log_file.read_text(errors="replace")
