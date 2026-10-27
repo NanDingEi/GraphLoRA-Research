@@ -92,7 +92,9 @@ def build_environment(row):
     env = os.environ.copy()
     env.update({
         "CUDA_VISIBLE_DEVICES": "0",
-        "S2_SMALL_KD": "0.05",
+        "S2_SMALL_KD": str(row.get("loss_kd", 0.05)),
+        "NO31_CORA_LOSS_ABLATION": row.get("loss_ablation", ""),
+        "NO31_CORA_PROJECTOR_SHADOW": "1" if row.get("loss_ablation") == "no_proj" else "0",
         "S2_INPUT_ALPHA": "0",
         "S2_NIGHT_EPOCHS": "1",
         "NO31_CORA_ALPHA": str(row["alpha"]),
@@ -184,6 +186,17 @@ def run_one(row, common_cfg, root):
     exp_dir.mkdir(parents=False, exist_ok=False)
     cfg = yaml.safe_load(yaml.safe_dump(common_cfg))
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
+    if row.get("loss_ablation"):
+        if row["loss_ablation"] not in ("no_ctr", "no_kd", "no_sem", "no_proj"):
+            raise ValueError(f"Unsupported NIGHT21 loss ablation: {row['loss_ablation']}")
+        # Only one auxiliary term is zeroed in each NIGHT21 row.
+        m = cfg["model"]
+        m["gnn_conf_loss_weight"] = float(row.get("loss_ctr", 0.05))
+        m["gnn_semantic_weight"] = float(row.get("loss_sem", 1e-4))
+        m["proj_reg_weight"] = float(row.get("loss_proj", 5e-4))
+        # Keep semantic teacher forward and RNG use in the NO_SEM arm;
+        # its scalar weight=0 is the only intended semantic intervention.
+        m["gnn_semantic_align"] = True
     # Follow-up experiments vary only the explicitly listed random seed.
     # Existing R1-R8 recipes omit seed and remain seed42.
     cfg["run"]["seed"] = int(row.get("seed", 42))
@@ -342,7 +355,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20","NO31_CORA_NIGHT21"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
