@@ -15,6 +15,10 @@ def main():
     p.add_argument("--cfg-path",required=True)
     p.add_argument("--mode",choices=["cora_original"],default="cora_original")
     p.add_argument("--probe-only",action="store_true")
+    p.add_argument(
+        "--check-night22-imports", action="store_true",
+        help="CPU-only check of NIGHT22's direct-script imports, no model setup",
+    )
     args=p.parse_args()
     if os.environ.get("CUDA_VISIBLE_DEVICES")!="0":
         raise RuntimeError("Run on GPU0 with CUDA_VISIBLE_DEVICES=0")
@@ -36,6 +40,14 @@ def main():
         LOSS_SPECS as NIGHT22_LOSS_SPECS, verify_rank410,
     )
     loss_specs.update(NIGHT22_LOSS_SPECS)
+    if args.check_night22_imports:
+        print(
+            "[NIGHT22-DIRECT-ENTRY-IMPORT-PASS] "
+            f"root={ROOT} script={__file__} "
+            f"loss_recipes={len(NIGHT22_LOSS_SPECS)}",
+            flush=True,
+        )
+        return
     if ablation and ablation not in loss_specs:
         raise RuntimeError(f"Unsupported NIGHT21 loss ablation: {ablation}")
     expected_kd = loss_specs[ablation][1] if ablation else .05
