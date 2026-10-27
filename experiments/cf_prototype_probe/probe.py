@@ -197,6 +197,33 @@ def within_group_pairs(user, group_id, label, original, residual, popularity):
     }
 
 
+def between_group_pairwise(user, group_id, label, score):
+    """Pairwise accuracy only for POS/NEG candidates from different communities."""
+    wins = 0.0
+    total = 0
+    valid_users = 0
+    for uid in np.unique(user):
+        ix = user == uid
+        pos = np.flatnonzero(ix & (label == 1))
+        neg = np.flatnonzero(ix & (label == 0))
+        if len(pos) == 0 or len(neg) == 0:
+            continue
+        cross = group_id[pos, None] != group_id[None, neg]
+        n = int(cross.sum())
+        if n == 0:
+            continue
+        valid_users += 1
+        margins = score[pos, None] - score[None, neg]
+        wins += float(((margins > 0) * cross).sum())
+        wins += 0.5 * float(((margins == 0) * cross).sum())
+        total += n
+    return {
+        "cross_community_pos_neg_pairs": total,
+        "eligible_users": valid_users,
+        "pairwise_accuracy": wins / total if total else None,
+    }
+
+
 def evaluate(users, items, train_active, groups, centers, valid, popularity):
     u, i, labels = valid
     base = np.einsum("bd,bd->b", users[u], items[i])
@@ -216,6 +243,12 @@ def evaluate(users, items, train_active, groups, centers, valid, popularity):
         "p2_within_group": within_group_pairs(
             u, groups[i], labels, base, fine, popularity[i]
         ),
+        "p1_between_group": {
+            "original_mf": between_group_pairwise(
+                u, groups[i], labels, base),
+            "prototype_coarse": between_group_pairwise(
+                u, groups[i], labels, coarse),
+        },
         "p3_decomposition": {
             "max_absolute_score_error": maxerr,
             "mean_absolute_score_error": float(error.mean()),
@@ -304,6 +337,8 @@ def run(args):
             "random_size_matched_coarse": random_result["metrics"]["prototype_coarse"],
             "random_size_matched_residual_energy":
                 random_result["p3_decomposition"]["relative_embedding_residual_energy"],
+            "random_group_between_pairwise":
+                random_result["p1_between_group"]["prototype_coarse"],
         }
         result["k"] = k
         result["connected_items"] = nconnected
@@ -337,6 +372,10 @@ def run(args):
                 result["p1_null_control"]["random_size_matched_residual_energy"],
             "within_group_AUC": p2["mean_fine_residual_auc"],
             "within_group_item_popularity_AUC": p2["mean_item_popularity_auc"],
+            "between_group_coarse_pairwise":
+                result["p1_between_group"]["prototype_coarse"]["pairwise_accuracy"],
+            "between_group_null_pairwise":
+                result["p1_null_control"]["random_group_between_pairwise"]["pairwise_accuracy"],
             "within_group_rows": p2["eligible_rows"],
             "within_group_pairs": p2["comparable_pos_neg_pairs"],
             "decomposition_maxerr": p3["max_absolute_score_error"],
