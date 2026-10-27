@@ -415,8 +415,14 @@ def run_one(row, common_cfg, root):
         loss_kd=float(row.get("loss_kd", 0.05)),
         loss_sem=float(row.get("loss_sem", 1e-4)),
         loss_proj=float(row.get("loss_proj", 5e-4)),
-        delta_vs_healthy_e0_auc=auc-0.7299284744316927,
-        delta_vs_healthy_e0_uauc=uauc-0.6866122315446266,
+        delta_vs_healthy_e0_auc=(
+            None if str(row.get("loss_ablation","")).startswith("n22_")
+            else auc-0.7299284744316927
+        ),
+        delta_vs_healthy_e0_uauc=(
+            None if str(row.get("loss_ablation","")).startswith("n22_")
+            else uauc-0.6866122315446266
+        ),
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
     if row.get("loss_ablation") and not str(row["loss_ablation"]).startswith("n22_"):
@@ -509,7 +515,7 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
                 "delta_vs_healthy_e0_auc","delta_vs_healthy_e0_uauc",
                 "delta_vs_retrained_rank410_auc","delta_vs_retrained_rank410_uauc"))
             writer.writeheader()
-            for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
+            for r in records:writer.writerow({k:r.get(k) for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
           f"Summary: {out/'summary.csv'}",flush=True)
 
