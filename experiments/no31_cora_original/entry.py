@@ -20,10 +20,20 @@ def main():
         raise RuntimeError("Run on GPU0 with CUDA_VISIBLE_DEVICES=0")
     if float(os.environ.get("S2_INPUT_ALPHA","0")) != 0:
         raise RuntimeError("NO31 alpha must remain zero")
-    if float(os.environ.get("S2_SMALL_KD","0.05")) != 0.05:
-        raise RuntimeError("NO31 KD must remain 0.05")
+    ablation = os.environ.get("NO31_CORA_LOSS_ABLATION", "")
+    loss_specs = {
+        "no_ctr": (0., .05, 1e-4, 5e-4),
+        "no_kd": (.05, 0., 1e-4, 5e-4),
+        "no_sem": (.05, .05, 0., 5e-4),
+        "no_proj": (.05, .05, 1e-4, 0.),
+    }
+    if ablation and ablation not in loss_specs:
+        raise RuntimeError(f"Unsupported NIGHT21 loss ablation: {ablation}")
+    expected_kd = loss_specs[ablation][1] if ablation else .05
+    if float(os.environ.get("S2_SMALL_KD", "0.05")) != expected_kd:
+        raise RuntimeError(f"KD environment mismatch: expected {expected_kd:g}")
     os.environ["S2_INPUT_ALPHA"]="0"
-    os.environ["S2_SMALL_KD"]="0.05"
+    os.environ["S2_SMALL_KD"]=str(expected_kd)
     os.environ.setdefault("S2_NIGHT_EPOCHS","1")
     os.chdir(ROOT)
     sys.path.insert(0,str(ROOT))
@@ -41,7 +51,36 @@ def main():
             )
         if any(float(m.gnn_scale)!=0 for m in model.my_linears):
             raise RuntimeError("NO31 L31 GNN injection accidentally enabled")
-        if model.gnn_conf_loss_weight!=0.05 or model.s2_small_kd!=0.05:
+        if ablation:
+            expected = loss_specs[ablation]
+            actual = (
+                float(model.gnn_conf_loss_weight),
+                float(model.s2_small_kd),
+                float(model.gnn_semantic_weight),
+                float(model.proj_reg_weight),
+            )
+            if any(abs(x - y) > 1e-12 for x,y in zip(actual, expected)):
+                raise RuntimeError(
+                    f"NIGHT21 {ablation} auxiliary weights do not match: "
+                    f"actual={actual}, expected={expected}"
+                )
+            if not model.gnn_semantic_align:
+                raise RuntimeError("NIGHT21 requires semantic teacher computation; "
+                                   "NO_SEM must zero its loss weight only")
+            if not hasattr(model, "gnn_conf_kappa"):
+                raise RuntimeError("NIGHT21 kappa missing; CTR-off changed model architecture")
+            if runtime.collab_mode != "off" or runtime.fine_residual_mode != "off":
+                raise RuntimeError("NIGHT21 must use historical E0, not NIGHT19/20")
+            if runtime.group_projector_mode != "group8":
+                raise RuntimeError("NIGHT21 requires NIGHT17 E0 group8")
+            print(
+                f"[NIGHT21-LOSS-CONFIG] arm={ablation} "
+                f"CTR={actual[0]:g} KD={actual[1]:g} "
+                f"SEM={actual[2]:g} PROJ={actual[3]:g} "
+                "semantic_teacher=True kappa=present collab_mode=off",
+                flush=True,
+            )
+        elif model.gnn_conf_loss_weight!=0.05 or model.s2_small_kd!=0.05:
             raise RuntimeError("NO31 CTR/KD changed")
         static=[n for n,p in model.named_parameters()
                 if (".lora_A." in n or ".lora_B." in n) and p.requires_grad]
