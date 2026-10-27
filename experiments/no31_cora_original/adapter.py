@@ -251,10 +251,50 @@ class OriginalCoRARuntime:
                 raise RuntimeError("NO31+CoRA requires LLM PEFT wrapper")
             if any(float(m.gnn_scale) != 0 for m in model.my_linears):
                 raise RuntimeError("NO31 forbids layer31 GNN feature injection")
-            if not (model.gnn_conf_loss_weight == 0.05 and
-                    model.s2_small_kd == 0.05 and model.s2_input_alpha == 0 and
-                    model.gnn_semantic_align):
-                raise RuntimeError("NO31 CTR=.05 KD=.05 alpha=0 semantic controls changed")
+            # Historical CoRA/E0 remains strict by default. Only NIGHT21
+            # explicitly permits its four approved one-factor loss ablations;
+            # never relax this check for NIGHT17/18/19/20 or general runs.
+            loss_arm = os.environ.get("NO31_CORA_LOSS_ABLATION", "")
+            loss_specs = {
+                "no_ctr": (0.0, 0.05, 1e-4, 5e-4),
+                "no_kd": (0.05, 0.0, 1e-4, 5e-4),
+                "no_sem": (0.05, 0.05, 0.0, 5e-4),
+                "no_proj": (0.05, 0.05, 1e-4, 0.0),
+            }
+            if loss_arm and loss_arm not in loss_specs:
+                raise RuntimeError(
+                    f"Unsupported CoRA auxiliary loss ablation: {loss_arm}"
+                )
+            expected = loss_specs.get(loss_arm, (0.05, 0.05, 1e-4, 5e-4))
+            actual = (
+                float(model.gnn_conf_loss_weight),
+                float(model.s2_small_kd),
+                float(model.gnn_semantic_weight),
+                float(model.proj_reg_weight),
+            )
+            if (any(abs(x - y) > 1e-12 for x, y in zip(actual, expected))
+                    or model.s2_input_alpha != 0
+                    or not model.gnn_semantic_align):
+                raise RuntimeError(
+                    f"NO31 CoRA loss/semantic controls changed: "
+                    f"arm={loss_arm or 'E0'} expected={expected} actual={actual} "
+                    f"input_alpha={model.s2_input_alpha} "
+                    f"semantic_align={model.gnn_semantic_align}"
+                )
+            if loss_arm:
+                if (self.group_projector_mode != "group8" or
+                        self.granularity_mode != "original" or
+                        self.fine_residual_mode != "off" or
+                        self.collab_mode != "off"):
+                    raise RuntimeError(
+                        "NIGHT21 loss ablations require historical NIGHT17 E0 "
+                        "group8, without NIGHT18/19/20 feature variants"
+                    )
+                print(
+                    f"[CORA-NIGHT21-ADAPTER-CONFIG] arm={loss_arm} "
+                    f"loss_weights={actual} original_E0=True",
+                    flush=True,
+                )
             if model.rec_model_type != "MF":
                 raise RuntimeError("Strict original-CoRA MF experiment requires MF")
             e = int(model.rec_encoder.config.embedding_size)
