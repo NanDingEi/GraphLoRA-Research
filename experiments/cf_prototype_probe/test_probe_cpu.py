@@ -17,6 +17,16 @@ from experiments.cf_prototype_probe import probe
 
 
 def main():
+    # Regression: a microscopic numerical perturbation of a true score tie
+    # can change ranking AUC even when reconstruction error is < 1e-8.
+    from sklearn.metrics import roc_auc_score
+    tied = np.array([0.5, 0.5], dtype=np.float64)
+    perturbed = tied + np.array([-np.finfo(np.float64).eps,
+                                  np.finfo(np.float64).eps])
+    labels = np.array([1, 0])
+    assert np.max(np.abs(tied - perturbed)) < 1e-8
+    assert roc_auc_score(labels, tied) != roc_auc_score(labels, perturbed)
+
     rng = np.random.default_rng(42)
     n_users, n_items, dim = 16, 24, 8
     user_embeddings = rng.normal(size=(n_users, dim)).astype(np.float32)
