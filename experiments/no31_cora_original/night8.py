@@ -298,6 +298,24 @@ def run_one(row, common_cfg, root):
                 raise RuntimeError(f"[{ident}] expected GNN auxiliary loss logs")
         elif "[NIGHT8-LOSS]" in text:
             raise RuntimeError(f"[{ident}] unexpected CTR/KD logs with both off")
+        loss_lines = re.findall(r"\[NIGHT8-LOSS\][^\n]*", text)
+        if weights[0] > 0 or weights[1] > 0:
+            for line in loss_lines:
+                match_ctr = re.search(r"L_gctr=([0-9.eE+-]+)", line)
+                match_kd = re.search(r"L_gkd=([0-9.eE+-]+)", line)
+                if not match_ctr or not match_kd:
+                    raise RuntimeError(f"[{ident}] missing numeric CTR/KD loss: {line}")
+                for name, value, weight in (
+                    ("CTR", float(match_ctr.group(1)), weights[0]),
+                    ("KD", float(match_kd.group(1)), weights[1]),
+                ):
+                    if (weight == 0 and abs(value) > 1e-10) or (
+                        weight > 0 and (not 0 < value < float("inf"))
+                    ):
+                        raise RuntimeError(
+                            f"[{ident}] {name} loss inconsistent with coefficient "
+                            f"{weight}: raw={value}"
+                        )
         if weights[2] == 0 and not re.search(
             r"\[semantic\][^\n]*corr_w=0(?:\.0+)?(?:\s|$)", text
         ):
