@@ -5,6 +5,9 @@ locked down, while the four one-factor NIGHT21 experiments are actually
 accepted by the adapter during model initialization.
 """
 from math import isfinite
+from experiments.no31_cora_original.night22_loss_spec import (
+    LOSS_SPECS as NIGHT22_LOSS_SPECS, verify_rank410,
+)
 
 BASE_WEIGHTS = (0.05, 0.05, 1e-4, 5e-4)
 LOSS_SPECS = {
@@ -17,9 +20,10 @@ LOSS_SPECS = {
 
 def validate_cora_loss_controls(model, runtime, loss_arm=""):
     """Verify exact four loss scalars, teacher-path and NIGHT17 E0 architecture."""
-    if loss_arm and loss_arm not in LOSS_SPECS:
+    all_specs = dict(LOSS_SPECS, **NIGHT22_LOSS_SPECS)
+    if loss_arm and loss_arm not in all_specs:
         raise RuntimeError(f"Unsupported CoRA loss ablation: {loss_arm}")
-    expected = LOSS_SPECS[loss_arm] if loss_arm else BASE_WEIGHTS
+    expected = all_specs[loss_arm] if loss_arm else BASE_WEIGHTS
     actual = (
         float(model.gnn_conf_loss_weight),
         float(model.s2_small_kd),
@@ -36,7 +40,9 @@ def validate_cora_loss_controls(model, runtime, loss_arm=""):
             f"input_alpha={model.s2_input_alpha} "
             f"semantic_align={model.gnn_semantic_align}"
         )
-    if loss_arm:
+    if loss_arm.startswith("n22_"):
+        verify_rank410(runtime)
+    elif loss_arm:
         if (runtime.group_projector_mode != "group8"
                 or runtime.granularity_mode != "original"
                 or runtime.fine_residual_mode != "off"
