@@ -108,6 +108,32 @@ def main():
                     layer.weight.detach(), layer.bias.detach()
                 )):
                     raise RuntimeError("Group projector output must be identity-initialized")
+        if runtime.collab_mode != "off":
+            # Strict NIGHT20 fail-closed adapter validation before expensive
+            # Vicuna training. CPU smoke checks initial full-generator parity.
+            if runtime.group_projector_mode != "group8":
+                raise RuntimeError("NIGHT20 requires group8")
+            if not hasattr(gen, "n20_coarse_head") or not hasattr(gen, "n20_fine_head"):
+                raise RuntimeError("NIGHT20 missing trainable QFormer conditioning heads")
+            if tuple(gen.n20_coarse_head[0].weight.shape) != (64, 514):
+                raise RuntimeError("NIGHT20 coarse head input mismatch")
+            if tuple(gen.n20_fine_head[0].weight.shape) != (64, 513):
+                raise RuntimeError("NIGHT20 fine head input mismatch")
+            if len(gen.n20_schedule) != 8 or abs(gen.n20_query_cap - 0.1) > 1e-12:
+                raise RuntimeError("NIGHT20 schedule/cap mismatch")
+            for head in (gen.n20_coarse_head, gen.n20_fine_head):
+                final = head[-1]
+                if not final.weight.requires_grad or not final.bias.requires_grad:
+                    raise RuntimeError("NIGHT20 heads must remain trainable")
+                if final.weight.detach().count_nonzero() or final.bias.detach().count_nonzero():
+                    raise RuntimeError("NIGHT20 heads must be zero-output initialized")
+            print(
+                f"[CORA-N20-PROBE-OK] mode={runtime.collab_mode} "
+                f"schedule={gen.n20_schedule} query_cap={gen.n20_query_cap} "
+                "heads=coarse[514,64,512]+fine[513,64,512] "
+                "zero_output=True target_pair_leave_out=True",
+                flush=True,
+            )
         # Every selected target receives original CoRA's exact P(x @ A)
         # forward; unselected projections do not receive dynamic weights.
         if any(getattr(mod, "_cora_weight", "missing") != None
@@ -149,6 +175,19 @@ def main():
     if args.probe_only:
         return
     print("[CORA-ORIGINAL-COUNTERS] "+json.dumps(dict(runtime.counters)),flush=True)
+    if runtime.collab_mode != "off":
+        gen = runtime.model.cora_weight_generator
+        heads = {
+            name: {
+                "last_weight_norm": float(head[-1].weight.detach().float().norm()),
+                "last_bias_norm": float(head[-1].bias.detach().float().norm()),
+            }
+            for name, head in (
+                ("coarse", gen.n20_coarse_head),
+                ("fine", gen.n20_fine_head),
+            )
+        }
+        print("[CORA-N20-HEAD-NORMS] " + json.dumps(heads), flush=True)
     if runtime.group_projector_mode != "off":
         gen = runtime.model.cora_weight_generator
         projector_norms = []
