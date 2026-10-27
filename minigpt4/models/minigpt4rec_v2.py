@@ -552,7 +552,14 @@ class MiniGPT4Rec_v2(Rec2Base):
         # NIGHT21 A1 keeps the exact same GNN calibration parameter when
         # CTR=0 and KD>0. Without the KD clause, disabling CTR silently
         # changes the architecture and substitutes a hard-coded kappa=5.0.
-        if self.pref_distill or self.gnn_conf_loss_weight > 0 or self.s2_small_kd > 0:
+        # NIGHT22 retains an identical calibration-parameter structure
+        # even when both CTR and KD are disabled. Otherwise removing losses
+        # also removes a parameter and changes the model architecture.
+        keep_kappa_for_n22 = os.environ.get(
+            "NO31_CORA_LOSS_ABLATION", ""
+        ).startswith("n22_")
+        if (self.pref_distill or self.gnn_conf_loss_weight > 0
+                or self.s2_small_kd > 0 or keep_kappa_for_n22):
             self.gnn_conf_kappa = nn.Parameter(torch.tensor(float(pref_kappa_init)))
         # Fixed internal teacher depth: early enough to stay before GraphLoRA
         # injection for the standard gcn_layer=31 setup. It is intentionally
