@@ -255,11 +255,18 @@ class OriginalCoRARuntime:
             loss_arm = os.environ.get("NO31_CORA_LOSS_ABLATION", "")
             actual = validate_cora_loss_controls(model, self, loss_arm)
             if loss_arm:
-                print(
-                    f"[CORA-NIGHT21-ADAPTER-CONFIG] arm={loss_arm} "
-                    f"loss_weights={actual} original_E0=True",
-                    flush=True,
-                )
+                if loss_arm.startswith("n22_"):
+                    print(
+                        f"[CORA-NIGHT22-ADAPTER-CONFIG] arm={loss_arm} "
+                        f"loss_weights={actual} original_NIGHT13_rank410=True",
+                        flush=True,
+                    )
+                else:
+                    print(
+                        f"[CORA-NIGHT21-ADAPTER-CONFIG] arm={loss_arm} "
+                        f"loss_weights={actual} original_E0=True",
+                        flush=True,
+                    )
             if model.rec_model_type != "MF":
                 raise RuntimeError("Strict original-CoRA MF experiment requires MF")
             e = int(model.rec_encoder.config.embedding_size)
