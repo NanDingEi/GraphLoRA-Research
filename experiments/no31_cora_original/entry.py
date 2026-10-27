@@ -27,6 +27,10 @@ def main():
         "no_sem": (.05, .05, 0., 5e-4),
         "no_proj": (.05, .05, 1e-4, 0.),
     }
+    from experiments.no31_cora_original.night22_loss_spec import (
+        LOSS_SPECS as NIGHT22_LOSS_SPECS, verify_rank410,
+    )
+    loss_specs.update(NIGHT22_LOSS_SPECS)
     if ablation and ablation not in loss_specs:
         raise RuntimeError(f"Unsupported NIGHT21 loss ablation: {ablation}")
     expected_kd = loss_specs[ablation][1] if ablation else .05
@@ -69,10 +73,20 @@ def main():
                                    "NO_SEM must zero its loss weight only")
             if not hasattr(model, "gnn_conf_kappa"):
                 raise RuntimeError("NIGHT21 kappa missing; CTR-off changed model architecture")
-            if runtime.collab_mode != "off" or runtime.fine_residual_mode != "off":
-                raise RuntimeError("NIGHT21 must use historical E0, not NIGHT19/20")
-            if runtime.group_projector_mode != "group8":
-                raise RuntimeError("NIGHT21 requires NIGHT17 E0 group8")
+            if ablation.startswith("n22_"):
+                verify_rank410(runtime)
+                print(
+                    f"[NIGHT22-LOSS-CONFIG] arm={ablation} "
+                    f"CTR={actual[0]:g} KD={actual[1]:g} "
+                    f"SEM={actual[2]:g} PROJ={actual[3]:g} "
+                    "semantic_teacher=True grouped_rank=4/6/8/10",
+                    flush=True,
+                )
+            else:
+                if runtime.collab_mode != "off" or runtime.fine_residual_mode != "off":
+                    raise RuntimeError("NIGHT21 must use historical E0, not NIGHT19/20")
+                if runtime.group_projector_mode != "group8":
+                    raise RuntimeError("NIGHT21 requires NIGHT17 E0 group8")
             # Presence of a loss in the forward does not prove that its
             # target module is trainable; print a minimal parameter-path audit.
             projector_trainable = sum(
