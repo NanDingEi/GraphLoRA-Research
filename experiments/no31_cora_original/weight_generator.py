@@ -327,8 +327,25 @@ class PerceptualWeightsGenerator(nn.Module):
                 if mode != "group8" or not hasattr(self, "n20_coarse_head"):
                     raise RuntimeError("NIGHT20 condition only supports original group8")
                 c, f = collab_features
-                if c.shape != (batch_size, 514) or f.shape != (batch_size, 513):
-                    raise RuntimeError(f"NIGHT20 feature mismatch: {c.shape}, {f.shape}")
+                # Feature widths are 2*MF_dim+2 (coarse) and 2*MF_dim+1
+                # (fine). In production MF_dim=256 -> 514/513; the CPU
+                # preflight intentionally uses MF_dim=16 -> 34/33.
+                expected_coarse = (batch_size, 2 * self.embedding_size + 2)
+                expected_fine = (batch_size, 2 * self.embedding_size + 1)
+                if tuple(c.shape) != expected_coarse or tuple(f.shape) != expected_fine:
+                    raise RuntimeError(
+                        f"NIGHT20 feature mismatch: coarse={tuple(c.shape)} "
+                        f"expected={expected_coarse}; fine={tuple(f.shape)} "
+                        f"expected={expected_fine}"
+                    )
+                if (self.n20_coarse_head[0].in_features != expected_coarse[1]
+                        or self.n20_fine_head[0].in_features != expected_fine[1]
+                        or self.n20_coarse_head[-1].out_features != q_states.shape[-1]
+                        or self.n20_fine_head[-1].out_features != q_states.shape[-1]):
+                    raise RuntimeError(
+                        "NIGHT20 condition head dimensions do not match "
+                        "the MF feature width and QFormer hidden width"
+                    )
                 dc = self.n20_coarse_head(c).unsqueeze(1)
                 df = self.n20_fine_head(f).unsqueeze(1)
                 # Cap each branch to at most 10% of original QFormer q-norm.
