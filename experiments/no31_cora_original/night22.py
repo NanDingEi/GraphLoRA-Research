@@ -72,7 +72,7 @@ def validate():
         )
     if m.get("pref_distill", False):
         raise RuntimeError("NIGHT22 requires preference distillation disabled")
-    if len(EXPERIMENTS) != len(BY_ID) != 8:
+    if len(EXPERIMENTS) != 8 or len(BY_ID) != 8:
         raise RuntimeError("Expected precisely 8 distinct experiments")
     if list(BY_ID) != [x[0] for x in RECIPES]:
         raise RuntimeError("NIGHT22 experiment order changed")
