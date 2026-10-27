@@ -94,7 +94,11 @@ def build_environment(row):
         "CUDA_VISIBLE_DEVICES": "0",
         "S2_SMALL_KD": str(row.get("loss_kd", 0.05)),
         "NO31_CORA_LOSS_ABLATION": row.get("loss_ablation", ""),
-        "NO31_CORA_PROJECTOR_SHADOW": "1" if row.get("loss_ablation") == "no_proj" else "0",
+        "NO31_CORA_PROJECTOR_SHADOW": "1" if (
+            row.get("loss_ablation") == "no_proj"
+            or (str(row.get("loss_ablation", "")).startswith("n22_")
+                and float(row.get("loss_proj", 5e-4)) == 0)
+        ) else "0",
         "S2_INPUT_ALPHA": "0",
         "S2_NIGHT_EPOCHS": "1",
         "NO31_CORA_ALPHA": str(row["alpha"]),
@@ -187,9 +191,14 @@ def run_one(row, common_cfg, root):
     cfg = yaml.safe_load(yaml.safe_dump(common_cfg))
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
     if row.get("loss_ablation"):
-        if row["loss_ablation"] not in ("no_ctr", "no_kd", "no_sem", "no_proj"):
-            raise ValueError(f"Unsupported NIGHT21 loss ablation: {row['loss_ablation']}")
-        # Only one auxiliary term is zeroed in each NIGHT21 row.
+        from experiments.no31_cora_original.night22_loss_spec import (
+            LOSS_SPECS as N22_LOSS_SPECS,
+        )
+        if row["loss_ablation"] not in (
+            "no_ctr", "no_kd", "no_sem", "no_proj", *N22_LOSS_SPECS
+        ):
+            raise ValueError(f"Unsupported CoRA auxiliary loss recipe: {row['loss_ablation']}")
+        # Explicit per-arm coefficients; NIGHT22 also supports loss combinations.
         m = cfg["model"]
         m["gnn_conf_loss_weight"] = float(row.get("loss_ctr", 0.05))
         m["gnn_semantic_weight"] = float(row.get("loss_sem", 1e-4))
@@ -273,7 +282,32 @@ def run_one(row, common_cfg, root):
         f"depth_profile={row.get('depth_profile', 'uniform')}" not in text or
         f"projection_scales={row.get('projection_scales', 'q_proj=1,k_proj=1,v_proj=1,o_proj=1')}" not in text):
         raise RuntimeError(f"[{ident}] requested CoRA architecture not loaded")
-    if row.get("loss_ablation"):
+    if str(row.get("loss_ablation", "")).startswith("n22_"):
+        from experiments.no31_cora_original.night22_loss_spec import LOSS_SPECS
+        arm = row["loss_ablation"]
+        weights = LOSS_SPECS[arm]
+        for marker in (
+            f"[NIGHT22-LOSS-CONFIG] arm={arm} ",
+            f"[CORA-NIGHT22-ADAPTER-CONFIG] arm={arm} ",
+            "[semantic]", "[projector-reg]",
+        ):
+            if marker not in text:
+                raise RuntimeError(f"[{ident}] NIGHT22 actual loss audit missing: {marker}")
+        if weights[0] > 0 or weights[1] > 0:
+            if "[NIGHT8-LOSS]" not in text:
+                raise RuntimeError(f"[{ident}] expected GNN auxiliary loss logs")
+        elif "[NIGHT8-LOSS]" in text:
+            raise RuntimeError(f"[{ident}] unexpected CTR/KD logs with both off")
+        if weights[2] == 0 and not re.search(
+            r"\[semantic\][^\n]*corr_w=0(?:\.0+)?(?:\s|$)", text
+        ):
+            raise RuntimeError(f"[{ident}] semantic weight did not become zero")
+        if weights[3] == 0 and not re.search(
+            r"\[projector-reg\][^\n]*weighted=0\.0+", text
+        ):
+            raise RuntimeError(f"[{ident}] projector weighted loss did not become zero")
+        print(f"[NIGHT22-LOSS-AUDIT-PASS] {ident} weights={weights}", flush=True)
+    elif row.get("loss_ablation"):
         arm = row["loss_ablation"]
         if f"[NIGHT21-LOSS-CONFIG] arm={arm} " not in text:
             raise RuntimeError(f"[{ident}] missing NIGHT21 actual model loss audit")
@@ -385,7 +419,7 @@ def run_one(row, common_cfg, root):
         delta_vs_healthy_e0_uauc=uauc-0.6866122315446266,
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
-    if row.get("loss_ablation"):
+    if row.get("loss_ablation") and not str(row["loss_ablation"]).startswith("n22_"):
         print(
             f"[NIGHT21-E0-DELTA] {ident} "
             f"delta_auc={result['delta_vs_healthy_e0_auc']:+.9f} "
@@ -401,7 +435,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20","NO31_CORA_NIGHT21"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20","NO31_CORA_NIGHT21","NO31_CORA_NIGHT22"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
@@ -447,6 +481,22 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
                   f"results preserved in {out}; resume selectively "
                   "with --start/--only after fixing the cause.",flush=True)
             raise
+        if name_prefix == "NO31_CORA_NIGHT22":
+            if not records and row.get("loss_ablation") != "n22_base":
+                raise RuntimeError("NIGHT22 must run R0 baseline first")
+            ref = result if not records else records[0]
+            result["delta_vs_retrained_rank410_auc"] = result["auc"] - ref["auc"]
+            result["delta_vs_retrained_rank410_uauc"] = result["uauc"] - ref["uauc"]
+            (out / row["id"] / "result.json").write_text(
+                json.dumps(result, indent=2)
+            )
+            print(
+                f"[NIGHT22-RERUN-DELTA] {row['id']} "
+                f"AUC={result['auc']:.9f} UAUC={result['uauc']:.9f} "
+                f"delta_auc={result['delta_vs_retrained_rank410_auc']:+.9f} "
+                f"delta_uauc={result['delta_vs_retrained_rank410_uauc']:+.9f}",
+                flush=True,
+            )
         records.append(result)
         with (out/"results.jsonl").open("a",encoding="utf-8") as f:
             f.write(json.dumps(result)+"\n")
@@ -456,7 +506,8 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
                 "layers","projections","cf_input","injection_mode","rank_profile","group_projectors","fine_residual_mode","collab_mode","alpha","p_lr",
                 "residual_ratio","depth_profile","projection_scales","seed","checkpoint",
                 "loss_ablation","loss_ctr","loss_kd","loss_sem","loss_proj",
-                "delta_vs_healthy_e0_auc","delta_vs_healthy_e0_uauc"))
+                "delta_vs_healthy_e0_auc","delta_vs_healthy_e0_uauc",
+                "delta_vs_retrained_rank410_auc","delta_vs_retrained_rank410_uauc"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
