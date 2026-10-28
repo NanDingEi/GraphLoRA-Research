@@ -115,6 +115,7 @@ def build_environment(row):
         "NO31_CORA_FORCE_FP32": "1" if row.get("force_fp32_cora", False) else "0",
         "NO31_CORA_GRAPH_LAYERS": str(row.get("graph_layers", 2)),
         "NO31_CORA_GRAPH_AGGREGATION": row.get("graph_aggregation", "uniform"),
+        "NO31_CORA_GRAPH_FUSION": row.get("graph_fusion", "fixed"),
         "NO31_CORA_GRAPH_ANCHOR_LAMBDA": str(row.get("graph_anchor_lambda", 1.0)),
         "NO31_CORA_GRAPH_AUX_WEIGHT": str(row.get("graph_aux_weight", 0.01)),
         "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
@@ -306,9 +307,15 @@ def run_one(row, common_cfg, root):
                   "graph_condition_and_aux_disabled=True", flush=True)
         elif not graph_grad or max(float(z) for z in graph_grad) <= 0:
             raise RuntimeError("N26 graph did not receive nonzero LLM gradients")
-        if row.get("graph_aggregation", "uniform") == "learned":
+        if row.get("graph_aggregation", "uniform") in ("learned", "shallow_learned"):
             if "[N26-LAYER-LOGIT-GRAD]" not in text or "[N26-LAYER-WEIGHTS-END]" not in text:
                 raise RuntimeError("N26 learned layer weights did not train/report")
+        if row.get("graph_fusion", "fixed") in ("dual", "degree"):
+            if "[N27-GATE-GRAD]" not in text or "[N27-GATE-END]" not in text:
+                raise RuntimeError("N27 trainable fusion gate did not update/report")
+        if row.get("graph_mode", "off") == "graph_c2f":
+            if "[N27-C2F-HEADS-END]" not in text:
+                raise RuntimeError("N27 C2F coarse/fine head update audit missing")
         if "graph_joint=1" not in text:
             raise RuntimeError("N24 joint mode did not load")
         graph_groups = [line for line in lr_group_lines if "graph_wd" in line]
@@ -382,13 +389,28 @@ def run_one(row, common_cfg, root):
         graph_lr_scale=float(row.get("graph_lr_scale", 0.1)),
         graph_aux_weight=float(row.get("graph_aux_weight", 0.01)),
         graph_aggregation=row.get("graph_aggregation", "uniform"),
+        graph_fusion=row.get("graph_fusion", "fixed"),
+        graph_gate_end=(
+            json.loads(re.findall(
+                r"\[N27-GATE-END\]\s*(\{[^\n]*\})", text
+            )[-1])
+            if row.get("graph_fusion", "fixed") in ("dual", "degree")
+            else None
+        ),
+        graph_head_end=(
+            json.loads(re.findall(
+                r"\[N27-C2F-HEADS-END\]\s*(\{[^\n]*\})", text
+            )[-1])
+            if row.get("graph_mode", "off") == "graph_c2f"
+            else None
+        ),
         force_fp32_cora=bool(row.get("force_fp32_cora", False)),
         amp_init_scale=float(cfg["run"].get("amp_init_scale", 65536.0)),
         graph_layer_weights_end=(
             json.loads(re.findall(
                 r"\[N26-LAYER-WEIGHTS-END\]\s*(\{[^\n]*\})", text
             )[-1])["weights"]
-            if row.get("graph_aggregation", "uniform") == "learned"
+            if row.get("graph_aggregation", "uniform") in ("learned", "shallow_learned")
             else None
         ),
         graph_layers=int(row.get("graph_layers", 2)),
