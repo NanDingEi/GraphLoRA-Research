@@ -225,7 +225,7 @@ def run_one(row, common_cfg, root):
                 if any(word in line for word in
                        ("[CORA-ORIGINAL", "[NIGHT8-", "[FX]",
                         "[lr-group]", "Averaged stats:",
-                        "[N24-GRAPH", "[CORA-N23",
+                        "[N24-GRAPH", "[N24-GRAD-STAGE", "[N24-AMP", "[CORA-N23",
                         "OutOfMemory", "Traceback", "RuntimeError")):
                     print(f"[{ident}] {line.rstrip()[:700]}", flush=True)
             code = child.wait()
