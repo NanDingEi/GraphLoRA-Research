@@ -5,13 +5,20 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Force the currently executing worktree ahead of stale PYTHONPATH entries.
+sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != ROOT]
+sys.path.insert(0, str(ROOT))
 import numpy as np
 import torch
-from experiments.no31_cora_original.graph_cf_pretrain import (
-    graph_train, load_mf_init_table, normalized_adj,
-)
+from experiments.no31_cora_original import graph_cf_pretrain as _graph_module
+if not Path(_graph_module.__file__).resolve().is_relative_to(ROOT):
+    raise RuntimeError(
+        f"N25 imported the wrong graph_cf_pretrain: {_graph_module.__file__}"
+    )
+graph_train = _graph_module.graph_train
+load_mf_init_table = _graph_module.load_mf_init_table
+normalized_adj = _graph_module.normalized_adj
+print(f"[N25-IMPORT-PATH-OK] graph_module={_graph_module.__file__}", flush=True)
 
 def main():
     torch.manual_seed(42)
