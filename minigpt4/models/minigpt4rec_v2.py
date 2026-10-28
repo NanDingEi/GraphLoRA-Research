@@ -549,7 +549,10 @@ class MiniGPT4Rec_v2(Rec2Base):
         self.pref_tau_l = float(pref_tau_l)
         self.pref_tau_g = float(pref_tau_g)
         self.gnn_conf_loss_weight = float(gnn_conf_loss_weight)
-        if self.pref_distill or self.gnn_conf_loss_weight > 0:
+        # NIGHT21 A1 keeps the exact same GNN calibration parameter when
+        # CTR=0 and KD>0. Without the KD clause, disabling CTR silently
+        # changes the architecture and substitutes a hard-coded kappa=5.0.
+        if self.pref_distill or self.gnn_conf_loss_weight > 0 or self.s2_small_kd > 0:
             self.gnn_conf_kappa = nn.Parameter(torch.tensor(float(pref_kappa_init)))
         # Fixed internal teacher depth: early enough to stay before GraphLoRA
         # injection for the standard gcn_layer=31 setup. It is intentionally

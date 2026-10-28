@@ -22,6 +22,7 @@ from experiments.no31_cora_original.granularity_signals import build_coarse_fine
 from experiments.no31_cora_original.night20_features import (
     install_frozen_history, make_collaborative_features,
 )
+from experiments.no31_cora_original.night21_loss_guard import validate_cora_loss_controls
 
 
 class OriginalCoRARuntime:
@@ -251,10 +252,14 @@ class OriginalCoRARuntime:
                 raise RuntimeError("NO31+CoRA requires LLM PEFT wrapper")
             if any(float(m.gnn_scale) != 0 for m in model.my_linears):
                 raise RuntimeError("NO31 forbids layer31 GNN feature injection")
-            if not (model.gnn_conf_loss_weight == 0.05 and
-                    model.s2_small_kd == 0.05 and model.s2_input_alpha == 0 and
-                    model.gnn_semantic_align):
-                raise RuntimeError("NO31 CTR=.05 KD=.05 alpha=0 semantic controls changed")
+            loss_arm = os.environ.get("NO31_CORA_LOSS_ABLATION", "")
+            actual = validate_cora_loss_controls(model, self, loss_arm)
+            if loss_arm:
+                print(
+                    f"[CORA-NIGHT21-ADAPTER-CONFIG] arm={loss_arm} "
+                    f"loss_weights={actual} original_E0=True",
+                    flush=True,
+                )
             if model.rec_model_type != "MF":
                 raise RuntimeError("Strict original-CoRA MF experiment requires MF")
             e = int(model.rec_encoder.config.embedding_size)

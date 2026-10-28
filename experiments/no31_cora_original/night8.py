@@ -92,7 +92,9 @@ def build_environment(row):
     env = os.environ.copy()
     env.update({
         "CUDA_VISIBLE_DEVICES": "0",
-        "S2_SMALL_KD": "0.05",
+        "S2_SMALL_KD": str(row.get("loss_kd", 0.05)),
+        "NO31_CORA_LOSS_ABLATION": row.get("loss_ablation", ""),
+        "NO31_CORA_PROJECTOR_SHADOW": "1" if row.get("loss_ablation") == "no_proj" else "0",
         "S2_INPUT_ALPHA": "0",
         "S2_NIGHT_EPOCHS": "1",
         "NO31_CORA_ALPHA": str(row["alpha"]),
@@ -184,6 +186,17 @@ def run_one(row, common_cfg, root):
     exp_dir.mkdir(parents=False, exist_ok=False)
     cfg = yaml.safe_load(yaml.safe_dump(common_cfg))
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
+    if row.get("loss_ablation"):
+        if row["loss_ablation"] not in ("no_ctr", "no_kd", "no_sem", "no_proj"):
+            raise ValueError(f"Unsupported NIGHT21 loss ablation: {row['loss_ablation']}")
+        # Only one auxiliary term is zeroed in each NIGHT21 row.
+        m = cfg["model"]
+        m["gnn_conf_loss_weight"] = float(row.get("loss_ctr", 0.05))
+        m["gnn_semantic_weight"] = float(row.get("loss_sem", 1e-4))
+        m["proj_reg_weight"] = float(row.get("loss_proj", 5e-4))
+        # Keep semantic teacher forward and RNG use in the NO_SEM arm;
+        # its scalar weight=0 is the only intended semantic intervention.
+        m["gnn_semantic_align"] = True
     # Follow-up experiments vary only the explicitly listed random seed.
     # Existing R1-R8 recipes omit seed and remain seed42.
     cfg["run"]["seed"] = int(row.get("seed", 42))
@@ -260,6 +273,38 @@ def run_one(row, common_cfg, root):
         f"depth_profile={row.get('depth_profile', 'uniform')}" not in text or
         f"projection_scales={row.get('projection_scales', 'q_proj=1,k_proj=1,v_proj=1,o_proj=1')}" not in text):
         raise RuntimeError(f"[{ident}] requested CoRA architecture not loaded")
+    if row.get("loss_ablation"):
+        arm = row["loss_ablation"]
+        if f"[NIGHT21-LOSS-CONFIG] arm={arm} " not in text:
+            raise RuntimeError(f"[{ident}] missing NIGHT21 actual model loss audit")
+        if f"[CORA-NIGHT21-ADAPTER-CONFIG] arm={arm} " not in text:
+            raise RuntimeError(
+                f"[{ident}] missing CoRA adapter-level NIGHT21 loss gate audit"
+            )
+        for marker in ("[NIGHT8-LOSS]", "[projector-reg]", "[semantic]"):
+            if marker not in text:
+                raise RuntimeError(
+                    f"[{ident}] missing expected loss component log {marker}"
+                )
+        lines = re.findall(r"\[NIGHT8-LOSS\][^\n]*", text)
+        if arm == "no_ctr" and any(
+            not re.search(r"L_gctr=0(?:\.0+)?(?:\s|$)", ln) for ln in lines
+        ):
+            raise RuntimeError(f"[{ident}] CTR unexpectedly nonzero")
+        if arm == "no_kd" and any(
+            not re.search(r"L_gkd=0(?:\.0+)?(?:\s|$)", ln) for ln in lines
+        ):
+            raise RuntimeError(f"[{ident}] KD unexpectedly nonzero")
+        if arm == "no_sem" and not re.search(
+            r"\[semantic\][^\n]*corr_w=0(?:\.0+)?(?:\s|$)", text
+        ):
+            raise RuntimeError(f"[{ident}] semantic objective was not zero-weighted")
+        if arm == "no_proj" and not re.search(
+            r"\[projector-reg\][^\n]*weighted=0\.0+", text
+        ):
+            raise RuntimeError(f"[{ident}] projection regularizer not zero-weighted")
+        print(f"[NIGHT21-LOSS-AUDIT-PASS] {ident} disabled={arm}", flush=True)
+
     lr_group_lines = [s for s in text.splitlines() if "[lr-group]" in s]
     target_group = [s for s in lr_group_lines if "cora_p_wd" in s]
     expected_scale = f"scale={row['p_lr']:.4g}"
@@ -331,8 +376,22 @@ def run_one(row, common_cfg, root):
         projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
         rank_profile=row.get("rank_profile", "uniform"),
         seed=cfg["run"]["seed"],
+        loss_ablation=row.get("loss_ablation", ""),
+        loss_ctr=float(row.get("loss_ctr", 0.05)),
+        loss_kd=float(row.get("loss_kd", 0.05)),
+        loss_sem=float(row.get("loss_sem", 1e-4)),
+        loss_proj=float(row.get("loss_proj", 5e-4)),
+        delta_vs_healthy_e0_auc=auc-0.7299284744316927,
+        delta_vs_healthy_e0_uauc=uauc-0.6866122315446266,
     )
     (exp_dir / "result.json").write_text(json.dumps(result, indent=2))
+    if row.get("loss_ablation"):
+        print(
+            f"[NIGHT21-E0-DELTA] {ident} "
+            f"delta_auc={result['delta_vs_healthy_e0_auc']:+.9f} "
+            f"delta_uauc={result['delta_vs_healthy_e0_uauc']:+.9f}",
+            flush=True,
+        )
     print("[NIGHT8-RESULT] %s ValidAUC=%.9f ValidUAUC=%.9f "
           "delta_vs_R0=%+.9f delta_vs_NO31=%+.9f "
           "delta_vs_G2=%+.9f delta_UAUC_vs_G2=%+.9f"
@@ -342,7 +401,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20","NO31_CORA_NIGHT21"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
@@ -395,7 +454,9 @@ def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
             writer=csv.DictWriter(f,fieldnames=(
                 "id","auc","uauc","delta_vs_cora_r0","delta_vs_no31","delta_vs_g2","delta_uauc_vs_g2",
                 "layers","projections","cf_input","injection_mode","rank_profile","group_projectors","fine_residual_mode","collab_mode","alpha","p_lr",
-                "residual_ratio","depth_profile","projection_scales","seed","checkpoint"))
+                "residual_ratio","depth_profile","projection_scales","seed","checkpoint",
+                "loss_ablation","loss_ctr","loss_kd","loss_sem","loss_proj",
+                "delta_vs_healthy_e0_auc","delta_vs_healthy_e0_uauc"))
             writer.writeheader()
             for r in records:writer.writerow({k:r[k] for k in writer.fieldnames})
     print(f"[NIGHT8-COMPLETE] {len(records)} trials finished. "
