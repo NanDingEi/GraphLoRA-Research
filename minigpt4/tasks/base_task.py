@@ -243,6 +243,12 @@ class BaseTask:
             # update gradients every accum_grad_iters iterations
             if (i + 1) % accum_grad_iters == 0 or (i + 1) == iters_per_epoch:
                 if use_amp:
+                    # A graph-gradient backward hook runs on SCALED grads.
+                    # Only GradScaler.step can distinguish a recoverable AMP
+                    # overflow and skip the optimizer update.  Count actual
+                    # skipped updates in NIGHT24 without altering baselines.
+                    n24_graph = getattr(model, "graph_joint", None)
+                    scale_before = scaler.get_scale() if n24_graph is not None else None
                     # optional global grad-norm clipping (stabilization S1);
                     # read from the model so any task can opt in via config
                     gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
@@ -253,6 +259,27 @@ class BaseTask:
                         torch.nn.utils.clip_grad_norm_(params, gc)
                     scaler.step(optimizer)
                     scaler.update()
+                    if n24_graph is not None:
+                        scale_after = scaler.get_scale()
+                        if scale_after < scale_before:
+                            n24_graph._n24_amp_skip_total += 1
+                            n24_graph._n24_amp_skip_streak += 1
+                            print(
+                                f"[N24-AMP-OVERFLOW-SKIP] step={i} "
+                                f"scale={scale_before:g}->{scale_after:g} "
+                                f"total={n24_graph._n24_amp_skip_total} "
+                                f"streak={n24_graph._n24_amp_skip_streak}",
+                                flush=True,
+                            )
+                            if n24_graph._n24_amp_skip_streak >= 24:
+                                raise FloatingPointError(
+                                    "N24: 24 consecutive AMP optimizer-step "
+                                    "skips; nonfinite gradients did not recover "
+                                    "as GradScaler reduced its scale."
+                                )
+                        else:
+                            n24_graph._n24_amp_skip_streak = 0
+                            n24_graph._n24_amp_success_total += 1
                 else:
                     gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
                     if gc > 0:
