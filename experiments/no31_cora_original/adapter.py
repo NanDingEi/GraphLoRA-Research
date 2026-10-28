@@ -10,6 +10,7 @@ We hook the matching projection forward of the installed GraphLoRA
 HuggingFace LLaMA; no dependency on a forked custom pllama.py.
 """
 from collections import Counter
+from contextlib import nullcontext
 import os
 import re
 from types import MethodType
@@ -30,6 +31,7 @@ class OriginalCoRARuntime:
     def __init__(self):
         self.model = None
         self.counters = Counter()
+        self._n24_probe_counts = Counter()
         self.targets = []
         self.active = False
         # Optional experiment controls default to the original CoRA equation.
@@ -459,6 +461,8 @@ class OriginalCoRARuntime:
             model.cora_fixed_user.requires_grad_(False)
             model.cora_fixed_item.requires_grad_(False)
             model.cora_weight_generator.to(model.cora_fixed_user.device)
+            if state.graph_joint:
+                model.cora_weight_generator.n24_grad_probe = state.grad_probe
             if hasattr(model, "cora_token_gate"):
                 model.cora_token_gate.to(model.cora_fixed_user.device)
             projection_scale_summary = ",".join(
@@ -524,6 +528,7 @@ class OriginalCoRARuntime:
                     labels=samples["label"] if model.training else None,
                 )
                 model._n24_aux_loss = joint_aux
+                state.grad_probe(pair, "graph_pair")
             elif state.graph_mode != "off":
                 pair = graph_pair(model, users, items)
             fine = None
@@ -574,9 +579,22 @@ class OriginalCoRARuntime:
                     collab_features = joint_features
                 elif state.graph_mode != "off":
                     collab_features = make_graph_features(model, users, items)
-                weights_by_group = model.cora_weight_generator(
-                    pair, collab_features=collab_features,
+                # NIGHT24: trainable graph conditions need a stable FP32
+                # QFormer + dynamic-A path. Outside NIGHT24, preserve exactly
+                # the historical AMP behavior of the original CoRA generator.
+                precision = (
+                    torch.autocast(device_type=pair.device.type, enabled=False)
+                    if state.graph_joint else nullcontext()
                 )
+                with precision:
+                    weights_by_group = model.cora_weight_generator(
+                        pair.float() if state.graph_joint else pair,
+                        collab_features=(
+                            tuple(feature.float() for feature in collab_features)
+                            if state.graph_joint and collab_features is not None
+                            else collab_features
+                        ),
+                    )
                 if state.fine_residual_mode != "off":
                     if state.fine_residual_mode == "history":
                         residual_input = fine_target_history
@@ -675,6 +693,34 @@ class OriginalCoRARuntime:
         graph._original_cora_installed = True
         return self
 
+    def grad_probe(self, tensor, stage):
+        """NIGHT24 diagnostic: report where the backward first becomes NaN.
+
+        Hooks inspect (never detach, replace, clamp, or mask) gradients.
+        Only the first 24 backward events per stage are inspected to avoid
+        synchronizing every GPU batch across an entire 17k-step epoch.
+        """
+        if not (self.graph_joint and tensor.requires_grad):
+            return tensor
+        if self._n24_probe_counts[stage] >= 24:
+            return tensor
+
+        def inspect(grad):
+            self._n24_probe_counts[stage] += 1
+            step = self._n24_probe_counts[stage]
+            finite = bool(torch.isfinite(grad).all())
+            if not finite or step <= 2:
+                print(
+                    f"[N24-GRAD-STAGE] stage={stage} backward={step} "
+                    f"finite={finite} nan={int(torch.isnan(grad).sum())} "
+                    f"inf={int(torch.isinf(grad).sum())}",
+                    flush=True,
+                )
+            return grad
+
+        tensor.register_hook(inspect)
+        return tensor
+
     def clear(self):
         if self.model is None:
             return
@@ -742,8 +788,19 @@ class OriginalCoRARuntime:
                 self.model.cora_weight_generator.layer_modulator(layer_input)
             )
             w = w * (1.0 + rank_modulation.unsqueeze(1).to(dtype=w.dtype))
-        weighted = torch.bmm(x_fp, w.to(dtype=x_fp.dtype))
-        residual = module.cora_lora_P(weighted) * self.scaling
+        if self.graph_joint:
+            # Autocast can turn FP32 inputs to torch.bmm / nn.Linear back
+            # into FP16, creating nonfinite gradients when CoRA-P becomes
+            # nonzero after the first optimizer step. Keep this branch FP32
+            # (with autograd), but leave the frozen Vicuna base unchanged.
+            with torch.autocast(device_type=x.device.type, enabled=False):
+                weighted = torch.bmm(x_fp.float(), w.float())
+                residual = F.linear(
+                    weighted, module.cora_lora_P.weight.float(), bias=None
+                ) * self.scaling
+        else:
+            weighted = torch.bmm(x_fp, w.to(dtype=x_fp.dtype))
+            residual = module.cora_lora_P(weighted) * self.scaling
         if self.injection_mode == "token_gate":
             token_gate = 2.0 * torch.sigmoid(self.model.cora_token_gate(x.float()))
             residual = residual * token_gate.to(dtype=residual.dtype)
