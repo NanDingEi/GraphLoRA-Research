@@ -134,6 +134,48 @@ Use existing K16 `.npz` artifact. Pull the updated branch, run
 directory. No new graph pretraining is needed. Previous failed logs
 remain intact.
 
+## Follow-up: repeated early NaNs after initial CoRA-P update
+
+Log evidence: AMP graph gradients are initially finite for 3-4 backward
+microbatches, and first become widely NaN at `backward=4` — after the
+first 4-microbatch optimizer update. CoRA-P starts at exactly ZERO; the
+CoRA->QFormer->graph loss path initially has zero derivative through P
+and becomes active as soon as P moves. This strongly suggests mixed-
+precision instability on that newly active chain, rather than a basic
+LightGCN sparse propagation failure. It is a hypothesis, not a proven
+first-offending tensor location.
+
+Changes exclusive to `graph_joint=True`:
+
+1. Keep the entire **QFormer, 8 group projectors, and dynamic-A normalization**
+   in explicit FP32 by disabling the outer AMP autocast for this forward.
+2. Keep `x @ A` and the following `P` linear transformation in explicit
+   FP32 under AMP; the Vicuna base still uses its original FP16.
+3. Start the GradScaler at **256** for NIGHT24 only (all old baselines retain
+   the original default 65536). Losses, seed42, graph learning rate,
+   CoRA rank16 alpha48, CTR/KD and graph supervision are unchanged.
+4. Gradient-stage probes emit `[N24-GRAD-STAGE]` for
+   `cora_group_0`, `cora_group_7`, `qformer_query`,
+   `qformer_input` and `graph_pair` on the first 24 backward events.
+   If any stage is nonfinite, the earliest affected stage localizes
+   the source: CoRA backprop, QFormer backprop, or graph propagation.
+   These hooks NEVER alter/detach/clamp the gradients.
+5. If >=8 graph backward events are nonfinite within the first 64
+   microbatches, the run now terminates with a clear diagnostic rather
+   than silently spending an entire 17k-batch epoch skipping updates.
+6. Added a CPU smoke test for the nonzero-P FP32 CoRA condition and
+   propagated gradient under a nested autocast context.
+
+Re-pull this branch; run `test_night24_cpu.py`, then only the J1 arm.
+Do not rerun graph BPR pretraining or J2/J3 yet. If NaNs persist,
+retrieve the first 30 lines containing `[N24-GRAD-STAGE]` and
+`[N24-GRAPH-GRAD-NONFINITE]` from the J1 train.log.
+
+This is a numerical implementation change (precision and GradScaler),
+not a verified AUC improvement. Any frozen-vs-joint **fair** comparison
+must rerun the frozen control under the same precision policy if
+numerical changes prove influential.
+
 ## Required checks
 
 - `[N24-CPU-PASS]`
