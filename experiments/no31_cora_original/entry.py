@@ -188,6 +188,16 @@ def main():
     training.main()
     if args.probe_only:
         return
+    if runtime.graph_joint:
+        graph = runtime.model.graph_joint
+        amp_stats = dict(
+            skipped_updates=graph._n24_amp_skip_total,
+            successful_updates=graph._n24_amp_success_total,
+            nonfinite_backward_events=graph._n24_bad_gradient_events,
+        )
+        print("[N24-AMP-SUMMARY] " + json.dumps(amp_stats), flush=True)
+        if amp_stats["successful_updates"] == 0:
+            raise RuntimeError("N24 graph completed training with zero successful optimizer updates")
     print("[CORA-ORIGINAL-COUNTERS] "+json.dumps(dict(runtime.counters)),flush=True)
     if runtime.collab_mode != "off":
         gen = runtime.model.cora_weight_generator
