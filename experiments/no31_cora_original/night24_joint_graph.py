@@ -99,6 +99,7 @@ class JointLightGCN(nn.Module):
                              persistent=False)
         self.id_embedding = nn.Parameter(torch.from_numpy(raw).clone())
         self._grad_audit_calls = 0
+        self._n25_positive_grad_events = 0
         self._n24_bad_gradient_events = 0
         self._n24_amp_skip_total = 0
         self._n24_amp_skip_streak = 0
@@ -137,10 +138,16 @@ class JointLightGCN(nn.Module):
         # NEVER replace nonfinite gradients with zeros: that would conceal
         # the overflow from GradScaler's found_inf logic.
         finite = bool(torch.isfinite(grad).all())
-        if self._grad_audit_calls < 3:
+        norm = grad.detach().float().norm().item()
+        positive = finite and norm > 0.0
+        if positive and self._n25_positive_grad_events < 3:
+            self._n25_positive_grad_events += 1
+            print(f"[N25-GRAPH-RECEIVES-LLM-GRAD] backward={self._grad_audit_calls} "
+                  f"norm={norm:.8g} positive_event={self._n25_positive_grad_events}", flush=True)
+        if self._grad_audit_calls < 3 or (positive and self._n25_positive_grad_events <= 3
+                                             and self._grad_audit_calls < 8):
             print(f"[N24-GRAPH-GRAD] step={self._grad_audit_calls} "
-                  f"norm={grad.detach().float().norm().item():.8g} "
-                  f"finite={finite}", flush=True)
+                  f"norm={norm:.8g} finite={finite}", flush=True)
         if not finite:
             self._n24_bad_gradient_events += 1
             if self._n24_bad_gradient_events <= 10 or self._n24_bad_gradient_events % 20 == 0:
