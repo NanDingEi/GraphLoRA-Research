@@ -106,6 +106,34 @@ Prepared config expects `gnn_scale=0`, `CTR=.05`, `KD=.05`,
 `batch_size_train=2`, `accum_grad_iters=4`, and 3-epoch LR
 schedule with one actual trained epoch per arm.
 
+## 2026-10-28 AMP gradient stability fix
+
+If the log shows `FloatingPointError: N24 LightGCN gradient is nonfinite`
+on backward 3/4 (before `GradScaler.step`), this is not by itself proof
+that the graph model has diverged: the registered parameter hook sees AMP
+**scaled** gradients before `GradScaler.unscale_`. Throwing from this
+hook preempted PyTorch's standard overflow recovery.
+
+The hook now logs `[N24-GRAPH-GRAD-NONFINITE]` (NaN and Inf counts)
+without changing the gradient tensor. `GradScaler.step` checks
+nonfinite values, skips that optimizer update and decreases its scale.
+The train loop logs `[N24-AMP-OVERFLOW-SKIP]` with scale reduction.
+Twenty-four **consecutive** skipped optimizer updates cause a
+fail-closed error: do not continue a persistently unstable run.
+When the trial completes, `[N24-AMP-SUMMARY]` reports skipped,
+successful and nonfinite backward counts. Trials with zero successful
+optimizer updates are rejected.
+
+This fix does **not** detach LightGCN or disable its joint optimization;
+it makes AMP overflow recovery observable. If skipped updates remain
+frequent despite a reduced scaler, investigate the CoRA half-precision
+normalization/backward path rather than suppressing NaNs.
+
+Use existing K16 `.npz` artifact. Pull the updated branch, run
+`test_night24_cpu.py`, then retry **J1 only** in a new experiment
+directory. No new graph pretraining is needed. Previous failed logs
+remain intact.
+
 ## Required checks
 
 - `[N24-CPU-PASS]`
