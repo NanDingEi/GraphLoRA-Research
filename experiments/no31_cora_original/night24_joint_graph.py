@@ -67,7 +67,10 @@ class JointLightGCN(nn.Module):
         self.max_fusion = 0.5
         self.initial_lambda = float(initial_lambda)
         self._n27_gate_grad_events = 0
-        initial_logit = math.log(initial_lambda / (self.max_fusion - initial_lambda)) if initial_lambda < self.max_fusion else 15.
+        # Fixed lambda may legally be zero (N26 MF-only control). Only
+        # learnable gates need the inverse sigmoid and nonzero initial lambda.
+        initial_logit = (math.log(initial_lambda / (self.max_fusion - initial_lambda))
+                         if fusion != "fixed" else 0.0)
         if fusion == "dual":
             self.dual_gate_logits = nn.Parameter(torch.full((2,), initial_logit))
             self.dual_gate_logits.register_hook(self._audit_gate_gradient)
