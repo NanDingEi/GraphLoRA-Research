@@ -30,6 +30,18 @@ If missing, source the prepared YAML from /home/bbx/user_lx/GraphLoRA_NO31_CORA/
 
 ## Preflight and run
 
+**Important:** previous worktrees may remain in `PYTHONPATH` from
+an earlier terminal. NIGHT25 forces its own root to the front of
+`sys.path` and pins the path for every subprocess. Before launching
+a long training run, verify the module path:
+
+    cd /home/bbx/user_lx/GraphLoRA_NIGHT25
+    PYTHONPATH="$PWD" python -c 'import experiments.no31_cora_original.graph_cf_pretrain as g; print(g.__file__); assert hasattr(g, "load_mf_init_table")'
+
+The printed path **must** contain `GraphLoRA_NIGHT25` and never
+`GraphLoRA_NIGHT24`. The preflight and plan now also print
+`[N25-IMPORT-PATH-OK]`.
+
     python experiments/no31_cora_original/test_night25_cpu.py
     python experiments/no31_cora_original/night25.py --plan
     CUDA_VISIBLE_DEVICES=0 python -u experiments/no31_cora_original/night25.py --run
