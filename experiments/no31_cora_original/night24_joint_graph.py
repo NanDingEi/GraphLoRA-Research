@@ -136,16 +136,24 @@ class JointLightGCN(nn.Module):
         return grad
 
     def _propagate(self):
-        h = self.id_embedding.float()
-        result = h
-        for _ in range(self.layers):
-            h = torch.sparse.mm(self.adjacency, h)
-            result = result + h
-        result = result / (self.layers + 1)
-        user = result[:self.num_users] * self.user_scale
-        item = result[self.num_users:] * self.item_scale
-        # item ID 0 is padding and must remain exactly zero.
-        item = torch.cat([torch.zeros_like(item[:1]), item[1:]], dim=0)
+        # CUDA sparse.mm does not support the FP16 sparse addmm path on
+        # the target PyTorch build.  Disabling autocast explicitly avoids
+        # PyTorch's autocast of sparse.mm to Half even when h.float().
+        # DO NOT detach: FP32 sparse propagation must remain differentiable
+        # all the way to id_embedding, through CoRA and the LLM loss.
+        with torch.autocast(device_type=self.id_embedding.device.type,
+                            enabled=False):
+            adj = self.adjacency.float()
+            h = self.id_embedding.float()
+            result = h
+            for _ in range(self.layers):
+                h = torch.sparse.mm(adj, h)
+                result = result + h
+            result = result / (self.layers + 1)
+            user = result[:self.num_users] * self.user_scale
+            item = result[self.num_users:] * self.item_scale
+            # item ID 0 is padding and must remain exactly zero.
+            item = torch.cat([torch.zeros_like(item[:1]), item[1:]], dim=0)
         return user, item
 
     def forward(self, users, targets, global_counts, labels=None, tau=5.):
