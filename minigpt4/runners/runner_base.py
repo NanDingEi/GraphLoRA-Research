@@ -8,6 +8,7 @@
 import datetime
 import json
 import logging
+import math
 import os
 import time
 from pathlib import Path
@@ -177,7 +178,16 @@ class RunnerBase:
 
         if amp:
             if self._scaler is None:
-                self._scaler = torch.cuda.amp.GradScaler()
+                # N24 can opt into a lower initial AMP loss scale because
+                # gradients from the 128 dynamic CoRA projections converge
+                # through one trainable graph condition. Historical runs
+                # default to PyTorch's exact original 65536 scale.
+                init_scale = float(self.config.run_cfg.get(
+                    "amp_init_scale", 65536.0
+                ))
+                if not (init_scale > 0 and math.isfinite(init_scale)):
+                    raise ValueError("amp_init_scale must be finite and positive")
+                self._scaler = torch.cuda.amp.GradScaler(init_scale=init_scale)
 
         return self._scaler
 
