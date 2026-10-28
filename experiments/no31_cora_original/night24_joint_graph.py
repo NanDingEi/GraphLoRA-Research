@@ -60,8 +60,8 @@ class JointLightGCN(nn.Module):
             raise ValueError("Shallow-prior weights require 3 LightGCN propagation steps")
         if fusion not in ("fixed", "dual", "degree"):
             raise ValueError("N27 fusion mode must be fixed, dual, or degree")
-        if not 0 < initial_lambda <= 0.5:
-            raise ValueError("N27 initial fusion must be in (0, .5]")
+        if not 0 <= initial_lambda <= 0.5 or (fusion != "fixed" and initial_lambda in (0., 0.5)):
+            raise ValueError("N27 initial lambda must be [0,.5] for fixed, (0,.5) for trainable gate")
         self.aggregation = aggregation
         self.fusion = fusion
         self.max_fusion = 0.5
