@@ -113,6 +113,7 @@ def build_environment(row):
         "NO31_CORA_GRAPH_MODE": row.get("graph_mode", "off"),
         "NO31_CORA_GRAPH_JOINT": "1" if row.get("graph_joint", False) else "0",
         "NO31_CORA_GRAPH_LAYERS": str(row.get("graph_layers", 2)),
+        "NO31_CORA_GRAPH_AGGREGATION": row.get("graph_aggregation", "uniform"),
         "NO31_CORA_GRAPH_ANCHOR_LAMBDA": str(row.get("graph_anchor_lambda", 1.0)),
         "NO31_CORA_GRAPH_AUX_WEIGHT": str(row.get("graph_aux_weight", 0.01)),
         "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
@@ -228,6 +229,7 @@ def run_one(row, common_cfg, root):
                        ("[CORA-ORIGINAL", "[NIGHT8-", "[FX]",
                         "[lr-group]", "Averaged stats:",
                         "[N24-GRAPH", "[N24-GRAD-STAGE", "[N24-AMP", "[CORA-N23",
+                        "[N26-",
                         "OutOfMemory", "Traceback", "RuntimeError")):
                     print(f"[{ident}] {line.rstrip()[:700]}", flush=True)
             code = child.wait()
@@ -288,11 +290,23 @@ def run_one(row, common_cfg, root):
         if "[CORA-N23-GRAPH]" not in text or f"graph_mode={row['graph_mode']}" not in text:
             raise RuntimeError("NIGHT23 graph feature audit marker missing")
     if row.get("graph_joint", False):
-        if "[N24-GRAPH-JOINT]" not in text or "[N24-GRAPH-GRAD]" not in text:
-            raise RuntimeError("N24 trainable graph initialization/gradient marker missing")
+        zero_graph_condition = (
+            float(row.get("graph_anchor_lambda", 1.0)) == 0.0
+            and float(row.get("graph_aux_weight", 0.01)) == 0.0
+        )
+        if "[N24-GRAPH-JOINT]" not in text:
+            raise RuntimeError("N24 joint graph initialization marker missing")
         graph_grad = re.findall(r"\[N24-GRAPH-GRAD\].*?norm=([0-9.eE+-]+)", text)
-        if not graph_grad or max(float(z) for z in graph_grad) <= 0:
-            raise RuntimeError("N24 graph did not receive nonzero gradients")
+        if zero_graph_condition:
+            if "[N26-MF-ONLY]" not in text or any(float(z) > 0 for z in graph_grad):
+                raise RuntimeError("N26 MF-only control leaked graph gradient")
+            print(f"[N26-MF-ONLY-AUDIT-PASS] {ident} "
+                  "graph_condition_and_aux_disabled=True", flush=True)
+        elif not graph_grad or max(float(z) for z in graph_grad) <= 0:
+            raise RuntimeError("N26 graph did not receive nonzero LLM gradients")
+        if row.get("graph_aggregation", "uniform") == "learned":
+            if "[N26-LAYER-LOGIT-GRAD]" not in text or "[N26-LAYER-WEIGHTS-END]" not in text:
+                raise RuntimeError("N26 learned layer weights did not train/report")
         if "graph_joint=1" not in text:
             raise RuntimeError("N24 joint mode did not load")
         graph_groups = [line for line in lr_group_lines if "graph_wd" in line]
@@ -365,6 +379,14 @@ def run_one(row, common_cfg, root):
         graph_joint=bool(row.get("graph_joint", False)),
         graph_lr_scale=float(row.get("graph_lr_scale", 0.1)),
         graph_aux_weight=float(row.get("graph_aux_weight", 0.01)),
+        graph_aggregation=row.get("graph_aggregation", "uniform"),
+        graph_layer_weights_end=(
+            json.loads(re.findall(
+                r"\[N26-LAYER-WEIGHTS-END\]\s*(\{[^\n]*\})", text
+            )[-1])["weights"]
+            if row.get("graph_aggregation", "uniform") == "learned"
+            else None
+        ),
         graph_layers=int(row.get("graph_layers", 2)),
         graph_anchor_lambda=float(row.get("graph_anchor_lambda", 1.0)),
         graph_init=row.get("graph_init", "random"),
