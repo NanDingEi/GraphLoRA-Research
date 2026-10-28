@@ -89,8 +89,19 @@ def main():
         aux2.backward()
         assert graph.id_embedding.grad is not None
         assert graph.id_embedding.grad.norm() > 0
+        # Explicitly simulate the outer AMP context: both sparse operations
+        # must stay in FP32 and remain differentiable.
+        graph.zero_grad(set_to_none=True)
+        with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+            amp_pair, (amp_coarse, amp_fine), _ = graph(users, items, counts)
+            amp_loss = amp_pair.square().mean() + amp_coarse.square().mean() + amp_fine.square().mean()
+        amp_loss.backward()
+        assert amp_pair.dtype == torch.float32
+        assert torch.isfinite(graph.id_embedding.grad).all()
+        assert graph.id_embedding.grad.norm() > 0
     print("[N24-CPU-PASS] graph artifact parity, shape, target-exclusion, "
-          "LLM-proxy graph gradients, auxiliary graph gradients", flush=True)
+          "LLM-proxy graph gradients, auxiliary graph gradients, "
+          "AMP-safe sparse propagation and history", flush=True)
 
 
 if __name__ == "__main__":
