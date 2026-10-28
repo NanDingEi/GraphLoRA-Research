@@ -53,10 +53,15 @@ class OriginalCoRARuntime:
         # Defaults exactly reproduce N24 unless N25 env vars are provided.
         self.graph_layers = int(os.environ.get("NO31_CORA_GRAPH_LAYERS", "2"))
         self.graph_aggregation = os.environ.get("NO31_CORA_GRAPH_AGGREGATION", "uniform")
-        if self.graph_aggregation not in ("uniform", "learned"):
+        if self.graph_aggregation not in (
+            "uniform", "learned", "shallow_fixed", "shallow_learned"
+        ):
             raise ValueError("Unknown graph layer aggregation mode")
         self.graph_anchor_lambda = float(os.environ.get(
             "NO31_CORA_GRAPH_ANCHOR_LAMBDA", "1.0"))
+        self.graph_fusion = os.environ.get("NO31_CORA_GRAPH_FUSION", "fixed")
+        if self.graph_fusion not in ("fixed", "dual", "degree"):
+            raise ValueError("N27 graph fusion must be fixed, dual or degree")
         if self.graph_layers not in (2, 3):
             raise ValueError("LightGCN propagation depth must be 2 or 3")
         if not 0.0 <= self.graph_anchor_lambda <= 1.0:
@@ -368,6 +373,8 @@ class OriginalCoRARuntime:
                             model.cora_fixed_user, model.cora_fixed_item,
                             layers=state.graph_layers, k=16,
                             aggregation=state.graph_aggregation,
+                            fusion=state.graph_fusion,
+                            initial_lambda=state.graph_anchor_lambda,
                         ).to(model.cora_fixed_user.device)
                 else:
                     install_frozen_history(model, proto_path, train_path)
@@ -510,6 +517,7 @@ class OriginalCoRARuntime:
                 f"graph_joint={int(state.graph_joint)} graph_aux_weight={state.graph_aux_weight:g} "
                 f"graph_layers={state.graph_layers} graph_anchor_lambda={state.graph_anchor_lambda:g} "
                 f"graph_aggregation={state.graph_aggregation} "
+                f"graph_fusion={state.graph_fusion} "
                 f"force_fp32_cora={int(state.force_fp32_cora)} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
@@ -562,7 +570,17 @@ class OriginalCoRARuntime:
                     )
                     # MF anchor remains fixed for CoRA; the graph ID
                     # embedding and learned aggregation are differentiable.
-                    pair = pair + state.graph_anchor_lambda * (graph_pair_live - pair)
+                    user_lambda, item_lambda = model.graph_joint.fusion_weights(users, items)
+                    if user_lambda.shape != (users.numel(), 1) or item_lambda.shape != (users.numel(), 1):
+                        raise RuntimeError("N27 graph gate output shape mismatch")
+                    if not (torch.isfinite(user_lambda).all() and torch.isfinite(item_lambda).all()):
+                        raise FloatingPointError("N27 graph gates contain NaN/Inf")
+                    mf_user, mf_item = pair.split(256, dim=-1)
+                    graph_user, graph_item = graph_pair_live.split(256, dim=-1)
+                    pair = torch.cat((
+                        mf_user + user_lambda * (graph_user - mf_user),
+                        mf_item + item_lambda * (graph_item - mf_item),
+                    ), dim=-1)
                     model._n24_aux_loss = joint_aux
                     state.grad_probe(pair, "graph_pair")
                     if not torch.isfinite(pair).all():
