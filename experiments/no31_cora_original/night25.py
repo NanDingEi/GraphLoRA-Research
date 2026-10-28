@@ -18,11 +18,32 @@ import numpy as np
 import torch
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# A previous GraphLoRA worktree may already appear in PYTHONPATH, even
+# when this script is launched from NIGHT25. Remove any duplicate local
+# entry then FORCE NIGHT25 to index 0 before importing a project module.
+sys.path[:] = [
+    entry for entry in sys.path
+    if Path(entry or ".").resolve() != ROOT
+]
+sys.path.insert(0, str(ROOT))
+# Subprocesses inherit the calling shell's PYTHONPATH. Pin all CPU
+# preflights and subsequent entry.py runs to NIGHT25, not NIGHT24.
+_path_entries = [
+    value for value in os.environ.get("PYTHONPATH", "").split(os.pathsep)
+    if value and Path(value).resolve() != ROOT
+]
+os.environ["PYTHONPATH"] = os.pathsep.join([str(ROOT)] + _path_entries)
 
 from experiments.no31_cora_original import night8 as core
-from experiments.no31_cora_original.graph_cf_pretrain import load_mf_init_table
+from experiments.no31_cora_original import graph_cf_pretrain as _graph_module
+load_mf_init_table = _graph_module.load_mf_init_table
+for _module in (core, _graph_module):
+    if not Path(_module.__file__).resolve().is_relative_to(ROOT):
+        raise RuntimeError(
+            f"N25 worktree mismatch: {_module.__file__} not under {ROOT}"
+        )
+print(f"[N25-IMPORT-PATH-OK] root={ROOT} graph_module={_graph_module.__file__}",
+      flush=True)
 
 ARMS = (
     ("M1_MF_INIT_L2", "mf", 2, "MF initialization, 2 LightGCN propagations"),
