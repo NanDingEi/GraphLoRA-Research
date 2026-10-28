@@ -108,6 +108,7 @@ class RunnerBase:
                 # Distinct from the original dynamic-A generator. Defaults
                 # to 1.0, so R1-R7 preserve current standard LoRA-P LR.
                 "cora_p": float(self.config.run_cfg.get("lr_scale_cora_p", 1.0)),
+                "graph": float(self.config.run_cfg.get("lr_scale_graph", 0.1)),
             }
             import math
             for key, scale in lr_scales.items():
@@ -122,7 +123,9 @@ class RunnerBase:
                 if not p.requires_grad:
                     continue
                 print(n)
-                if n.startswith("rec_encoder."):
+                if n.startswith("graph_joint."):
+                    part = "graph"
+                elif n.startswith("rec_encoder."):
                     part = "rec"
                 elif n.startswith("llama_proj."):
                     part = "proj"
