@@ -287,7 +287,7 @@ def run_one(row, common_cfg, root):
     if row.get("graph_joint", False):
         if "[N24-GRAPH-JOINT]" not in text or "[N24-GRAPH-GRAD]" not in text:
             raise RuntimeError("N24 trainable graph initialization/gradient marker missing")
-        graph_grad = re.findall(r"\\[N24-GRAPH-GRAD\\].*?norm=([0-9.eE+-]+)", text)
+        graph_grad = re.findall(r"\[N24-GRAPH-GRAD\].*?norm=([0-9.eE+-]+)", text)
         if not graph_grad or max(float(z) for z in graph_grad) <= 0:
             raise RuntimeError("N24 graph did not receive nonzero gradients")
         if "graph_joint=1" not in text:
