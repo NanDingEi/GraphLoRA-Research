@@ -22,7 +22,7 @@ def main():
     torch.manual_seed(42)
     with tempfile.TemporaryDirectory(prefix="n26_cpu_") as temp:
         root = Path(temp)
-        nu, ni, k, dim, layers = 3, 18, 16, 256
+        nu, ni, k, dim, layers = 3, 18, 16, 256, 3
         df = pd.DataFrame({
             "uid": [0, 0, 1, 1, 2, 2],
             "iid": [1, 2, 3, 4, 5, 6],
