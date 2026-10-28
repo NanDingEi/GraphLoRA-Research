@@ -5,8 +5,9 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+# Force the currently executing worktree ahead of stale PYTHONPATH entries.
+sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != ROOT]
+sys.path.insert(0, str(ROOT))
 import numpy as np
 import pandas as pd
 import torch
