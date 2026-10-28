@@ -98,6 +98,8 @@ class JointLightGCN(nn.Module):
                              torch.from_numpy(np.bincount(groups[1:], minlength=k).astype(np.float32)),
                              persistent=False)
         self.id_embedding = nn.Parameter(torch.from_numpy(raw).clone())
+        self._grad_audit_calls = 0
+        self.id_embedding.register_hook(self._audit_gradient)
         self.num_users, self.num_items, self.k, self.layers = n_users, n_items, k, layers
         # Same fixed global scaling as NIGHT23 (only up to two scalar factors).
         mf_u = float(mf_user.detach().float().square().mean().sqrt().item())
@@ -122,6 +124,16 @@ class JointLightGCN(nn.Module):
               f"train_edges={len(edge_keys)} K={k} "
               f"history_edges={int(positive.sum())} model_lr_group=graph "
               "graph_grad_from_LLM=True", flush=True)
+
+    def _audit_gradient(self, grad):
+        if self._grad_audit_calls < 3:
+            print(f"[N24-GRAPH-GRAD] step={self._grad_audit_calls} "
+                  f"norm={grad.detach().float().norm().item():.8g} "
+                  f"finite={bool(torch.isfinite(grad).all())}", flush=True)
+        self._grad_audit_calls += 1
+        if not torch.isfinite(grad).all():
+            raise FloatingPointError("N24 LightGCN gradient is nonfinite")
+        return grad
 
     def _propagate(self):
         h = self.id_embedding.float()
