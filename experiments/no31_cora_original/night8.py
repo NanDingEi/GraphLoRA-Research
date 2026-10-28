@@ -296,7 +296,11 @@ def run_one(row, common_cfg, root):
         expected_graph_scale = f"scale={row.get('graph_lr_scale', 0.1):.4g}"
         if not any(expected_graph_scale in line for line in graph_groups):
             raise RuntimeError("N24 graph optimizer group LR multiplier missing")
-        summaries = re.findall(r"\\[N24-AMP-SUMMARY\\]\\s*(\\{[^\\n]*\\})", text)
+        summaries = [
+            line.split("[N24-AMP-SUMMARY] ", 1)[1]
+            for line in text.splitlines()
+            if "[N24-AMP-SUMMARY] " in line
+        ]
         if len(summaries) != 1:
             raise RuntimeError("N24 AMP stability summary missing")
         amp_summary = json.loads(summaries[0])
