@@ -8,6 +8,7 @@ import argparse
 import csv
 from datetime import datetime
 import json
+import os
 from pathlib import Path
 import re
 import subprocess
@@ -175,6 +176,8 @@ def main():
     if args.plan:
         return
 
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != "0":
+        raise RuntimeError("NIGHT25 requires CUDA_VISIBLE_DEVICES=0 (GPU0 only)")
     if core.gpu_is_in_use():
         raise RuntimeError("GPU0 already busy. Stop the existing J series before NIGHT25.")
     subprocess.run([sys.executable,
