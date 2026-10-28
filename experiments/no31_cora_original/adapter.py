@@ -49,6 +49,9 @@ class OriginalCoRARuntime:
         # and add a controlled, differentiable LightGCN residual.
         # Defaults exactly reproduce N24 unless N25 env vars are provided.
         self.graph_layers = int(os.environ.get("NO31_CORA_GRAPH_LAYERS", "2"))
+        self.graph_aggregation = os.environ.get("NO31_CORA_GRAPH_AGGREGATION", "uniform")
+        if self.graph_aggregation not in ("uniform", "learned"):
+            raise ValueError("Unknown graph layer aggregation mode")
         self.graph_anchor_lambda = float(os.environ.get(
             "NO31_CORA_GRAPH_ANCHOR_LAMBDA", "1.0"))
         if self.graph_layers not in (2, 3):
@@ -361,6 +364,7 @@ class OriginalCoRARuntime:
                             model.cora_fixed_user.shape[0], model.cora_fixed_item.shape[0],
                             model.cora_fixed_user, model.cora_fixed_item,
                             layers=state.graph_layers, k=16,
+                            aggregation=state.graph_aggregation,
                         ).to(model.cora_fixed_user.device)
                 else:
                     install_frozen_history(model, proto_path, train_path)
@@ -502,6 +506,7 @@ class OriginalCoRARuntime:
                 f"collab_mode={state.collab_mode} graph_mode={state.graph_mode} "
                 f"graph_joint={int(state.graph_joint)} graph_aux_weight={state.graph_aux_weight:g} "
                 f"graph_layers={state.graph_layers} graph_anchor_lambda={state.graph_anchor_lambda:g} "
+                f"graph_aggregation={state.graph_aggregation} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
@@ -530,25 +535,34 @@ class OriginalCoRARuntime:
             joint_aux = None
             joint_features = None
             if state.graph_joint:
-                counts = {key: getattr(model, "n20_" + key) for key in (
-                    "pair_keys", "pair_total", "pair_pos", "user_total",
-                    "user_pos", "group_prior",
-                )}
-                graph_pair_live, joint_features, joint_aux = model.graph_joint(
-                    users, items, counts,
-                    labels=samples["label"] if model.training else None,
-                )
-                # Lambda=0 reproduces the original MF condition exactly.
-                # Lambda=0.1 retains 90% of MF and learns 10% graph context.
-                # All tensors are FP32; do not detach graph_pair_live.
-                # The current MF table remains trainable in its original
-                # prompt + CTR/KD pathways, but this condition snapshot stays
-                # frozen for comparability to historical original CoRA.
-                pair = pair + state.graph_anchor_lambda * (graph_pair_live - pair)
-                model._n24_aux_loss = joint_aux
-                state.grad_probe(pair, "graph_pair")
-                if not torch.isfinite(pair).all():
-                    raise FloatingPointError("N25 anchored graph condition nonfinite")
+                if state.graph_anchor_lambda == 0.0 and state.graph_aux_weight == 0.0:
+                    # N26 matched FP32 MF-only control: do not build a graph
+                    # autograd branch and do not send dummy gradients from 0*loss.
+                    # CoRA, its extra group8 heads, and the original prompt /
+                    # CTR / KD paths retain identical configs across all arms.
+                    model._n24_aux_loss = pair.new_zeros(())
+                    print_once = state.counters["n26_mf_only_prints"] == 0
+                    state.counters["n26_mf_only_prints"] += 1
+                    if print_once:
+                        print("[N26-MF-ONLY] lambda=0 graph_aux=0 "
+                              "graph_forward_skipped=True FP32_CoRA=True",
+                              flush=True)
+                else:
+                    counts = {key: getattr(model, "n20_" + key) for key in (
+                        "pair_keys", "pair_total", "pair_pos", "user_total",
+                        "user_pos", "group_prior",
+                    )}
+                    graph_pair_live, joint_features, joint_aux = model.graph_joint(
+                        users, items, counts,
+                        labels=samples["label"] if model.training else None,
+                    )
+                    # MF anchor remains fixed for CoRA; the graph ID
+                    # embedding and learned aggregation are differentiable.
+                    pair = pair + state.graph_anchor_lambda * (graph_pair_live - pair)
+                    model._n24_aux_loss = joint_aux
+                    state.grad_probe(pair, "graph_pair")
+                    if not torch.isfinite(pair).all():
+                        raise FloatingPointError("N26 anchored graph condition nonfinite")
             elif state.graph_mode != "off":
                 pair = graph_pair(model, users, items)
             fine = None
@@ -695,7 +709,8 @@ class OriginalCoRARuntime:
                     if aux is None or not isinstance(ret, dict) or "loss" not in ret:
                         raise RuntimeError("N24 graph joint loss missing in train forward")
                     ret["loss_graph"] = aux.detach()
-                    ret["loss"] = ret["loss"] + state.graph_aux_weight * aux
+                    if state.graph_aux_weight != 0.0:
+                        ret["loss"] = ret["loss"] + state.graph_aux_weight * aux
                 return ret
             finally:
                 state.clear()
