@@ -190,6 +190,21 @@ def main():
         return
     if runtime.graph_joint:
         graph = runtime.model.graph_joint
+        if graph.aggregation == "learned":
+            weights = graph.layer_weight_summary()
+            expected = 1.0 / len(weights)
+            changed = max(abs(w - expected) for w in weights)
+            print("[N26-LAYER-WEIGHTS-END] " + json.dumps(dict(
+                layers=graph.layers,
+                weights=weights,
+                max_deviation_from_uniform=changed,
+                positive_gradient_events=graph._n26_layer_grad_events,
+            )), flush=True)
+            if graph._n26_layer_grad_events == 0 or changed <= 1e-9:
+                raise RuntimeError(
+                    "N26 adaptive aggregation did not receive usable gradients "
+                    "or softmax layer weights stayed at initialization."
+                )
         amp_stats = dict(
             skipped_updates=graph._n24_amp_skip_total,
             successful_updates=graph._n24_amp_success_total,
