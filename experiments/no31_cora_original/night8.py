@@ -296,6 +296,13 @@ def run_one(row, common_cfg, root):
         expected_graph_scale = f"scale={row.get('graph_lr_scale', 0.1):.4g}"
         if not any(expected_graph_scale in line for line in graph_groups):
             raise RuntimeError("N24 graph optimizer group LR multiplier missing")
+        summaries = re.findall(r"\\[N24-AMP-SUMMARY\\]\\s*(\\{[^\\n]*\\})", text)
+        if len(summaries) != 1:
+            raise RuntimeError("N24 AMP stability summary missing")
+        amp_summary = json.loads(summaries[0])
+        if int(amp_summary.get("successful_updates", 0)) <= 0:
+            raise RuntimeError("N24 trained no successful graph optimizer updates")
+        print(f"[N24-AMP-AUDIT-PASS] {ident}: {amp_summary}", flush=True)
     if row.get("collab_mode", "off") != "off":
         required_n20 = (
             "[CORA-N20-DATA]", "[CORA-N20-PROBE-OK]",
@@ -351,6 +358,7 @@ def run_one(row, common_cfg, root):
         graph_joint=bool(row.get("graph_joint", False)),
         graph_lr_scale=float(row.get("graph_lr_scale", 0.1)),
         graph_aux_weight=float(row.get("graph_aux_weight", 0.01)),
+        amp_summary=amp_summary if row.get("graph_joint", False) else None,
         residual_ratio=float(row.get("residual_ratio", 0.0)),
         depth_profile=row.get("depth_profile", "uniform"),
         projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
