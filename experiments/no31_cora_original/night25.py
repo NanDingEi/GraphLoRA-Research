@@ -69,7 +69,7 @@ def expected_graph_artifact(artifact, mf_checkpoint, kind, layers, n_users, n_it
     manifest = json.loads(artifact.with_suffix(".json").read_text())
     if (manifest["layers"] != layers
             or manifest["mf_initialization"] != (kind == "mf")
-            or manifest["epochs"] != (0 if kind == "mf" else manifest["epochs"])):
+            or (kind == "mf" and manifest["epochs"] != 0)):
         raise RuntimeError("Graph initialization/pretraining manifest inconsistent")
     return manifest
 
@@ -155,8 +155,8 @@ def main():
         parser.error("--only and --start cannot be combined")
     if args.random_epochs < 500 or args.random_epochs > 1000:
         parser.error("--random-epochs must be between 500 and 1000")
-    if not (0 < args.anchor_lambda <= 0.5 and 0 < args.graph_lr_scale <= 1):
-        parser.error("anchor-lambda must be (0,.5] and graph LR scale (0,1]")
+    if not (0 < args.anchor_lambda <= 1 and 0 < args.graph_lr_scale <= 1):
+        parser.error("anchor-lambda must be (0,1] and graph LR scale (0,1]")
     cfg = core.prepared_config()
     arms = list(ARMS)
     if args.only:
