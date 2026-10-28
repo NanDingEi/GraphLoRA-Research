@@ -81,12 +81,24 @@ def negative_samples(users, positive_keys, n_items, rng):
 
 
 def graph_train(positive_u, positive_i, positive_keys, n_users, n_items, dim,
-                layers, epochs, max_pairs, lr, reg, seed, device):
+                layers, epochs, max_pairs, lr, reg, seed, device, init_table=None):
     torch.manual_seed(seed)
     rng = np.random.default_rng(seed)
     adj, degree = normalized_adj(positive_u, positive_i, n_users, n_items, device)
     model = torch.nn.Embedding(n_users + n_items, dim, device=device)
-    torch.nn.init.normal_(model.weight, mean=0.0, std=0.1)
+    if init_table is None:
+        torch.nn.init.normal_(model.weight, mean=0.0, std=0.1)
+        print("[N25-GRAPH-INIT] random std=0.1 (no MF initialization)", flush=True)
+    else:
+        expected = (n_users + n_items, dim)
+        if tuple(init_table.shape) != expected:
+            raise ValueError(f"MF checkpoint table shape {tuple(init_table.shape)} != {expected}")
+        with torch.no_grad():
+            model.weight.copy_(init_table.to(device=device, dtype=torch.float32))
+        if not torch.isfinite(model.weight).all():
+            raise FloatingPointError("MF initialization contains NaN/Inf")
+        print(f"[N25-GRAPH-INIT] pretrained MF copied to trainable raw table "
+              f"shape={expected} layers={layers} BPR_epochs={epochs}", flush=True)
     opt = torch.optim.Adam(model.parameters(), lr=lr)
     for epoch in range(epochs):
         which = rng.choice(len(positive_u), size=min(max_pairs, len(positive_u)),
@@ -144,7 +156,8 @@ def make_prototypes(items, positive_i, k, seed):
 
 
 def shape_from_mf_checkpoint(path):
-    # Read only shapes. MF weights are NEVER used to initialize graph embeddings.
+    # The historical shape-only path remains the default unless --mf-init-checkpoint.
+
     try:
         state = torch.load(path, map_location="cpu", weights_only=True)
     except TypeError:
@@ -153,6 +166,25 @@ def shape_from_mf_checkpoint(path):
         state = state["model"]
     return (int(state["user_embedding.weight"].shape[0]),
             int(state["item_embedding.weight"].shape[0]))
+
+
+def load_mf_init_table(path, n_users, n_items, dim):
+    """Read actual pretrained MF embeddings in the same ID order as GraphLoRA."""
+    try:
+        state = torch.load(path, map_location="cpu", weights_only=True)
+    except TypeError:
+        state = torch.load(path, map_location="cpu")
+    if "model" in state:
+        state = state["model"]
+    keys = ("user_embedding.weight", "item_embedding.weight")
+    if any(key not in state for key in keys):
+        raise KeyError(f"MF checkpoint missing {keys}")
+    user, item = [state[key].detach().float().cpu().contiguous() for key in keys]
+    if tuple(user.shape) != (n_users, dim) or tuple(item.shape) != (n_items, dim):
+        raise ValueError(f"MF checkpoint shape mismatch: {tuple(user.shape)}, {tuple(item.shape)}")
+    if not (torch.isfinite(user).all() and torch.isfinite(item).all()):
+        raise FloatingPointError("MF pretrained embedding has nonfinite entries")
+    return torch.cat([user, item], dim=0)
 
 
 def sha256(path):
@@ -168,7 +200,10 @@ def main():
     parser.add_argument("--train-file", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True, help="Output .npz path")
     parser.add_argument("--shape-checkpoint", type=Path,
-                        help="Optional MF checkpoint for table SHAPES ONLY")
+                        help="Optional MF checkpoint for table shapes")
+    parser.add_argument("--mf-init-checkpoint", type=Path,
+                        help="N25: initialize the trainable LightGCN raw ID table "
+                             "from actual MF user/item weights; omit for random init")
     parser.add_argument("--num-users", type=int, default=0)
     parser.add_argument("--num-items", type=int, default=0)
     parser.add_argument("--dim", type=int, default=256)
@@ -190,7 +225,8 @@ def main():
         a.num_users, a.num_items = nu, ni
     if a.num_users <= 0 or a.num_items <= 1 or a.dim != 256 or a.clusters != 16:
         raise ValueError("Require exact user/item sizes, dim=256, K=16")
-    if a.epochs <= 0 or a.layers < 1 or a.max_bpr_pairs <= 0:
+    if (a.epochs < 0 or (a.epochs == 0 and not a.mf_init_checkpoint)
+            or a.layers not in (2, 3) or a.max_bpr_pairs <= 0):
         raise ValueError("Invalid graph pretraining configuration")
     if a.device == "cuda" and not torch.cuda.is_available():
         raise RuntimeError("CUDA required but unavailable")
@@ -206,12 +242,15 @@ def main():
     if not train.is_file():
         raise FileNotFoundError(train)
     users, items, keys = train_rows(train, a.num_users, a.num_items)
+    initial_table = (load_mf_init_table(
+        a.mf_init_checkpoint, a.num_users, a.num_items, a.dim
+    ) if a.mf_init_checkpoint else None)
     print(f"[N23-GRAPH-INPUT] users={a.num_users} items={a.num_items} "
           f"positive_unique_edges={len(keys)} train_only=True mf_init=False", flush=True)
     zuser, zitem, degree, raw_id_table = graph_train(
         users, items, keys, a.num_users, a.num_items,
         a.dim, a.layers, a.epochs, a.max_bpr_pairs, a.lr, a.reg,
-        a.seed, torch.device(a.device),
+        a.seed, torch.device(a.device), init_table=initial_table,
     )
     zitem[0] = 0
     groups, prototypes, residual = make_prototypes(zitem, items, a.clusters, a.seed)
@@ -227,7 +266,10 @@ def main():
         "positive_unique_edges": int(len(keys)), "num_users": a.num_users,
         "num_items": a.num_items, "dim": a.dim, "layers": a.layers,
         "clusters": a.clusters, "epochs": a.epochs, "seed": a.seed,
-        "mf_initialization": False, "joint_training_ready": True, "graph_npz": str(out),
+        "mf_initialization": initial_table is not None,
+        "mf_checkpoint": str(a.mf_init_checkpoint.resolve()) if a.mf_init_checkpoint else None,
+        "mf_checkpoint_sha256": sha256(a.mf_init_checkpoint) if a.mf_init_checkpoint else None,
+        "joint_training_ready": True, "graph_npz": str(out),
         "community_sizes": np.bincount(groups[1:], minlength=a.clusters).tolist(),
         "train_positive_edge_inclusion": True,
         "note": "Train positives are edges in the graph (standard transductive CF); "
@@ -235,7 +277,9 @@ def main():
                 "No Valid/Test edges or labels are used."
     }
     out.with_suffix(".json").write_text(json.dumps(manifest, indent=2))
-    print(f"[N23-GRAPH-SAVED] {out} manifest={out.with_suffix('.json')}", flush=True)
+    print(f"[N23-GRAPH-SAVED] {out} manifest={out.with_suffix('.json')} "
+          f"init={'MF' if initial_table is not None else 'random'} "
+          f"pretrain_epochs={a.epochs} layers={a.layers}", flush=True)
 
 
 if __name__ == "__main__":
