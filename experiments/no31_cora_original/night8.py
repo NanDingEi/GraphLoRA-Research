@@ -189,6 +189,7 @@ def run_one(row, common_cfg, root):
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
     if row.get("graph_joint", False):
         cfg["run"]["lr_scale_graph"] = float(row.get("graph_lr_scale", 0.1))
+        cfg["run"]["amp_init_scale"] = float(row.get("amp_init_scale", 256.0))
     # Follow-up experiments vary only the explicitly listed random seed.
     # Existing R1-R8 recipes omit seed and remain seed42.
     cfg["run"]["seed"] = int(row.get("seed", 42))
