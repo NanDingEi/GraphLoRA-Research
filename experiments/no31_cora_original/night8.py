@@ -111,6 +111,8 @@ def build_environment(row):
         "NO31_CORA_FINE_RESIDUAL_MODE": row.get("fine_residual_mode", "off"),
         "NO31_CORA_COLLAB_MODE": row.get("collab_mode", "off"),
         "NO31_CORA_GRAPH_MODE": row.get("graph_mode", "off"),
+        "NO31_CORA_GRAPH_JOINT": "1" if row.get("graph_joint", False) else "0",
+        "NO31_CORA_GRAPH_AUX_WEIGHT": str(row.get("graph_aux_weight", 0.01)),
         "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
         "NO31_CORA_COLLAB_TRAIN_PATH": row.get("collab_train_path", ""),
         "PYTHONUNBUFFERED": "1",
@@ -185,6 +187,8 @@ def run_one(row, common_cfg, root):
     exp_dir.mkdir(parents=False, exist_ok=False)
     cfg = yaml.safe_load(yaml.safe_dump(common_cfg))
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
+    if row.get("graph_joint", False):
+        cfg["run"]["lr_scale_graph"] = float(row.get("graph_lr_scale", 0.1))
     # Follow-up experiments vary only the explicitly listed random seed.
     # Existing R1-R8 recipes omit seed and remain seed42.
     cfg["run"]["seed"] = int(row.get("seed", 42))
@@ -220,6 +224,7 @@ def run_one(row, common_cfg, root):
                 if any(word in line for word in
                        ("[CORA-ORIGINAL", "[NIGHT8-", "[FX]",
                         "[lr-group]", "Averaged stats:",
+                        "[N24-GRAPH", "[CORA-N23",
                         "OutOfMemory", "Traceback", "RuntimeError")):
                     print(f"[{ident}] {line.rstrip()[:700]}", flush=True)
             code = child.wait()
@@ -279,6 +284,18 @@ def run_one(row, common_cfg, root):
     if row.get("graph_mode", "off") != "off":
         if "[CORA-N23-GRAPH]" not in text or f"graph_mode={row['graph_mode']}" not in text:
             raise RuntimeError("NIGHT23 graph feature audit marker missing")
+    if row.get("graph_joint", False):
+        if "[N24-GRAPH-JOINT]" not in text or "[N24-GRAPH-GRAD]" not in text:
+            raise RuntimeError("N24 trainable graph initialization/gradient marker missing")
+        graph_grad = re.findall(r"\\[N24-GRAPH-GRAD\\].*?norm=([0-9.eE+-]+)", text)
+        if not graph_grad or max(float(z) for z in graph_grad) <= 0:
+            raise RuntimeError("N24 graph did not receive nonzero gradients")
+        if "graph_joint=1" not in text:
+            raise RuntimeError("N24 joint mode did not load")
+        graph_groups = [line for line in lr_group_lines if "graph_wd" in line]
+        expected_graph_scale = f"scale={row.get('graph_lr_scale', 0.1):.4g}"
+        if not any(expected_graph_scale in line for line in graph_groups):
+            raise RuntimeError("N24 graph optimizer group LR multiplier missing")
     if row.get("collab_mode", "off") != "off":
         required_n20 = (
             "[CORA-N20-DATA]", "[CORA-N20-PROBE-OK]",
@@ -330,6 +347,10 @@ def run_one(row, common_cfg, root):
         group_projectors=row.get("group_projectors", "off"),
         fine_residual_mode=row.get("fine_residual_mode", "off"),
         collab_mode=row.get("collab_mode", "off"),
+        graph_mode=row.get("graph_mode", "off"),
+        graph_joint=bool(row.get("graph_joint", False)),
+        graph_lr_scale=float(row.get("graph_lr_scale", 0.1)),
+        graph_aux_weight=float(row.get("graph_aux_weight", 0.01)),
         residual_ratio=float(row.get("residual_ratio", 0.0)),
         depth_profile=row.get("depth_profile", "uniform"),
         projection_scales=row.get("projection_scales", "q_proj=1,k_proj=1,v_proj=1,o_proj=1"),
@@ -346,7 +367,7 @@ def run_one(row, common_cfg, root):
 
 
 def run_trials(rows, common_cfg, name_prefix="NO31_CORA_NIGHT8"):
-    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20"):
+    if name_prefix not in ("NO31_CORA_NIGHT8","NO31_CORA_FOLLOWUP8","NO31_CORA_NIGHT10","NO31_CORA_NIGHT11","NO31_CORA_NIGHT12","NO31_CORA_NIGHT13","NO31_CORA_NIGHT14","NO31_CORA_NIGHT15","NO31_CORA_NIGHT16","NO31_CORA_NIGHT17","NO31_CORA_NIGHT18","NO31_CORA_NIGHT19","NO31_CORA_NIGHT20","NO31_CORA_NIGHT23","NO31_CORA_NIGHT24"):
         raise ValueError(f"Invalid CoRA experiment folder prefix: {name_prefix}")
     # Refuse costly runs unless original CoRA's full-matrix CPU smoke
     # and every R1-R8 conditional configuration work in this environment.
