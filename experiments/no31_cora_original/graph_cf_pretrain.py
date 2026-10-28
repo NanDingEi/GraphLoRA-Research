@@ -115,7 +115,8 @@ def graph_train(positive_u, positive_i, positive_keys, n_users, n_items, dim,
         embeddings = propagate(model.weight, adj, layers).detach().float().cpu().numpy()
     if not np.isfinite(embeddings).all():
         raise FloatingPointError("Graph representations contain nonfinite numbers")
-    return embeddings[:n_users], embeddings[n_users:], degree
+    raw_id_table = model.weight.detach().float().cpu().numpy()
+    return embeddings[:n_users], embeddings[n_users:], degree, raw_id_table
 
 
 def make_prototypes(items, positive_i, k, seed):
@@ -207,7 +208,7 @@ def main():
     users, items, keys = train_rows(train, a.num_users, a.num_items)
     print(f"[N23-GRAPH-INPUT] users={a.num_users} items={a.num_items} "
           f"positive_unique_edges={len(keys)} train_only=True mf_init=False", flush=True)
-    zuser, zitem, degree = graph_train(
+    zuser, zitem, degree, raw_id_table = graph_train(
         users, items, keys, a.num_users, a.num_items,
         a.dim, a.layers, a.epochs, a.max_bpr_pairs, a.lr, a.reg,
         a.seed, torch.device(a.device),
@@ -215,7 +216,8 @@ def main():
     zitem[0] = 0
     groups, prototypes, residual = make_prototypes(zitem, items, a.clusters, a.seed)
     out.parent.mkdir(parents=True, exist_ok=True)
-    np.savez_compressed(out, user_graph=zuser.astype(np.float32),
+    np.savez_compressed(out, graph_id_table=raw_id_table.astype(np.float32),
+        user_graph=zuser.astype(np.float32),
         item_graph=zitem.astype(np.float32), item_to_cluster=groups,
         prototypes=prototypes, mf_residual=residual,
         item_residual=residual, item_connected_in_graph=(degree[a.num_users:] > 0))
@@ -225,7 +227,7 @@ def main():
         "positive_unique_edges": int(len(keys)), "num_users": a.num_users,
         "num_items": a.num_items, "dim": a.dim, "layers": a.layers,
         "clusters": a.clusters, "epochs": a.epochs, "seed": a.seed,
-        "mf_initialization": False, "graph_npz": str(out),
+        "mf_initialization": False, "joint_training_ready": True, "graph_npz": str(out),
         "community_sizes": np.bincount(groups[1:], minlength=a.clusters).tolist(),
         "train_positive_edge_inclusion": True,
         "note": "Train positives are edges in the graph (standard transductive CF); "
