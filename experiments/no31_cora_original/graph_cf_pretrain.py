@@ -246,7 +246,8 @@ def main():
         a.mf_init_checkpoint, a.num_users, a.num_items, a.dim
     ) if a.mf_init_checkpoint else None)
     print(f"[N23-GRAPH-INPUT] users={a.num_users} items={a.num_items} "
-          f"positive_unique_edges={len(keys)} train_only=True mf_init=False", flush=True)
+          f"positive_unique_edges={len(keys)} train_only=True "
+          f"mf_init={initial_table is not None}", flush=True)
     zuser, zitem, degree, raw_id_table = graph_train(
         users, items, keys, a.num_users, a.num_items,
         a.dim, a.layers, a.epochs, a.max_bpr_pairs, a.lr, a.reg,
