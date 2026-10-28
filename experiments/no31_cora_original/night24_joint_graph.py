@@ -173,8 +173,12 @@ class JointLightGCN(nn.Module):
 
 
     def _audit_layer_gradient(self, grad):
+        # As for the graph ID embedding, never intercept AMP's GradScaler
+        # overflow handling. A nonfinite gradient must reach GradScaler.
         if not bool(torch.isfinite(grad).all()):
-            raise FloatingPointError("N26 learned layer-logit gradient nonfinite")
+            print("[N26-LAYER-LOGIT-NONFINITE] detected; leaving gradient "
+                  "untouched for GradScaler", flush=True)
+            return grad
         if self._n26_layer_grad_events < 3 and grad.detach().abs().max().item() > 0:
             self._n26_layer_grad_events += 1
             print(
