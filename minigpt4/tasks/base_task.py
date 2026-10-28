@@ -280,6 +280,17 @@ class BaseTask:
                         else:
                             n24_graph._n24_amp_skip_streak = 0
                             n24_graph._n24_amp_success_total += 1
+                        # Do not spend the full 17k-batch epoch on a
+                        # persistent, early CoRA->graph NaN regression.
+                        # Leave stage probes untouched for diagnosis.
+                        if (n24_graph._grad_audit_calls <= 64
+                                and n24_graph._n24_bad_gradient_events >= 8):
+                            raise FloatingPointError(
+                                "N24 diagnostic abort: >=8 nonfinite graph "
+                                "backwards within first 64 microbatches; "
+                                "inspect [N24-GRAD-STAGE] to find the first "
+                                "nonfinite CoRA/QFormer/graph boundary."
+                            )
                 else:
                     gc = float(getattr(model, "grad_clip", 0.0) or 0.0)
                     if gc > 0:
