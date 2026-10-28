@@ -18,6 +18,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from experiments.no31_cora_original.weight_generator import PerceptualWeightsGenerator
+from experiments.no31_cora_original.night24_joint_graph import JointLightGCN
 from experiments.no31_cora_original.night23_graph_features import (install_graph_history, graph_pair, make_graph_features)
 from experiments.no31_cora_original.granularity_signals import build_coarse_fine_signals
 from experiments.no31_cora_original.night20_features import (
@@ -41,9 +42,15 @@ class OriginalCoRARuntime:
             "coarse_to_fine", "fine_to_coarse", "history", "user_item",
         ):
             raise ValueError(f"Unsupported fine residual mode: {self.fine_residual_mode}")
+        self.graph_joint = os.environ.get("NO31_CORA_GRAPH_JOINT", "0") == "1"
+        self.graph_aux_weight = float(os.environ.get("NO31_CORA_GRAPH_AUX_WEIGHT", "0.01"))
+        if not 0.0 <= self.graph_aux_weight <= 0.1:
+            raise ValueError("N24 graph auxiliary weight must be between 0 and 0.1")
         self.graph_mode = os.environ.get("NO31_CORA_GRAPH_MODE", "off")
         if self.graph_mode not in ("off", "graph_base", "graph_coarse", "graph_fine", "graph_uniform", "graph_c2f"):
             raise ValueError("Unsupported N23 graph mode")
+        if self.graph_joint and self.graph_mode == "off":
+            raise ValueError("Joint graph requires an enabled graph_mode")
         self.collab_mode = os.environ.get("NO31_CORA_COLLAB_MODE", "off")
         if self.collab_mode not in (
             "off", "coarse_only", "fine_only", "dual_uniform", "dual_c2f",
@@ -336,6 +343,13 @@ class OriginalCoRARuntime:
                     )
                 if state.graph_mode != "off":
                     install_graph_history(model, proto_path, train_path)
+                    if state.graph_joint:
+                        model.graph_joint = JointLightGCN(
+                            proto_path, train_path,
+                            model.cora_fixed_user.shape[0], model.cora_fixed_item.shape[0],
+                            model.cora_fixed_user, model.cora_fixed_item,
+                            layers=2, k=16,
+                        ).to(model.cora_fixed_user.device)
                 else:
                     install_frozen_history(model, proto_path, train_path)
             if state.fine_residual_mode != "off":
@@ -472,6 +486,7 @@ class OriginalCoRARuntime:
                 f"granularity_mode={state.granularity_mode} "
                 f"fine_residual_mode={state.fine_residual_mode} "
                 f"collab_mode={state.collab_mode} graph_mode={state.graph_mode} "
+                f"graph_joint={int(state.graph_joint)} graph_aux_weight={state.graph_aux_weight:g} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
@@ -497,7 +512,19 @@ class OriginalCoRARuntime:
             pair = torch.cat(
                 (model.cora_fixed_user[users], model.cora_fixed_item[items]), dim=-1
             )
-            if state.graph_mode != "off":
+            joint_aux = None
+            joint_features = None
+            if state.graph_joint:
+                counts = {key: getattr(model, "n20_" + key) for key in (
+                    "pair_keys", "pair_total", "pair_pos", "user_total",
+                    "user_pos", "group_prior",
+                )}
+                pair, joint_features, joint_aux = model.graph_joint(
+                    users, items, counts,
+                    labels=samples["label"] if model.training else None,
+                )
+                model._n24_aux_loss = joint_aux
+            elif state.graph_mode != "off":
                 pair = graph_pair(model, users, items)
             fine = None
             fine_user_item = None
@@ -543,6 +570,8 @@ class OriginalCoRARuntime:
                 collab_features = None
                 if state.collab_mode != "off":
                     collab_features = make_collaborative_features(model, users, items)
+                elif state.graph_joint:
+                    collab_features = joint_features
                 elif state.graph_mode != "off":
                     collab_features = make_graph_features(model, users, items)
                 weights_by_group = model.cora_weight_generator(
@@ -622,7 +651,14 @@ class OriginalCoRARuntime:
 
         def wrapped_forward(model, samples, *args, **kwargs):
             try:
-                return old_forward_v2(model, samples, *args, **kwargs)
+                ret = old_forward_v2(model, samples, *args, **kwargs)
+                if state.graph_joint and model.training:
+                    aux = getattr(model, "_n24_aux_loss", None)
+                    if aux is None or not isinstance(ret, dict) or "loss" not in ret:
+                        raise RuntimeError("N24 graph joint loss missing in train forward")
+                    ret["loss_graph"] = aux.detach()
+                    ret["loss"] = ret["loss"] + state.graph_aux_weight * aux
+                return ret
             finally:
                 state.clear()
 
@@ -642,6 +678,8 @@ class OriginalCoRARuntime:
     def clear(self):
         if self.model is None:
             return
+        if hasattr(self.model, "_n24_aux_loss"):
+            delattr(self.model, "_n24_aux_loss")
         for mod in self.targets:
             mod._cora_weight = None
             mod._cora_condition = None
