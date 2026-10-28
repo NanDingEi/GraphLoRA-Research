@@ -99,6 +99,7 @@ class JointLightGCN(nn.Module):
                              persistent=False)
         self.id_embedding = nn.Parameter(torch.from_numpy(raw).clone())
         self._grad_audit_calls = 0
+        self._n24_bad_gradient_events = 0
         self.id_embedding.register_hook(self._audit_gradient)
         self.num_users, self.num_items, self.k, self.layers = n_users, n_items, k, layers
         # Same fixed global scaling as NIGHT23 (only up to two scalar factors).
@@ -126,13 +127,28 @@ class JointLightGCN(nn.Module):
               "graph_grad_from_LLM=True", flush=True)
 
     def _audit_gradient(self, grad):
+        # GradScaler.scale(loss).backward() invokes hooks BEFORE unscale_ and
+        # the automatic nonfinite check in GradScaler.step().  Raising here
+        # wrongly aborts on a recoverable AMP overflow, instead of letting
+        # GradScaler skip the bad optimizer update and lower its scale.
+        # NEVER replace nonfinite gradients with zeros: that would conceal
+        # the overflow from GradScaler's found_inf logic.
+        finite = bool(torch.isfinite(grad).all())
         if self._grad_audit_calls < 3:
             print(f"[N24-GRAPH-GRAD] step={self._grad_audit_calls} "
                   f"norm={grad.detach().float().norm().item():.8g} "
-                  f"finite={bool(torch.isfinite(grad).all())}", flush=True)
+                  f"finite={finite}", flush=True)
+        if not finite:
+            self._n24_bad_gradient_events += 1
+            if self._n24_bad_gradient_events <= 10 or self._n24_bad_gradient_events % 20 == 0:
+                n_nan = int(torch.isnan(grad).sum().item())
+                n_inf = int(torch.isinf(grad).sum().item())
+                print(f"[N24-GRAPH-GRAD-NONFINITE] "
+                      f"backward={self._grad_audit_calls} "
+                      f"event={self._n24_bad_gradient_events} "
+                      f"nan={n_nan} inf={n_inf} "
+                      "allowing AMP GradScaler to skip this update", flush=True)
         self._grad_audit_calls += 1
-        if not torch.isfinite(grad).all():
-            raise FloatingPointError("N24 LightGCN gradient is nonfinite")
         return grad
 
     def _propagate(self):
