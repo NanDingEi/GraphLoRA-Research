@@ -108,6 +108,20 @@ def main():
                     layer.weight.detach(), layer.bias.detach()
                 )):
                     raise RuntimeError("Group projector output must be identity-initialized")
+        if runtime.graph_mode != "off":
+            if (not hasattr(gen, "n20_coarse_head")
+                    or not hasattr(gen, "n20_fine_head")
+                    or len(gen.n20_schedule) != 8):
+                raise RuntimeError("N24 graph CoRA conditioning heads missing")
+            if runtime.graph_joint:
+                if not hasattr(model, "graph_joint"):
+                    raise RuntimeError("N24 joint graph encoder missing")
+                p = model.graph_joint.id_embedding
+                if p.ndim != 2 or p.size(1) != 256 or not p.requires_grad:
+                    raise RuntimeError("N24 joint graph table is not trainable")
+            print(f"[N24-GRAPH-PROBE-OK] mode={runtime.graph_mode} "
+                  f"joint={int(runtime.graph_joint)} "
+                  f"graph_aux_weight={runtime.graph_aux_weight:g}", flush=True)
         if runtime.collab_mode != "off":
             # Strict NIGHT20 fail-closed adapter validation before expensive
             # Vicuna training. CPU smoke checks initial full-generator parity.
