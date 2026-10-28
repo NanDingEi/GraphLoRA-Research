@@ -45,6 +45,9 @@ class OriginalCoRARuntime:
         ):
             raise ValueError(f"Unsupported fine residual mode: {self.fine_residual_mode}")
         self.graph_joint = os.environ.get("NO31_CORA_GRAPH_JOINT", "0") == "1"
+        # NIGHT26 seven-arm diagnostic: run *exactly* the same FP32
+        # QFormer/CoRA-P numerical path without creating any graph module.
+        self.force_fp32_cora = os.environ.get("NO31_CORA_FORCE_FP32", "0") == "1"
         # N25: retain the original frozen MF CoRA input as a strong anchor,
         # and add a controlled, differentiable LightGCN residual.
         # Defaults exactly reproduce N24 unless N25 env vars are provided.
@@ -507,6 +510,7 @@ class OriginalCoRARuntime:
                 f"graph_joint={int(state.graph_joint)} graph_aux_weight={state.graph_aux_weight:g} "
                 f"graph_layers={state.graph_layers} graph_anchor_lambda={state.graph_anchor_lambda:g} "
                 f"graph_aggregation={state.graph_aggregation} "
+                f"force_fp32_cora={int(state.force_fp32_cora)} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
@@ -618,11 +622,11 @@ class OriginalCoRARuntime:
                 # the historical AMP behavior of the original CoRA generator.
                 precision = (
                     torch.autocast(device_type=pair.device.type, enabled=False)
-                    if state.graph_joint else nullcontext()
+                    if (state.graph_joint or state.force_fp32_cora) else nullcontext()
                 )
                 with precision:
                     weights_by_group = model.cora_weight_generator(
-                        pair.float() if state.graph_joint else pair,
+                        pair.float() if (state.graph_joint or state.force_fp32_cora) else pair,
                         collab_features=(
                             tuple(feature.float() for feature in collab_features)
                             if state.graph_joint and collab_features is not None
@@ -823,7 +827,7 @@ class OriginalCoRARuntime:
                 self.model.cora_weight_generator.layer_modulator(layer_input)
             )
             w = w * (1.0 + rank_modulation.unsqueeze(1).to(dtype=w.dtype))
-        if self.graph_joint:
+        if self.graph_joint or self.force_fp32_cora:
             # Autocast can turn FP32 inputs to torch.bmm / nn.Linear back
             # into FP16, creating nonfinite gradients when CoRA-P becomes
             # nonzero after the first optimizer step. Keep this branch FP32
