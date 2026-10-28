@@ -7,6 +7,7 @@ prototypes, item residuals, and positive-history residual pools are live.
 Original MF input prompts, CTR/KD and other losses remain independent.
 """
 from pathlib import Path
+import math
 import numpy as np
 import pandas as pd
 import scipy.sparse as sp
@@ -48,20 +49,46 @@ def _history_incidence(u, i, groups, n_users, n_items, k):
 
 class JointLightGCN(nn.Module):
     def __init__(self, artifact, train_path, n_users, n_items, mf_user, mf_item,
-                 layers=2, k=16, aggregation="uniform"):
+                 layers=2, k=16, aggregation="uniform", fusion="fixed",
+                 initial_lambda=0.1):
         super().__init__()
         if layers not in (1, 2, 3) or k != 16:
             raise ValueError("N24 requires 1-3 LightGCN layers and K16")
-        if aggregation not in ("uniform", "learned"):
-            raise ValueError("N26 graph aggregation must be uniform or learned")
+        if aggregation not in ("uniform", "learned", "shallow_fixed", "shallow_learned"):
+            raise ValueError("N27 graph aggregation mode unsupported")
+        if aggregation.startswith("shallow") and layers != 3:
+            raise ValueError("Shallow-prior weights require 3 LightGCN propagation steps")
+        if fusion not in ("fixed", "dual", "degree"):
+            raise ValueError("N27 fusion mode must be fixed, dual, or degree")
+        if not 0 < initial_lambda <= 0.5:
+            raise ValueError("N27 initial fusion must be in (0, .5]")
         self.aggregation = aggregation
-        # Softmax(zeros) reproduces the original exactly uniform layer
-        # aggregation at initialization. This lives under graph_joint.*
-        # and receives the graph optimizer LR multiplier.
-        if aggregation == "learned":
-            self.layer_logits = nn.Parameter(torch.zeros(layers + 1))
+        self.fusion = fusion
+        self.max_fusion = 0.5
+        self.initial_lambda = float(initial_lambda)
+        self._n27_gate_grad_events = 0
+        initial_logit = math.log(initial_lambda / (self.max_fusion - initial_lambda)) if initial_lambda < self.max_fusion else 15.
+        if fusion == "dual":
+            self.dual_gate_logits = nn.Parameter(torch.full((2,), initial_logit))
+            self.dual_gate_logits.register_hook(self._audit_gate_gradient)
+        elif fusion == "degree":
+            self.degree_gate_intercepts = nn.Parameter(torch.full((2,), initial_logit))
+            self.degree_gate_slopes = nn.Parameter(torch.zeros(2))
+            self.degree_gate_intercepts.register_hook(self._audit_gate_gradient)
+            self.degree_gate_slopes.register_hook(self._audit_gate_gradient)
+        if aggregation in ("learned", "shallow_learned"):
+            # Preserve historical N26 learned-softmax=uniform behavior.
+            prior = ([0.25] * 4 if aggregation == "learned"
+                     else [0.4, 0.3, 0.2, 0.1])
+            self.layer_logits = nn.Parameter(torch.tensor(
+                [math.log(value) for value in prior], dtype=torch.float32
+            ))
             self._n26_layer_grad_events = 0
             self.layer_logits.register_hook(self._audit_layer_gradient)
+        elif aggregation == "shallow_fixed":
+            self.register_buffer("fixed_layer_weights",
+                                 torch.tensor([0.4, 0.3, 0.2, 0.1]),
+                                 persistent=False)
         with np.load(str(artifact), allow_pickle=False) as f:
             required = ("graph_id_table", "user_graph", "item_graph", "item_to_cluster")
             if not set(required).issubset(set(f.files)):
@@ -102,6 +129,19 @@ class JointLightGCN(nn.Module):
         safe_group = groups.copy()
         safe_group[0] = 0
         self.register_buffer("adjacency", adj, persistent=False)
+        if fusion == "degree":
+            # Count UNIQUE positive training-graph edges, not validation
+            # interactions or repeated record rows.
+            degrees_u = np.bincount(edge_keys // n_items, minlength=n_users)
+            degrees_i = np.bincount(edge_keys % n_items, minlength=n_items)
+            u_log = np.log1p(degrees_u.astype(np.float32))
+            i_log = np.log1p(degrees_i.astype(np.float32))
+            u_normal = u_log / max(float(u_log.max()), 1.)
+            i_normal = i_log / max(float(i_log.max()), 1.)
+            self.register_buffer("user_degree_log", torch.from_numpy(u_normal),
+                                 persistent=False)
+            self.register_buffer("item_degree_log", torch.from_numpy(i_normal),
+                                 persistent=False)
         self.register_buffer("positive_history_incidence", hist, persistent=False)
         self.register_buffer("group_id", torch.from_numpy(safe_group), persistent=False)
         self.register_buffer("item_group_counts",
@@ -125,18 +165,27 @@ class JointLightGCN(nn.Module):
             raise ValueError("Graph propagation collapsed")
         self.user_scale = mf_u / g_u
         self.item_scale = mf_i / g_i
-        # Ensure the raw embeddings and propagation depth match the NPZ
-        # exported by pretraining; otherwise do not claim checkpoint parity.
+        # The artifact contains STANDARD UNIFORM aggregation at 3 hops.
+        # Verify it independently for all modes (including biased weighting),
+        # without mislabeling fixed/shallow as the original uniform artifact.
         with torch.no_grad():
-            uu, ii = self._propagate()
-            if not torch.allclose(uu, torch.from_numpy(graph_user) * self.user_scale,
+            h = self.id_embedding.float()
+            propagated = h
+            for _ in range(self.layers):
+                h = torch.sparse.mm(self.adjacency.float(), h)
+                propagated = propagated + h
+            propagated = propagated / (self.layers + 1)
+            ref_user = propagated[:n_users] * self.user_scale
+            ref_item = propagated[n_users:] * self.item_scale
+            if not torch.allclose(ref_user, torch.from_numpy(graph_user) * self.user_scale,
                                   rtol=3e-3, atol=3e-4):
-                raise RuntimeError("Graph ID table does not reproduce pretraining user embeddings")
-            if not torch.allclose(ii[1:], torch.from_numpy(graph_item[1:]) * self.item_scale,
+                raise RuntimeError("Graph ID table mismatch with UNIFORM pretraining user representation")
+            if not torch.allclose(ref_item[1:], torch.from_numpy(graph_item[1:]) * self.item_scale,
                                   rtol=3e-3, atol=3e-4):
-                raise RuntimeError("Graph ID table does not reproduce pretraining item embeddings")
+                raise RuntimeError("Graph ID table mismatch with UNIFORM pretraining item representation")
         print(f"[N24-GRAPH-JOINT] trainable_id_table={n}x256 layers={layers} "
-              f"aggregation={self.aggregation} train_edges={len(edge_keys)} K={k} "
+              f"aggregation={self.aggregation} fusion={self.fusion} "
+              f"init_lambda={self.initial_lambda:g} train_edges={len(edge_keys)} K={k} "
               f"history_edges={int(positive.sum())} model_lr_group=graph "
               "graph_grad_from_LLM=True", flush=True)
 
@@ -189,10 +238,62 @@ class JointLightGCN(nn.Module):
             )
         return grad
 
+    def _audit_gate_gradient(self, grad):
+        if bool(torch.isfinite(grad).all()) and grad.detach().abs().max().item() > 0:
+            if self._n27_gate_grad_events < 3:
+                self._n27_gate_grad_events += 1
+                print(f"[N27-GATE-GRAD] mode={self.fusion} "
+                      f"norm={grad.detach().float().norm().item():.8g} "
+                      f"event={self._n27_gate_grad_events}", flush=True)
+        elif not torch.isfinite(grad).all():
+            print("[N27-GATE-NONFINITE] handing gradient to AMP GradScaler",
+                  flush=True)
+        return grad
+
+    def fusion_weights(self, users, targets):
+        """Return Bx1 user and item lambda, max 0.5, differentiable."""
+        batch = users.shape[0]
+        if self.fusion == "fixed":
+            v = self.id_embedding.new_full((batch, 1), self.initial_lambda)
+            return v, v
+        if self.fusion == "dual":
+            coeff = self.max_fusion * torch.sigmoid(self.dual_gate_logits.float())
+            return (coeff[0].expand(batch, 1), coeff[1].expand(batch, 1))
+        ud = self.user_degree_log[users]
+        idg = self.item_degree_log[targets]
+        u = self.max_fusion * torch.sigmoid(
+            self.degree_gate_intercepts[0] + self.degree_gate_slopes[0] * ud
+        )
+        i = self.max_fusion * torch.sigmoid(
+            self.degree_gate_intercepts[1] + self.degree_gate_slopes[1] * idg
+        )
+        return u.unsqueeze(1), i.unsqueeze(1)
+
+    @torch.no_grad()
+    def fusion_summary(self):
+        if self.fusion == "fixed":
+            return dict(mode="fixed", user_lambda=self.initial_lambda,
+                        item_lambda=self.initial_lambda)
+        if self.fusion == "dual":
+            coeff = (self.max_fusion * torch.sigmoid(self.dual_gate_logits)).cpu().tolist()
+            return dict(mode="dual", user_lambda=coeff[0], item_lambda=coeff[1],
+                        gradient_events=self._n27_gate_grad_events)
+        return dict(
+            mode="degree", user_lambda_at_degree0=float(
+                self.max_fusion * torch.sigmoid(self.degree_gate_intercepts[0])),
+            item_lambda_at_degree0=float(
+                self.max_fusion * torch.sigmoid(self.degree_gate_intercepts[1])),
+            user_slope=float(self.degree_gate_slopes[0]),
+            item_slope=float(self.degree_gate_slopes[1]),
+            gradient_events=self._n27_gate_grad_events,
+        )
+
     @torch.no_grad()
     def layer_weight_summary(self):
-        if self.aggregation == "learned":
+        if self.aggregation in ("learned", "shallow_learned"):
             return torch.softmax(self.layer_logits.float(), dim=0).cpu().tolist()
+        if self.aggregation == "shallow_fixed":
+            return self.fixed_layer_weights.cpu().tolist()
         return [1.0 / (self.layers + 1)] * (self.layers + 1)
 
     def _propagate(self):
@@ -218,7 +319,10 @@ class JointLightGCN(nn.Module):
                 for _ in range(self.layers):
                     h = torch.sparse.mm(adj, h)
                     states.append(h)
-                weights = torch.softmax(self.layer_logits.float(), dim=0)
+                if self.aggregation == "shallow_fixed":
+                    weights = self.fixed_layer_weights.float()
+                else:
+                    weights = torch.softmax(self.layer_logits.float(), dim=0)
                 result = sum(w * state for w, state in zip(weights, states))
             user = result[:self.num_users] * self.user_scale
             item = result[self.num_users:] * self.item_scale
