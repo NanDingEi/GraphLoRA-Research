@@ -100,6 +100,9 @@ class JointLightGCN(nn.Module):
         self.id_embedding = nn.Parameter(torch.from_numpy(raw).clone())
         self._grad_audit_calls = 0
         self._n24_bad_gradient_events = 0
+        self._n24_amp_skip_total = 0
+        self._n24_amp_skip_streak = 0
+        self._n24_amp_success_total = 0
         self.id_embedding.register_hook(self._audit_gradient)
         self.num_users, self.num_items, self.k, self.layers = n_users, n_items, k, layers
         # Same fixed global scaling as NIGHT23 (only up to two scalar factors).
