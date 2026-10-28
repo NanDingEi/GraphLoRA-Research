@@ -99,9 +99,19 @@ def main():
         assert amp_pair.dtype == torch.float32
         assert torch.isfinite(graph.id_embedding.grad).all()
         assert graph.id_embedding.grad.norm() > 0
+        # The AMP GradScaler must see the original nonfinite gradient to
+        # skip the optimizer step. The hook is NOT allowed to raise or
+        # silently mask Inf/NaN before GradScaler's unscale_ / found_inf.
+        graph._grad_audit_calls = 3
+        prior = graph._n24_bad_gradient_events
+        bad = torch.zeros_like(graph.id_embedding)
+        bad.view(-1)[0] = float("inf")
+        returned = graph._audit_gradient(bad)
+        assert returned is bad and torch.isinf(returned).any()
+        assert graph._n24_bad_gradient_events == prior + 1
     print("[N24-CPU-PASS] graph artifact parity, shape, target-exclusion, "
           "LLM-proxy graph gradients, auxiliary graph gradients, "
-          "AMP-safe sparse propagation and history", flush=True)
+          "AMP-safe sparse propagation/history and nonfinite GradScaler handoff", flush=True)
 
 
 if __name__ == "__main__":
