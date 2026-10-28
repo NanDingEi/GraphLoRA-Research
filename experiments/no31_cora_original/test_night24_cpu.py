@@ -109,9 +109,35 @@ def main():
         returned = graph._audit_gradient(bad)
         assert returned is bad and torch.isinf(returned).any()
         assert graph._n24_bad_gradient_events == prior + 1
+        # Miniature QFormer + group8 dynamic-A + NONZERO CoRA-P.
+        # Reproduce the FP32 precision islands under an outer AMP scope
+        # and verify the generated condition receives finite gradients.
+        from experiments.no31_cora_original.weight_generator import PerceptualWeightsGenerator
+        generator = PerceptualWeightsGenerator(
+            num_queries=4, user_embedding_size=16, hidden_size=32, r=16,
+            input_mode="concat", injection_mode="shared",
+            group_projector_mode="group8",
+        )
+        condition = torch.randn(2, 32, requires_grad=True)
+        p_matrix = torch.nn.Parameter(torch.randn(32, 16) * 0.001)
+        hidden = torch.randn(2, 5, 32)
+        with torch.autocast(device_type="cpu", dtype=torch.bfloat16):
+            with torch.autocast(device_type="cpu", enabled=False):
+                generated = generator(condition.float())
+            assert len(generated) == 8
+            assert all(w.dtype == torch.float32 for w in generated.values())
+            with torch.autocast(device_type="cpu", enabled=False):
+                weighted = torch.bmm(hidden.float(), generated[0].float())
+                out = torch.nn.functional.linear(weighted, p_matrix.float())
+            check_loss = out.square().mean()
+        check_loss.backward()
+        assert condition.grad is not None and condition.grad.norm() > 0
+        assert torch.isfinite(condition.grad).all()
+        assert p_matrix.grad is not None and torch.isfinite(p_matrix.grad).all()
     print("[N24-CPU-PASS] graph artifact parity, shape, target-exclusion, "
           "LLM-proxy graph gradients, auxiliary graph gradients, "
-          "AMP-safe sparse propagation/history and nonfinite GradScaler handoff", flush=True)
+          "AMP-safe sparse propagation/history, FP32 CoRA generator/P, "
+          "and nonfinite GradScaler handoff", flush=True)
 
 
 if __name__ == "__main__":
