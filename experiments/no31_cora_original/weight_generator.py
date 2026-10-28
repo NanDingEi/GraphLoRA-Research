@@ -235,6 +235,8 @@ class PerceptualWeightsGenerator(nn.Module):
                 dim=1,
             )
 
+        if hasattr(self, "n24_grad_probe"):
+            self.n24_grad_probe(encoder_states, "qformer_input")
         encoder_atts = torch.ones(
             encoder_states.size()[:-1], dtype=torch.long, device=encoder_states.device
         )
@@ -252,6 +254,8 @@ class PerceptualWeightsGenerator(nn.Module):
                 raise ValueError("Group-projector mode does not use return_condition")
             batch_size = encoder_states.size(0)
             q_states = query_output.last_hidden_state
+            if hasattr(self, "n24_grad_probe"):
+                self.n24_grad_probe(q_states, "qformer_query")
             mode = self.group_projector_mode
 
             def make_weight(projected):
@@ -367,6 +371,10 @@ class PerceptualWeightsGenerator(nn.Module):
                     projected_in = q_states
                 projected = projected_in + self.group_projectors[group_idx](projected_in)
                 group_weights[group_idx] = make_weight(projected)
+                if hasattr(self, "n24_grad_probe") and group_idx in (0, 7):
+                    self.n24_grad_probe(
+                        group_weights[group_idx], f"cora_group_{group_idx}"
+                    )
             return group_weights
 
         # All four layers groups reuse one QFormer representation and a
