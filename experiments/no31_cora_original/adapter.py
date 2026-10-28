@@ -18,6 +18,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from experiments.no31_cora_original.weight_generator import PerceptualWeightsGenerator
+from experiments.no31_cora_original.night23_graph_features import (install_graph_history, graph_pair, make_graph_features)
 from experiments.no31_cora_original.granularity_signals import build_coarse_fine_signals
 from experiments.no31_cora_original.night20_features import (
     install_frozen_history, make_collaborative_features,
@@ -40,11 +41,18 @@ class OriginalCoRARuntime:
             "coarse_to_fine", "fine_to_coarse", "history", "user_item",
         ):
             raise ValueError(f"Unsupported fine residual mode: {self.fine_residual_mode}")
+        self.graph_mode = os.environ.get("NO31_CORA_GRAPH_MODE", "off")
+        if self.graph_mode not in ("off", "graph_base", "graph_coarse", "graph_fine", "graph_uniform", "graph_c2f"):
+            raise ValueError("Unsupported N23 graph mode")
         self.collab_mode = os.environ.get("NO31_CORA_COLLAB_MODE", "off")
         if self.collab_mode not in (
             "off", "coarse_only", "fine_only", "dual_uniform", "dual_c2f",
         ):
             raise ValueError(f"Unsupported NIGHT20 collaborative mode: {self.collab_mode}")
+        if self.graph_mode != "off" and self.collab_mode != "off":
+            raise ValueError("Cannot activate N20 and N23 together")
+        if self.graph_mode != "off" and (self.granularity_mode != "original" or self.fine_residual_mode != "off"):
+            raise ValueError("N23 requires unchanged original granularity configuration")
         if self.collab_mode != "off" and (
             self.granularity_mode != "original" or self.fine_residual_mode != "off"
         ):
@@ -125,7 +133,7 @@ class OriginalCoRARuntime:
                 f"Unsupported NO31_CORA_GROUP_PROJECTORS={self.group_projector_mode}"
             )
         self.group_count = self.group_count_by_mode[self.group_projector_mode]
-        if self.collab_mode != "off" and self.group_projector_mode != "group8":
+        if (self.collab_mode != "off" or self.graph_mode != "off") and self.group_projector_mode != "group8":
             raise ValueError("NIGHT20 requires original group8 projector architecture")
         if self.fine_residual_mode != "off" and self.group_projector_mode != "group8":
             raise ValueError("Fine residual experiments require group8 projectors")
@@ -285,7 +293,7 @@ class OriginalCoRARuntime:
                 rank_profile=state.rank_profile,
                 group_projector_mode=state.group_projector_mode,
             )
-            if state.collab_mode != "off":
+            if state.collab_mode != "off" or state.graph_mode != "off":
                 # All four NIGHT20 arms have identical extra parameter counts.
                 # Save and restore the global RNG stream so base CoRA P-init
                 # and training sample order remain consistent with NIGHT17 E0.
@@ -306,12 +314,14 @@ class OriginalCoRARuntime:
                         nn.init.zeros_(head[-1].weight)
                         nn.init.zeros_(head[-1].bias)
                     generator.n20_query_cap = 0.1
-                    if state.collab_mode == "coarse_only":
+                    if state.collab_mode == "coarse_only" or state.graph_mode == "graph_coarse":
                         generator.n20_schedule = [(1., 0.)] * 8
-                    elif state.collab_mode == "fine_only":
+                    elif state.collab_mode == "fine_only" or state.graph_mode == "graph_fine":
                         generator.n20_schedule = [(0., 1.)] * 8
-                    elif state.collab_mode == "dual_uniform":
+                    elif state.collab_mode == "dual_uniform" or state.graph_mode == "graph_uniform":
                         generator.n20_schedule = [(0.5, 0.5)] * 8
+                    elif state.graph_mode == "graph_base":
+                        generator.n20_schedule = [(0., 0.)] * 8
                     else:
                         a = (1., 1., 0.75, 0.75, 0.25, 0.25, 0., 0.)
                         generator.n20_schedule = [(x, 1. - x) for x in a]
@@ -324,7 +334,10 @@ class OriginalCoRARuntime:
                         "NIGHT20 requires both NO31_CORA_COLLAB_PROTO_PATH "
                         "and NO31_CORA_COLLAB_TRAIN_PATH"
                     )
-                install_frozen_history(model, proto_path, train_path)
+                if state.graph_mode != "off":
+                    install_graph_history(model, proto_path, train_path)
+                else:
+                    install_frozen_history(model, proto_path, train_path)
             if state.fine_residual_mode != "off":
                 # Compact residual head: <=2.2M parameters, rather than a
                 # second dense 512 -> (4096*16) projection. Zero-init makes
@@ -458,7 +471,7 @@ class OriginalCoRARuntime:
                 f"rank_profile={rank_summary} group_projectors={state.group_projector_mode} "
                 f"granularity_mode={state.granularity_mode} "
                 f"fine_residual_mode={state.fine_residual_mode} "
-                f"collab_mode={state.collab_mode} "
+                f"collab_mode={state.collab_mode} graph_mode={state.graph_mode} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
                 f"frozen_CF=MF original_GNN_losses=ON "
@@ -484,6 +497,8 @@ class OriginalCoRARuntime:
             pair = torch.cat(
                 (model.cora_fixed_user[users], model.cora_fixed_item[items]), dim=-1
             )
+            if state.graph_mode != "off":
+                pair = graph_pair(model, users, items)
             fine = None
             fine_user_item = None
             fine_target_history = None
@@ -528,6 +543,8 @@ class OriginalCoRARuntime:
                 collab_features = None
                 if state.collab_mode != "off":
                     collab_features = make_collaborative_features(model, users, items)
+                elif state.graph_mode != "off":
+                    collab_features = make_graph_features(model, users, items)
                 weights_by_group = model.cora_weight_generator(
                     pair, collab_features=collab_features,
                 )
