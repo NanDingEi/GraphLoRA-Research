@@ -188,7 +188,13 @@ class JointLightGCN(nn.Module):
         coarse = torch.cat([u, p, (u * p).sum(-1, keepdim=True),
                             torch.logit(prob).unsqueeze(-1)], dim=-1)
         # Live differentiable pooled residual; no frozen residual snapshot.
-        hist_sum = torch.sparse.mm(self.positive_history_incidence, residual)
+        # The user/community sparse history aggregation has the same CUDA
+        # AMP limitation as graph propagation. Keep both sparse operands FP32
+        # and retain autograd through residual and graph node parameters.
+        with torch.autocast(device_type=residual.device.type, enabled=False):
+            hist_sum = torch.sparse.mm(
+                self.positive_history_incidence.float(), residual.float()
+            )
         hist_sum = hist_sum.view(self.num_users, self.k, item.shape[1])[users, group]
         hist_sum = hist_sum - remove_pos.unsqueeze(-1) * r
         history = torch.where(pos.unsqueeze(-1) > 0,
