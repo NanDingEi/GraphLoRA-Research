@@ -48,10 +48,20 @@ def _history_incidence(u, i, groups, n_users, n_items, k):
 
 class JointLightGCN(nn.Module):
     def __init__(self, artifact, train_path, n_users, n_items, mf_user, mf_item,
-                 layers=2, k=16):
+                 layers=2, k=16, aggregation="uniform"):
         super().__init__()
         if layers not in (1, 2, 3) or k != 16:
             raise ValueError("N24 requires 1-3 LightGCN layers and K16")
+        if aggregation not in ("uniform", "learned"):
+            raise ValueError("N26 graph aggregation must be uniform or learned")
+        self.aggregation = aggregation
+        # Softmax(zeros) reproduces the original exactly uniform layer
+        # aggregation at initialization. This lives under graph_joint.*
+        # and receives the graph optimizer LR multiplier.
+        if aggregation == "learned":
+            self.layer_logits = nn.Parameter(torch.zeros(layers + 1))
+            self._n26_layer_grad_events = 0
+            self.layer_logits.register_hook(self._audit_layer_gradient)
         with np.load(str(artifact), allow_pickle=False) as f:
             required = ("graph_id_table", "user_graph", "item_graph", "item_to_cluster")
             if not set(required).issubset(set(f.files)):
@@ -126,7 +136,7 @@ class JointLightGCN(nn.Module):
                                   rtol=3e-3, atol=3e-4):
                 raise RuntimeError("Graph ID table does not reproduce pretraining item embeddings")
         print(f"[N24-GRAPH-JOINT] trainable_id_table={n}x256 layers={layers} "
-              f"train_edges={len(edge_keys)} K={k} "
+              f"aggregation={self.aggregation} train_edges={len(edge_keys)} K={k} "
               f"history_edges={int(positive.sum())} model_lr_group=graph "
               "graph_grad_from_LLM=True", flush=True)
 
@@ -161,6 +171,26 @@ class JointLightGCN(nn.Module):
         self._grad_audit_calls += 1
         return grad
 
+
+    def _audit_layer_gradient(self, grad):
+        if not bool(torch.isfinite(grad).all()):
+            raise FloatingPointError("N26 learned layer-logit gradient nonfinite")
+        if self._n26_layer_grad_events < 3 and grad.detach().abs().max().item() > 0:
+            self._n26_layer_grad_events += 1
+            print(
+                f"[N26-LAYER-LOGIT-GRAD] event={self._n26_layer_grad_events} "
+                f"grad_norm={grad.detach().float().norm().item():.8g} "
+                f"grad={grad.detach().float().cpu().tolist()}",
+                flush=True,
+            )
+        return grad
+
+    @torch.no_grad()
+    def layer_weight_summary(self):
+        if self.aggregation == "learned":
+            return torch.softmax(self.layer_logits.float(), dim=0).cpu().tolist()
+        return [1.0 / (self.layers + 1)] * (self.layers + 1)
+
     def _propagate(self):
         # CUDA sparse.mm does not support the FP16 sparse addmm path on
         # the target PyTorch build.  Disabling autocast explicitly avoids
@@ -171,11 +201,21 @@ class JointLightGCN(nn.Module):
                             enabled=False):
             adj = self.adjacency.float()
             h = self.id_embedding.float()
-            result = h
-            for _ in range(self.layers):
-                h = torch.sparse.mm(adj, h)
-                result = result + h
-            result = result / (self.layers + 1)
+            if self.aggregation == "uniform":
+                result = h
+                for _ in range(self.layers):
+                    h = torch.sparse.mm(adj, h)
+                    result = result + h
+                result = result / (self.layers + 1)
+            else:
+                # Every propagated level contributes to the LLM loss.
+                # No detaches and no rounding to fp16 before softmax.
+                states = [h]
+                for _ in range(self.layers):
+                    h = torch.sparse.mm(adj, h)
+                    states.append(h)
+                weights = torch.softmax(self.layer_logits.float(), dim=0)
+                result = sum(w * state for w, state in zip(weights, states))
             user = result[:self.num_users] * self.user_scale
             item = result[self.num_users:] * self.item_scale
             # item ID 0 is padding and must remain exactly zero.
