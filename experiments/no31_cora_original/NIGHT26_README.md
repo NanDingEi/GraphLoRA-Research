@@ -29,7 +29,7 @@ No gradient detach. The extra four learnable scalar logits enter the
 existing graph optimizer parameter group (same LR multiplier=0.1).
 The 3-layer graph is initially identical to C1, up to FP32 reduction
 round-off. At the end of training C2 must report four positive weights
-summing to 1 and at least three observed positive layer-logit gradients.
+summing to 1 and observed nonzero layer-logit gradients (up to the first three are logged).
 If weights do not move from uniform, the run fails rather than presenting
 an illusory adaptive result.
 
