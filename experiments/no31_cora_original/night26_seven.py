@@ -59,9 +59,12 @@ def find_artifact(optional_path):
         if not path.is_file():
             raise FileNotFoundError(path)
         return path
-    locations = sorted((ROOT / "logs").glob(
+    locations = list((ROOT / "logs").glob(
         "NO31_CORA_NIGHT26_*/artifacts/N26_SHARED_MF_L3.npz"
+    )) + list((ROOT / "logs").glob(
+        "NO31_CORA_NIGHT26_NEW7_*/artifacts/N27_SHARED_MF_L3.npz"
     ))
+    locations.sort(key=lambda item: item.stat().st_mtime)
     return locations[-1].resolve() if locations else None
 
 def verify_artifact(path, cfg):
