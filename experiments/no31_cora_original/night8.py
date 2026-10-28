@@ -110,6 +110,7 @@ def build_environment(row):
         "NO31_CORA_GRANULARITY_MODE": row.get("granularity_mode", "original"),
         "NO31_CORA_FINE_RESIDUAL_MODE": row.get("fine_residual_mode", "off"),
         "NO31_CORA_COLLAB_MODE": row.get("collab_mode", "off"),
+        "NO31_CORA_GRAPH_MODE": row.get("graph_mode", "off"),
         "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
         "NO31_CORA_COLLAB_TRAIN_PATH": row.get("collab_train_path", ""),
         "PYTHONUNBUFFERED": "1",
@@ -275,6 +276,9 @@ def run_one(row, common_cfg, root):
     if len(metric_rows) != 1:
         raise RuntimeError(f"[{ident}] expected exactly 1 Valid: {metric_rows}")
 
+    if row.get("graph_mode", "off") != "off":
+        if "[CORA-N23-GRAPH]" not in text or f"graph_mode={row['graph_mode']}" not in text:
+            raise RuntimeError("NIGHT23 graph feature audit marker missing")
     if row.get("collab_mode", "off") != "off":
         required_n20 = (
             "[CORA-N20-DATA]", "[CORA-N20-PROBE-OK]",
