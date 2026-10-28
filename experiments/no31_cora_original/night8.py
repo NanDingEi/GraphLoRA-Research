@@ -112,6 +112,7 @@ def build_environment(row):
         "NO31_CORA_COLLAB_MODE": row.get("collab_mode", "off"),
         "NO31_CORA_GRAPH_MODE": row.get("graph_mode", "off"),
         "NO31_CORA_GRAPH_JOINT": "1" if row.get("graph_joint", False) else "0",
+        "NO31_CORA_FORCE_FP32": "1" if row.get("force_fp32_cora", False) else "0",
         "NO31_CORA_GRAPH_LAYERS": str(row.get("graph_layers", 2)),
         "NO31_CORA_GRAPH_AGGREGATION": row.get("graph_aggregation", "uniform"),
         "NO31_CORA_GRAPH_ANCHOR_LAMBDA": str(row.get("graph_anchor_lambda", 1.0)),
@@ -192,6 +193,7 @@ def run_one(row, common_cfg, root):
     cfg["run"]["lr_scale_cora_p"] = float(row["p_lr"])
     if row.get("graph_joint", False):
         cfg["run"]["lr_scale_graph"] = float(row.get("graph_lr_scale", 0.1))
+    if "amp_init_scale" in row or row.get("graph_joint", False):
         cfg["run"]["amp_init_scale"] = float(row.get("amp_init_scale", 256.0))
     # Follow-up experiments vary only the explicitly listed random seed.
     # Existing R1-R8 recipes omit seed and remain seed42.
@@ -380,6 +382,8 @@ def run_one(row, common_cfg, root):
         graph_lr_scale=float(row.get("graph_lr_scale", 0.1)),
         graph_aux_weight=float(row.get("graph_aux_weight", 0.01)),
         graph_aggregation=row.get("graph_aggregation", "uniform"),
+        force_fp32_cora=bool(row.get("force_fp32_cora", False)),
+        amp_init_scale=float(cfg["run"].get("amp_init_scale", 65536.0)),
         graph_layer_weights_end=(
             json.loads(re.findall(
                 r"\[N26-LAYER-WEIGHTS-END\]\s*(\{[^\n]*\})", text
