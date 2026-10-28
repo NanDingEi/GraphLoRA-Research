@@ -190,14 +190,17 @@ def main():
         return
     if runtime.graph_joint:
         graph = runtime.model.graph_joint
-        if graph.aggregation == "learned":
+        if graph.aggregation in ("learned", "shallow_learned"):
             weights = graph.layer_weight_summary()
-            expected = 1.0 / len(weights)
-            changed = max(abs(w - expected) for w in weights)
+            prior = ([0.25] * 4 if graph.aggregation == "learned"
+                     else [0.4, 0.3, 0.2, 0.1])
+            changed = max(abs(w - p) for w, p in zip(weights, prior))
             print("[N26-LAYER-WEIGHTS-END] " + json.dumps(dict(
                 layers=graph.layers,
                 weights=weights,
-                max_deviation_from_uniform=changed,
+                max_deviation_from_initial=changed,
+                initial_weights=prior,
+                aggregation=graph.aggregation,
                 positive_gradient_events=graph._n26_layer_grad_events,
             )), flush=True)
             if graph._n26_layer_grad_events == 0 or changed <= 1e-9:
@@ -205,6 +208,34 @@ def main():
                     "N26 adaptive aggregation did not receive usable gradients "
                     "or softmax layer weights stayed at initialization."
                 )
+        if graph.fusion in ("dual", "degree"):
+            gate_summary = graph.fusion_summary()
+            print("[N27-GATE-END] " + json.dumps(gate_summary), flush=True)
+            if gate_summary["gradient_events"] <= 0:
+                raise RuntimeError("N27 trainable graph fusion gate never received nonzero gradients")
+            if graph.fusion == "dual":
+                delta = max(abs(gate_summary["user_lambda"] - 0.1),
+                            abs(gate_summary["item_lambda"] - 0.1))
+            else:
+                delta = max(abs(gate_summary["user_lambda_at_degree0"] - 0.1),
+                            abs(gate_summary["item_lambda_at_degree0"] - 0.1),
+                            abs(gate_summary["user_slope"]),
+                            abs(gate_summary["item_slope"]))
+            if delta < 1e-8:
+                raise RuntimeError("N27 trainable graph fusion gate did not change after an epoch")
+        if runtime.graph_mode == "graph_c2f":
+            gen = runtime.model.cora_weight_generator
+            vals = {
+                label: {
+                    "weight_norm": float(head[-1].weight.detach().float().norm()),
+                    "bias_norm": float(head[-1].bias.detach().float().norm()),
+                }
+                for label, head in (("coarse", gen.n20_coarse_head),
+                                    ("fine", gen.n20_fine_head))
+            }
+            print("[N27-C2F-HEADS-END] " + json.dumps(vals), flush=True)
+            if any(sum(side.values()) == 0 for side in vals.values()):
+                raise RuntimeError("N27 C2F head did not update; check schedule and gradients")
         amp_stats = dict(
             skipped_updates=graph._n24_amp_skip_total,
             successful_updates=graph._n24_amp_success_total,
