@@ -602,7 +602,10 @@ class OriginalCoRARuntime:
                     user_lambda, item_lambda = model.graph_joint.fusion_weights(users, items)
                     if user_lambda.shape != (users.numel(), 1) or item_lambda.shape != (users.numel(), 1):
                         raise RuntimeError("N27 graph gate output shape mismatch")
-                    if not (torch.isfinite(user_lambda).all() and torch.isfinite(item_lambda).all()):
+                    quick_check = (not state.graph_fast_base
+                                   or state.counters["fast_graph_forwards"] <= 16
+                                   or state.counters["fast_graph_forwards"] % state.fast_tensor_checks_interval == 0)
+                    if quick_check and not (torch.isfinite(user_lambda).all() and torch.isfinite(item_lambda).all()):
                         raise FloatingPointError("N27 graph gates contain NaN/Inf")
                     mf_user, mf_item = pair.split(256, dim=-1)
                     graph_user, graph_item = graph_pair_live.split(256, dim=-1)
@@ -612,7 +615,7 @@ class OriginalCoRARuntime:
                     ), dim=-1)
                     model._n24_aux_loss = joint_aux if joint_aux is not None else pair.new_zeros(())
                     state.grad_probe(pair, "graph_pair")
-                    if not torch.isfinite(pair).all():
+                    if quick_check and not torch.isfinite(pair).all():
                         raise FloatingPointError("N26 anchored graph condition nonfinite")
             elif state.graph_mode != "off":
                 pair = graph_pair(model, users, items)
