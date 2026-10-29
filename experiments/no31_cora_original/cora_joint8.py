@@ -37,7 +37,9 @@ RUNS = [
     ("R6_CTR_KD_ANC",False,.05,  .05,  0,    5e-4),
     ("R7_ALL",      False,.05,  .05,  1e-4, 5e-4),
 ]
-PROTOCOL = "CORA_JOINT8_20261029"
+PROTOCOL = "CORA_JOINT8_LR3E4_20261030"
+CORA_LR = 3e-4
+MF_LR_RATIO = 0.1
 CONFIG_DIR = ROOT / "local_configs" / PROTOCOL
 OUT_DIR = ROOT / "output" / PROTOCOL
 LOG_DIR = ROOT / "logs" / PROTOCOL
@@ -79,6 +81,9 @@ def prepare():
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     for name,freeze,ctr,kd,sem,anc in RUNS:
         cfg = yaml.safe_load(BASE.read_text())
+        # Build the updated eight-trial set without modifying the original source config.
+        cfg["run"]["init_lr"] = CORA_LR
+        # Keep the same warmup_lr/min_lr as the successful 3e-4 LR comparison.
         cfg["model"]["freeze_rec"] = freeze
         cfg["model"]["ckpt"] = None
         cfg["run"]["evaluate"] = False
@@ -94,8 +99,11 @@ def prepare():
         target.write_text(yaml.safe_dump(cfg, sort_keys=False))
     manifest = {
         "source_config":str(BASE), "purpose":"eight independent valid-only screens",
-        "seed":42, "gpu":"0", "base_lr":float(run["init_lr"]),
-        "mf_lr_ratio":.1, "mf_lr_effective_peak":float(run["init_lr"])*.1,
+        "seed":42, "gpu":"0",
+        "original_source_config_lr":float(run["init_lr"]),
+        "cora_lr":CORA_LR, "base_lr":CORA_LR,
+        "mf_lr_ratio":MF_LR_RATIO, "mf_lr_effective_peak":CORA_LR*MF_LR_RATIO,
+        "warmup_lr":float(run["warmup_lr"]), "min_lr":float(run["min_lr"]),
         "batch_size_train":2, "accum_grad_iters":4,
         "iters_per_epoch":400, "scheduler_max_epoch":1000,
         "default_early_stop_patience":10, "default_epoch_cap":0,
@@ -107,6 +115,8 @@ def prepare():
     (LOG_DIR / "manifest.json").write_text(json.dumps(manifest,ensure_ascii=False,indent=2))
     for t in RUNS:
         print(f"{t[0]:18} frozen={t[1]} ctr={t[2]} kd={t[3]} sem={t[4]} anchor={t[5]}",flush=True)
+    print(f"[JOINT8 LR] CoRA={CORA_LR:.8f}; MF={CORA_LR*MF_LR_RATIO:.8f} "
+          f"(MF={MF_LR_RATIO:g}x). Seed=42, patience=10.", flush=True)
     print(f"[CONFIGS] {CONFIG_DIR} [OUTPUT] {OUT_DIR} [LOGS] {LOG_DIR}",flush=True)
 
 
@@ -330,9 +340,12 @@ def patch_model(spec):
 
 def worker(name, screen_epochs, patience):
     spec = get_trial(name)
-    patch_runner(screen_epochs=screen_epochs, mf_lr_ratio=.1, patience=patience)
+    patch_runner(screen_epochs=screen_epochs, mf_lr_ratio=MF_LR_RATIO, patience=patience)
     patch_model(spec)
     cfg = CONFIG_DIR / (name+".yaml")
+    saved_cfg = yaml.safe_load(cfg.read_text())
+    if abs(float(saved_cfg["run"]["init_lr"]) - CORA_LR) > 1e-12:
+        raise RuntimeError(f"Wrong CoRA LR for {name}: {saved_cfg['run']['init_lr']}")
     sys.argv = ["train_collm_mf_din.py", "--cfg-path",str(cfg)]
     runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
 
