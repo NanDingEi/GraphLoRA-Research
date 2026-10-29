@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from time import perf_counter
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path[:] = [p for p in sys.path if Path(p or ".").resolve() != ROOT]
@@ -54,7 +55,7 @@ def save_summary(root, records):
             "graph_anchor_lambda", "graph_user_lambda", "graph_item_lambda",
             "graph_fusion", "graph_aggregation", "fast_graph_base",
             "graph_audit_interval", "fast_check_interval", "empty_cache_interval",
-            "amp_summary", "seed", "log", "checkpoint", "graph_artifact")
+            "amp_summary", "wall_seconds", "seed", "log", "checkpoint", "graph_artifact")
     with (root / "summary.csv").open("w", newline="", encoding="utf-8") as out:
         writer = csv.DictWriter(out, fieldnames=keys)
         writer.writeheader()
@@ -138,7 +139,9 @@ def main():
         try:
             if core.gpu_is_in_use():
                 raise RuntimeError("GPU0 unexpectedly occupied between arms")
+            wall_start = perf_counter()
             result = core.run_one(row, cfg, root)
+            result["wall_seconds"] = round(perf_counter() - wall_start, 3)
             result["graph_artifact"] = str(artifact)
             if result["graph_fusion"] != row["graph_fusion"]:
                 raise RuntimeError("Graph fusion mode mismatch")
@@ -149,7 +152,8 @@ def main():
                 out.write(json.dumps(result) + "\n")
             save_summary(root, records)
             print(f"[N28-FOUR-DONE] {i}/{len(chosen)} {row['id']} "
-                  f"ValidAUC={result['auc']:.9f} ValidUAUC={result['uauc']:.9f}",
+                  f"ValidAUC={result['auc']:.9f} ValidUAUC={result['uauc']:.9f} "
+                  f"wall_s={result['wall_seconds']:.1f}",
                   flush=True)
         except BaseException as e:
             (root / "failed.json").write_text(json.dumps(dict(
