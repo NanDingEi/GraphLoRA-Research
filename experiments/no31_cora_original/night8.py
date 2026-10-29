@@ -116,6 +116,12 @@ def build_environment(row):
         "NO31_CORA_GRAPH_LAYERS": str(row.get("graph_layers", 2)),
         "NO31_CORA_GRAPH_AGGREGATION": row.get("graph_aggregation", "uniform"),
         "NO31_CORA_GRAPH_FUSION": row.get("graph_fusion", "fixed"),
+        "NO31_CORA_GRAPH_USER_LAMBDA": str(row.get("graph_user_lambda", row.get("graph_anchor_lambda", 1.0))),
+        "NO31_CORA_GRAPH_ITEM_LAMBDA": str(row.get("graph_item_lambda", row.get("graph_anchor_lambda", 1.0))),
+        "NO31_CORA_FAST_GRAPH_BASE": "1" if row.get("fast_graph_base", False) else "0",
+        "NO31_CORA_GRAPH_AUDIT_INTERVAL": str(row.get("graph_audit_interval", 1)),
+        "NO31_CORA_FAST_CHECK_INTERVAL": str(row.get("fast_check_interval", 1)),
+        "NO31_CORA_EMPTY_CACHE_INTERVAL": str(row.get("empty_cache_interval", 1)),
         "NO31_CORA_GRAPH_ANCHOR_LAMBDA": str(row.get("graph_anchor_lambda", 1.0)),
         "NO31_CORA_GRAPH_AUX_WEIGHT": str(row.get("graph_aux_weight", 0.01)),
         "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
@@ -390,6 +396,12 @@ def run_one(row, common_cfg, root):
         graph_aux_weight=float(row.get("graph_aux_weight", 0.01)),
         graph_aggregation=row.get("graph_aggregation", "uniform"),
         graph_fusion=row.get("graph_fusion", "fixed"),
+        graph_user_lambda=float(row.get("graph_user_lambda", row.get("graph_anchor_lambda", 1.0))),
+        graph_item_lambda=float(row.get("graph_item_lambda", row.get("graph_anchor_lambda", 1.0))),
+        fast_graph_base=bool(row.get("fast_graph_base", False)),
+        graph_audit_interval=int(row.get("graph_audit_interval", 1)),
+        fast_check_interval=int(row.get("fast_check_interval", 1)),
+        empty_cache_interval=int(row.get("empty_cache_interval", 1)),
         graph_gate_end=(
             json.loads(re.findall(
                 r"\[N27-GATE-END\]\s*(\{[^\n]*\})", text
