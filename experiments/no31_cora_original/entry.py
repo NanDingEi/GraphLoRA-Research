@@ -108,6 +108,19 @@ def main():
                     layer.weight.detach(), layer.bias.detach()
                 )):
                     raise RuntimeError("Group projector output must be identity-initialized")
+        if runtime.preference_router_mode != "off":
+            if runtime.graph_joint or runtime.graph_mode != "off" or runtime.collab_mode != "off":
+                raise RuntimeError("Preference routing must not use online graph features")
+            router = getattr(model, "cora_preference_router", None)
+            if router is None or router.mode != runtime.preference_router_mode:
+                raise RuntimeError("Missing or wrong R1-R4 preference router")
+            if torch.count_nonzero(router.head[-1].weight.detach()).item() != 0:
+                raise RuntimeError("Preference router must have zero head weight at initialization")
+            if torch.count_nonzero(router.head[-1].bias.detach()).item() != 0:
+                raise RuntimeError("Preference router must have zero head bias at initialization")
+            print(f"[N29-ROUTER-PROBE-OK] mode={router.mode} "
+                  f"epsilon={router.epsilon:g} init_multiplier=1 exact=True "
+                  "graph_off=True", flush=True)
         if runtime.graph_mode != "off":
             if (not hasattr(gen, "n20_coarse_head")
                     or not hasattr(gen, "n20_fine_head")
@@ -244,6 +257,13 @@ def main():
         print("[N24-AMP-SUMMARY] " + json.dumps(amp_stats), flush=True)
         if amp_stats["successful_updates"] == 0:
             raise RuntimeError("N24 graph completed training with zero successful optimizer updates")
+    if runtime.preference_router_mode != "off":
+        report = runtime.model.cora_preference_router.summary()
+        print("[N29-ROUTER-END] " + json.dumps(report), flush=True)
+        if report["positive_gradient_events"] == 0 or report["final_weight_norm"] <= 0:
+            raise RuntimeError("R1-R4 router head did not receive useful gradients and update")
+        if runtime.counters["router_conditioned_batches"] <= 0 or runtime.counters["router_projection_forwards"] <= 0:
+            raise RuntimeError("R1-R4 router was not used by Group8 CoRA")
     print("[CORA-ORIGINAL-COUNTERS] "+json.dumps(dict(runtime.counters)),flush=True)
     if runtime.collab_mode != "off":
         gen = runtime.model.cora_weight_generator
