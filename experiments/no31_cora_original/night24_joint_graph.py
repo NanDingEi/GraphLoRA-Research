@@ -363,10 +363,16 @@ class JointLightGCN(nn.Module):
         return user, item
 
     def forward(self, users, targets, global_counts, labels=None, tau=5.,
-                use_conditions=True, compute_aux=True):
+                use_conditions=True, compute_aux=True, assume_validated=False):
         users, targets = users.long().reshape(-1), targets.long().reshape(-1)
-        if (users.numel() == 0 or users.numel() != targets.numel()
-                or (users < 0).any() or (users >= self.num_users).any()
+        if users.numel() == 0 or users.numel() != targets.numel():
+            raise ValueError("N24 invalid users/targets batch shape")
+        if assume_validated and use_conditions:
+            raise ValueError("Assumed-valid IDs only supported in graph_base fast path")
+        # The adapter validates min/max IDs immediately before this call.
+        # Fast path avoids doing 4 additional GPU->CPU synchronizations.
+        if not assume_validated and (
+                (users < 0).any() or (users >= self.num_users).any()
                 or (targets <= 0).any() or (targets >= self.num_items).any()):
             raise ValueError("N24 invalid users/targets")
         user, item = self._propagate()
