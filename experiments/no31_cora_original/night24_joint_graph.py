@@ -50,7 +50,8 @@ def _history_incidence(u, i, groups, n_users, n_items, k):
 class JointLightGCN(nn.Module):
     def __init__(self, artifact, train_path, n_users, n_items, mf_user, mf_item,
                  layers=2, k=16, aggregation="uniform", fusion="fixed",
-                 initial_lambda=0.1):
+                 initial_lambda=0.1, user_lambda=None, item_lambda=None,
+                 sparse_audit_interval=1):
         super().__init__()
         if layers not in (1, 2, 3) or k != 16:
             raise ValueError("N24 requires 1-3 LightGCN layers and K16")
@@ -58,19 +59,29 @@ class JointLightGCN(nn.Module):
             raise ValueError("N27 graph aggregation mode unsupported")
         if aggregation.startswith("shallow") and layers != 3:
             raise ValueError("Shallow-prior weights require 3 LightGCN propagation steps")
-        if fusion not in ("fixed", "dual", "degree"):
-            raise ValueError("N27 fusion mode must be fixed, dual, or degree")
-        if not 0 <= initial_lambda <= 0.5 or (fusion != "fixed" and initial_lambda in (0., 0.5)):
+        if fusion not in ("fixed", "fixed_pair", "dual", "degree"):
+            raise ValueError("Graph fusion must be fixed/fixed_pair/dual/degree")
+        if fusion == "fixed_pair":
+            if user_lambda is None or item_lambda is None:
+                raise ValueError("fixed_pair requires user_lambda and item_lambda")
+            if not (0 <= user_lambda <= 0.5 and 0 <= item_lambda <= 0.5):
+                raise ValueError("fixed_pair coefficients out of range [0, .5]")
+        if not 0 <= initial_lambda <= 0.5 or (fusion in ("dual", "degree") and initial_lambda in (0., 0.5)):
             raise ValueError("N27 initial lambda must be [0,.5] for fixed, (0,.5) for trainable gate")
         self.aggregation = aggregation
         self.fusion = fusion
         self.max_fusion = 0.5
         self.initial_lambda = float(initial_lambda)
+        self.fixed_user_lambda = float(user_lambda) if user_lambda is not None else self.initial_lambda
+        self.fixed_item_lambda = float(item_lambda) if item_lambda is not None else self.initial_lambda
+        self.sparse_audit_interval = int(sparse_audit_interval)
+        if self.sparse_audit_interval < 1:
+            raise ValueError("sparse_audit_interval must be >= 1")
         self._n27_gate_grad_events = 0
         # Fixed lambda may legally be zero (N26 MF-only control). Only
         # learnable gates need the inverse sigmoid and nonzero initial lambda.
         initial_logit = (math.log(initial_lambda / (self.max_fusion - initial_lambda))
-                         if fusion != "fixed" else 0.0)
+                         if fusion in ("dual", "degree") else 0.0)
         if fusion == "dual":
             self.dual_gate_logits = nn.Parameter(torch.full((2,), initial_logit))
             self.dual_gate_logits.register_hook(self._audit_gate_gradient)
@@ -188,11 +199,21 @@ class JointLightGCN(nn.Module):
                 raise RuntimeError("Graph ID table mismatch with UNIFORM pretraining item representation")
         print(f"[N24-GRAPH-JOINT] trainable_id_table={n}x256 layers={layers} "
               f"aggregation={self.aggregation} fusion={self.fusion} "
-              f"init_lambda={self.initial_lambda:g} train_edges={len(edge_keys)} K={k} "
+              f"init_lambda={self.initial_lambda:g} "
+              f"user_lambda={self.fixed_user_lambda:g} item_lambda={self.fixed_item_lambda:g} "
+              f"train_edges={len(edge_keys)} K={k} "
               f"history_edges={int(positive.sum())} model_lr_group=graph "
               "graph_grad_from_LLM=True", flush=True)
 
     def _audit_gradient(self, grad):
+        # Sparse audit only controls diagnostic GPU synchronizations; gradient
+        # is returned unchanged. GradScaler still checks every optimizer step.
+        # interval=1 preserves old behavior in legacy experiments.
+        if self.sparse_audit_interval > 1:
+            tick = self._grad_audit_calls
+            if tick >= 8 and tick % self.sparse_audit_interval != 0:
+                self._grad_audit_calls += 1
+                return grad
         # GradScaler.scale(loss).backward() invokes hooks BEFORE unscale_ and
         # the automatic nonfinite check in GradScaler.step().  Raising here
         # wrongly aborts on a recoverable AMP overflow, instead of letting
@@ -259,6 +280,9 @@ class JointLightGCN(nn.Module):
         if self.fusion == "fixed":
             v = self.id_embedding.new_full((batch, 1), self.initial_lambda)
             return v, v
+        if self.fusion == "fixed_pair":
+            return (self.id_embedding.new_full((batch, 1), self.fixed_user_lambda),
+                    self.id_embedding.new_full((batch, 1), self.fixed_item_lambda))
         if self.fusion == "dual":
             coeff = self.max_fusion * torch.sigmoid(self.dual_gate_logits.float())
             return (coeff[0].expand(batch, 1), coeff[1].expand(batch, 1))
@@ -277,6 +301,9 @@ class JointLightGCN(nn.Module):
         if self.fusion == "fixed":
             return dict(mode="fixed", user_lambda=self.initial_lambda,
                         item_lambda=self.initial_lambda)
+        if self.fusion == "fixed_pair":
+            return dict(mode="fixed_pair", user_lambda=self.fixed_user_lambda,
+                        item_lambda=self.fixed_item_lambda)
         if self.fusion == "dual":
             coeff = (self.max_fusion * torch.sigmoid(self.dual_gate_logits)).cpu().tolist()
             return dict(mode="dual", user_lambda=coeff[0], item_lambda=coeff[1],
@@ -333,13 +360,27 @@ class JointLightGCN(nn.Module):
             item = torch.cat([torch.zeros_like(item[:1]), item[1:]], dim=0)
         return user, item
 
-    def forward(self, users, targets, global_counts, labels=None, tau=5.):
+    def forward(self, users, targets, global_counts, labels=None, tau=5.,
+                use_conditions=True, compute_aux=True):
         users, targets = users.long().reshape(-1), targets.long().reshape(-1)
         if (users.numel() == 0 or users.numel() != targets.numel()
                 or (users < 0).any() or (users >= self.num_users).any()
                 or (targets <= 0).any() or (targets >= self.num_items).any()):
             raise ValueError("N24 invalid users/targets")
         user, item = self._propagate()
+        if not use_conditions:
+            # Exact graph_base branch: only selected trainable graph node
+            # features are consumed by CoRA. Do not compute unused community
+            # prototypes, history sparse.mm or graph BCE when weight=0.
+            # This preserves full-graph LightGCN propagation + LLM gradients.
+            pair = torch.cat([user[users], item[targets]], dim=-1)
+            if compute_aux and labels is not None:
+                aux = F.binary_cross_entropy_with_logits(
+                    (user[users] * item[targets]).sum(-1),
+                    labels.float().view(-1).to(pair.device))
+            else:
+                aux = None
+            return pair, None, aux
         # Differentiable community prototypes.  Community assignments are
         # fixed; no attempt to differentiate through hard clustering.
         means = item.new_zeros((self.k, item.shape[1]))
@@ -379,7 +420,7 @@ class JointLightGCN(nn.Module):
                               torch.zeros_like(r))
         fine = torch.cat([r, history, (u * r).sum(-1, keepdim=True)], dim=-1)
         auxiliary = None
-        if labels is not None:
+        if labels is not None and compute_aux:
             label = labels.float().view(-1).to(pair.device)
             if not torch.isin(label, torch.tensor([0., 1.], device=label.device)).all():
                 raise ValueError("N24 requires binary train labels for graph BCE")
