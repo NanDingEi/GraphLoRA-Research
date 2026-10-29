@@ -63,8 +63,8 @@ def main():
         graph.zero_grad(set_to_none=True)
 
         fast_pair, fast_features, fast_aux = graph(
-            users, targets, counts, labels=None, use_conditions=False,
-            compute_aux=False,
+            users, targets, None, labels=None, use_conditions=False,
+            compute_aux=False, assume_validated=True,
         )
         assert fast_features is None and fast_aux is None
         assert torch.equal(old_pair, fast_pair)
