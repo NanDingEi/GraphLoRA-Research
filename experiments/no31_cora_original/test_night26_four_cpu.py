@@ -24,17 +24,22 @@ from experiments.no31_cora_original import night8 as core
 def main():
     assert len(ARMS) == 4 and len({r["id"] for r in ARMS}) == 4
     assert set([r["id"] for r in ARMS]).isdisjoint({r["id"] for r in OLD_SEVEN})
-    assert [r["graph_anchor_lambda"] for r in ARMS] == [.15, .25, .2, .2]
-    assert [r.get("graph_fusion", "fixed") for r in ARMS] == [
+    # ARMS contains only per-arm overrides: N3/N4 inherit lambda=.2
+    # from COMMON. Test the exact merged rows sent to the training runner.
+    rows = [dict(COMMON, **arm) for arm in ARMS]
+    assert [r["graph_anchor_lambda"] for r in rows] == [.15, .25, .2, .2]
+    assert [r["graph_fusion"] for r in rows] == [
         "fixed", "fixed", "fixed_pair", "fixed_pair"]
-    assert [r.get("graph_user_lambda", 0) for r in ARMS[2:]] == [.1, .3]
-    assert [r.get("graph_item_lambda", 0) for r in ARMS[2:]] == [.3, .1]
+    assert [r.get("graph_user_lambda", r["graph_anchor_lambda"]) for r in rows] == [
+        .15, .25, .1, .3]
+    assert [r.get("graph_item_lambda", r["graph_anchor_lambda"]) for r in rows] == [
+        .15, .25, .3, .1]
     assert COMMON["fast_graph_base"] is True
     assert COMMON["empty_cache_interval"] == 0
     assert COMMON["graph_aux_weight"] == 0.0
     # Check that all four environment variables for fast path actually reach
     # the subprocess; this is a cheap protection against miswired CLI rows.
-    env = core.build_environment(dict(COMMON, **ARMS[2]))
+    env = core.build_environment(rows[2])
     assert env["NO31_CORA_GRAPH_FUSION"] == "fixed_pair"
     assert env["NO31_CORA_GRAPH_USER_LAMBDA"] == ".1" or float(
         env["NO31_CORA_GRAPH_USER_LAMBDA"]) == .1
