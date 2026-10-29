@@ -22,6 +22,11 @@ Original official CoRA is two-stage **after** pretrained MF:
 
 The original MF config shown in the repository has `evaluate: True` and a private Stage-1 path. The runner changes only the environment-dependent paths, `run.evaluate=False` for training, GPU0, valid-only testing restriction, and the selected hardware profile. Missing Stage-1 checkpoints **fail closed** rather than initializing random frozen projectors.
 
+The user has already identified the MF state_dict at
+`/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth`;
+the runner uses this as its **default**, but validates dimensions against the official
+dataset rather than assuming equivalence.
+
 The original CoRA MF training profile is `freeze_rec=True`, `freeze_proj=True`, `freeze_lora=False`, `use_lora=True`, rank 16, alpha 32, Q/K/V/O, dropout .05, seed42, cosine-warmup, init LR .001, min LR .00008, warmup LR .00001, 1000 max epochs, 100 iterations/epoch, train batch 8 and eval batch 32. These are **not** the GraphLoRA G2 settings (alpha48, different training schedule/losses).
 
 ## Where to run: existing NIGHT26 directory
@@ -45,7 +50,7 @@ python experiments/no31_cora_original/cora_official_repro.py --prepare
 First, install/use upstream's environment separately. **Do not start training without a trained Stage-1 checkpoint.** Point the two required checkpoint arguments at genuine, corresponding files (example placeholders below):
 
 ```bash
-MF=/absolute/path/to/pretrained_mf_ood2.pth
+MF=/home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth
 STAGE1=/absolute/path/to/official_compatible_stage1_checkpoint_best.pth
 VICUNA=/home/bbx/user_lx/models/vicuna-7b-v0
 DATA=/home/bbx/user_lx/GraphLoRA/dataset/ml-1m
