@@ -66,8 +66,10 @@ class JointLightGCN(nn.Module):
                 raise ValueError("fixed_pair requires user_lambda and item_lambda")
             if not (0 <= user_lambda <= 0.5 and 0 <= item_lambda <= 0.5):
                 raise ValueError("fixed_pair coefficients out of range [0, .5]")
-        if not 0 <= initial_lambda <= 0.5 or (fusion in ("dual", "degree") and initial_lambda in (0., 0.5)):
-            raise ValueError("N27 initial lambda must be [0,.5] for fixed, (0,.5) for trainable gate")
+        if not 0 <= initial_lambda <= 1.0:
+            raise ValueError("Graph anchor lambda must be within [0,1]")
+        if fusion in ("dual", "degree") and not (0 < initial_lambda < 0.5):
+            raise ValueError("Trainable graph gates require initial lambda within (0,.5)")
         self.aggregation = aggregation
         self.fusion = fusion
         self.max_fusion = 0.5
