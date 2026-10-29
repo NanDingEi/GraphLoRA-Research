@@ -35,6 +35,10 @@ DATA_FILES = ("train_ood2.pkl", "valid_ood2.pkl",
               "valid_small_ood2.pkl", "test_ood2.pkl")
 MODEL_DEFAULT = Path("/home/bbx/user_lx/models/vicuna-7b-v0")
 DATA_DEFAULT = Path("/home/bbx/user_lx/GraphLoRA/dataset/ml-1m")
+MF_DEFAULT = Path(
+    "/home/bbx/user_lx/GraphLoRA/checkpoints/"
+    "0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth"
+)
 
 def check_git(source, clone=False):
     """Pin the source commit and refuse to overwrite locally edited upstream."""
@@ -287,7 +291,7 @@ def main():
     p.add_argument("--source-dir", type=Path, default=SOURCE_DEFAULT)
     p.add_argument("--data-root", type=Path, default=DATA_DEFAULT)
     p.add_argument("--vicuna", type=Path, default=MODEL_DEFAULT)
-    p.add_argument("--mf-checkpoint", type=Path)
+    p.add_argument("--mf-checkpoint", type=Path, default=MF_DEFAULT)
     p.add_argument("--stage1-checkpoint", type=Path)
     p.add_argument("--eval-checkpoint", type=Path)
     p.add_argument("--profile", choices=("official", "gpu0_24gb", "smoke"),
