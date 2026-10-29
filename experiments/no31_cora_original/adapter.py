@@ -60,8 +60,20 @@ class OriginalCoRARuntime:
         self.graph_anchor_lambda = float(os.environ.get(
             "NO31_CORA_GRAPH_ANCHOR_LAMBDA", "1.0"))
         self.graph_fusion = os.environ.get("NO31_CORA_GRAPH_FUSION", "fixed")
-        if self.graph_fusion not in ("fixed", "dual", "degree"):
-            raise ValueError("N27 graph fusion must be fixed, dual or degree")
+        if self.graph_fusion not in ("fixed", "fixed_pair", "dual", "degree"):
+            raise ValueError("Graph fusion must be fixed, fixed_pair, dual or degree")
+        self.graph_user_lambda = float(os.environ.get(
+            "NO31_CORA_GRAPH_USER_LAMBDA", str(self.graph_anchor_lambda)))
+        self.graph_item_lambda = float(os.environ.get(
+            "NO31_CORA_GRAPH_ITEM_LAMBDA", str(self.graph_anchor_lambda)))
+        self.graph_fast_base = os.environ.get("NO31_CORA_FAST_GRAPH_BASE", "0") == "1"
+        self.graph_audit_interval = int(os.environ.get(
+            "NO31_CORA_GRAPH_AUDIT_INTERVAL", "1"))
+        self.fast_tensor_checks_interval = int(os.environ.get(
+            "NO31_CORA_FAST_CHECK_INTERVAL", "1"))
+        if self.graph_audit_interval < 1 or self.fast_tensor_checks_interval < 1:
+            raise ValueError("Graph audit/check intervals must be >= 1")
+
         if self.graph_layers not in (2, 3):
             raise ValueError("LightGCN propagation depth must be 2 or 3")
         if not 0.0 <= self.graph_anchor_lambda <= 1.0:
@@ -74,6 +86,9 @@ class OriginalCoRARuntime:
             raise ValueError("Unsupported N23 graph mode")
         if self.graph_joint and self.graph_mode == "off":
             raise ValueError("Joint graph requires an enabled graph_mode")
+        if self.graph_fast_base and (not self.graph_joint or self.graph_mode != "graph_base"
+                                     or self.graph_aux_weight != 0.0):
+            raise ValueError("Fast graph path requires joint graph_base with graph_aux_weight=0")
         self.collab_mode = os.environ.get("NO31_CORA_COLLAB_MODE", "off")
         if self.collab_mode not in (
             "off", "coarse_only", "fine_only", "dual_uniform", "dual_c2f",
@@ -375,6 +390,9 @@ class OriginalCoRARuntime:
                             aggregation=state.graph_aggregation,
                             fusion=state.graph_fusion,
                             initial_lambda=state.graph_anchor_lambda,
+                            user_lambda=state.graph_user_lambda,
+                            item_lambda=state.graph_item_lambda,
+                            sparse_audit_interval=state.graph_audit_interval,
                         ).to(model.cora_fixed_user.device)
                 else:
                     install_frozen_history(model, proto_path, train_path)
@@ -518,6 +536,9 @@ class OriginalCoRARuntime:
                 f"graph_layers={state.graph_layers} graph_anchor_lambda={state.graph_anchor_lambda:g} "
                 f"graph_aggregation={state.graph_aggregation} "
                 f"graph_fusion={state.graph_fusion} "
+                f"graph_user_lambda={state.graph_user_lambda:g} "
+                f"graph_item_lambda={state.graph_item_lambda:g} "
+                f"fast_graph_base={int(state.graph_fast_base)} "
                 f"force_fp32_cora={int(state.force_fp32_cora)} "
                 f"group_scaling={state.scaling:g} "
                 f"target_modules={len(named)} target=QKVO/all32/all_tokens "
@@ -566,8 +587,16 @@ class OriginalCoRARuntime:
                     )}
                     graph_pair_live, joint_features, joint_aux = model.graph_joint(
                         users, items, counts,
-                        labels=samples["label"] if model.training else None,
+                        labels=samples["label"] if model.training and not state.graph_fast_base else None,
+                        use_conditions=not state.graph_fast_base,
+                        compute_aux=not state.graph_fast_base,
                     )
+                    if state.graph_fast_base:
+                        state.counters["fast_graph_forwards"] += 1
+                        if state.counters["fast_graph_forwards"] == 1:
+                            print("[N28-FAST-GRAPH-BASE] skip_community=True "
+                                  "skip_user_history_sparse_mm=True skip_graph_bce=True "
+                                  "full_lightgcn_autograd=True", flush=True)
                     # MF anchor remains fixed for CoRA; the graph ID
                     # embedding and learned aggregation are differentiable.
                     user_lambda, item_lambda = model.graph_joint.fusion_weights(users, items)
@@ -581,7 +610,7 @@ class OriginalCoRARuntime:
                         mf_user + user_lambda * (graph_user - mf_user),
                         mf_item + item_lambda * (graph_item - mf_item),
                     ), dim=-1)
-                    model._n24_aux_loss = joint_aux
+                    model._n24_aux_loss = joint_aux if joint_aux is not None else pair.new_zeros(())
                     state.grad_probe(pair, "graph_pair")
                     if not torch.isfinite(pair).all():
                         raise FloatingPointError("N26 anchored graph condition nonfinite")
@@ -627,6 +656,14 @@ class OriginalCoRARuntime:
 
             # Original implementation uses MF [u, i] 256+256, not NGCF
             # penultimate states and not a learned per-rank gate.
+            # The original legacy path audits every generated matrix. The
+            # opt-in fast path preserves startup diagnostics but samples them
+            # later, avoiding 8 GPU synchronizations on every microbatch.
+            state.counters["condition_validation_batches"] += 1
+            check_index = state.counters["condition_validation_batches"]
+            check_dynamic = (state.fast_tensor_checks_interval == 1
+                             or check_index <= 16
+                             or check_index % state.fast_tensor_checks_interval == 0)
             if state.group_projector_mode != "off":
                 collab_features = None
                 if state.collab_mode != "off":
@@ -682,7 +719,7 @@ class OriginalCoRARuntime:
                         raise RuntimeError(
                             f"Invalid group {group_idx} CoRA A shape: {matrix.shape}"
                         )
-                    if not torch.isfinite(matrix).all():
+                    if check_dynamic and not torch.isfinite(matrix).all():
                         raise RuntimeError(f"Group {group_idx} CoRA A is nonfinite")
                 condition = None
                 weights_by_rank = None
@@ -703,7 +740,7 @@ class OriginalCoRARuntime:
                         raise RuntimeError(
                             f"CoRA dynamic LoRA-A shape invalid for rank {rank}: {w.shape}"
                         )
-                    if not torch.isfinite(w).all():
+                    if check_dynamic and not torch.isfinite(w).all():
                         raise RuntimeError(f"CoRA generated non-finite weights for rank {rank}")
             if state.targets[0]._cora_weight is not None:
                 raise RuntimeError("Stale CoRA weights were not cleared")
