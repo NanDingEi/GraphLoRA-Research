@@ -67,7 +67,7 @@ def check_git(source, clone=False):
             raise RuntimeError(f"Missing pinned official source {relative}")
     return rev
 
-def input_preflight(args, require_checkpoint):
+def input_preflight(args, require_checkpoint, evaluate=False):
     problems = []
     for name, path in (("Vicuna", args.vicuna), ("MovieLens OOD2 dataset", args.data_root)):
         if not path.is_dir():
@@ -76,8 +76,8 @@ def input_preflight(args, require_checkpoint):
         if not (args.data_root / fn).is_file():
             problems.append(f"Original OOD2 split missing: {args.data_root / fn}")
     for label, path in (("pretrained MF state_dict", args.mf_checkpoint),
-                        ("Stage-1 projection checkpoint",
-                         args.stage1_checkpoint if require_checkpoint else None)):
+                        ("Stage-1 projection checkpoint", args.stage1_checkpoint
+                         if not evaluate else args.eval_checkpoint)):
         if path is None:
             if require_checkpoint:
                 problems.append(f"{label} path not supplied")
@@ -87,9 +87,11 @@ def input_preflight(args, require_checkpoint):
         raise RuntimeError("Original CoRA input preflight FAILED:\n  - "
                            + "\n  - ".join(problems))
     return dict(model=str(args.vicuna), dataset=str(args.data_root),
-                mf=str(args.mf_checkpoint), stage1=str(args.stage1_checkpoint))
+                mf=str(args.mf_checkpoint),
+                stage1=str(args.stage1_checkpoint),
+                eval_checkpoint=str(args.eval_checkpoint))
 
-def verify_state_dicts(args):
+def verify_state_dicts(args, evaluate=False):
     """Catch the two most damaging silent mismatches before loading Vicuna."""
     import torch
     import pandas as pd
@@ -114,9 +116,10 @@ def verify_state_dicts(args):
                            f"official OOD2 needs U={(n_user,256)} I={(n_item,256)}")
     del mf
     # Stage-1 must have projection layers to be frozen in CoRA stage-2.
-    stage = torch.load(str(args.stage1_checkpoint), map_location="cpu")
+    stage_path = args.eval_checkpoint if evaluate else args.stage1_checkpoint
+    stage = torch.load(str(stage_path), map_location="cpu")
     if not isinstance(stage, dict) or "model" not in stage:
-        raise RuntimeError("Stage-1 checkpoint must be official runner "
+        raise RuntimeError("CoRA/Stage-1 checkpoint must be official runner "
                            "format containing the 'model' state dictionary")
     keys = list(stage["model"])
     for key_part in ("llama_proj.", "bias_proj."):
@@ -216,11 +219,11 @@ def run_official(args, evaluate=False):
         raise RuntimeError("GPU0 is occupied: refusing parallel training.")
     src = args.source_dir
     check_git(src)
-    input_preflight(args, require_checkpoint=True)
+    input_preflight(args, require_checkpoint=True, evaluate=evaluate)
     if evaluate and (args.eval_checkpoint is None or
                      not args.eval_checkpoint.is_file()):
         raise RuntimeError("Official evaluation needs --eval-checkpoint")
-    verify_state_dicts(args)
+    verify_state_dicts(args, evaluate=evaluate)
     import yaml
     stamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     label = "EVAL" if evaluate else "TRAIN"
@@ -279,7 +282,7 @@ def main():
     p = argparse.ArgumentParser(
         description="Pinned upstream CoRA MF/ML-1M OOD2 faithful reproduce")
     m = p.add_mutually_exclusive_group(required=True)
-    for action in ("plan", "prepare", "train", "evaluate"):
+    for action in ("plan", "prepare", "check", "train", "evaluate"):
         m.add_argument("--" + action, action="store_true")
     p.add_argument("--source-dir", type=Path, default=SOURCE_DEFAULT)
     p.add_argument("--data-root", type=Path, default=DATA_DEFAULT)
@@ -309,6 +312,24 @@ def main():
         show_plan(args)
         print("[CORA-OFFICIAL-SOURCE-READY] Unmodified pinned upstream: "
               + str(args.source_dir))
+        return
+    if args.check:
+        check_git(args.source_dir)
+        input_preflight(args, require_checkpoint=True)
+        verify_state_dicts(args)
+        cfg, deviations = build_config(args.source_dir, args,
+                                       ROOT / "output/CORA_OFFICIAL_PREFLIGHT")
+        print("[CORA-OFFICIAL-CHECK-PASS] no Vicuna/GPU allocation, "
+              "source+data+MF+Stage1 accepted. Config:")
+        print(json.dumps(dict(
+            model={k:cfg["model"][k] for k in (
+                "arch","freeze_rec","freeze_proj","freeze_lora","llama_model")},
+            lora=cfg["model"]["lora_config"],
+            run={k:cfg["run"][k] for k in (
+                "seed","init_lr","min_lr","max_epoch","iters_per_epoch",
+                "batch_size_train","batch_size_eval","amp","evaluate")},
+            deviations=deviations,
+        ), indent=2))
         return
     run_official(args, evaluate=args.evaluate)
 
