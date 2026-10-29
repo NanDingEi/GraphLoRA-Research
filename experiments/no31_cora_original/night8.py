@@ -122,6 +122,8 @@ def build_environment(row):
         "NO31_CORA_GRAPH_AUDIT_INTERVAL": str(row.get("graph_audit_interval", 1)),
         "NO31_CORA_FAST_CHECK_INTERVAL": str(row.get("fast_check_interval", 1)),
         "NO31_CORA_EMPTY_CACHE_INTERVAL": str(row.get("empty_cache_interval", 1)),
+        "NO31_CORA_PREFERENCE_ROUTER": row.get("preference_router", "off"),
+        "NO31_CORA_PREFERENCE_EPSILON": str(row.get("preference_epsilon", 0.1)),
         "NO31_CORA_GRAPH_ANCHOR_LAMBDA": str(row.get("graph_anchor_lambda", 1.0)),
         "NO31_CORA_GRAPH_AUX_WEIGHT": str(row.get("graph_aux_weight", 0.01)),
         "NO31_CORA_COLLAB_PROTO_PATH": row.get("collab_proto_path", ""),
@@ -339,6 +341,19 @@ def run_one(row, common_cfg, root):
         if int(amp_summary.get("successful_updates", 0)) <= 0:
             raise RuntimeError("N24 trained no successful graph optimizer updates")
         print(f"[N24-AMP-AUDIT-PASS] {ident}: {amp_summary}", flush=True)
+    if row.get("preference_router", "off") != "off":
+        if "[N29-ROUTER-PROBE-OK]" not in text or "[N29-ROUTER-FIRST]" not in text:
+            raise RuntimeError(f"[{ident}] zero-identity preference route not initialized")
+        if "[N29-ROUTER-GRAD]" not in text or "[N29-ROUTER-END]" not in text:
+            raise RuntimeError(f"[{ident}] preference router did not report gradient/update")
+        route_info = json.loads(re.findall(
+            r"\[N29-ROUTER-END\]\s*(\{[^\n]*\})", text)[-1])
+        if (route_info["mode"] != row["preference_router"]
+                or route_info["positive_gradient_events"] <= 0
+                or route_info["final_weight_norm"] <= 0):
+            raise RuntimeError(f"[{ident}] preference route head failed to train: {route_info}")
+    else:
+        route_info = None
     if row.get("collab_mode", "off") != "off":
         required_n20 = (
             "[CORA-N20-DATA]", "[CORA-N20-PROBE-OK]",
@@ -388,6 +403,9 @@ def run_one(row, common_cfg, root):
         cf_input=row["cf_input"], alpha=row["alpha"], p_lr=row["p_lr"],
         injection_mode=row.get("injection_mode", "shared"),
         group_projectors=row.get("group_projectors", "off"),
+        preference_router=row.get("preference_router", "off"),
+        preference_epsilon=float(row.get("preference_epsilon", 0.1)),
+        preference_router_end=route_info,
         fine_residual_mode=row.get("fine_residual_mode", "off"),
         collab_mode=row.get("collab_mode", "off"),
         graph_mode=row.get("graph_mode", "off"),
