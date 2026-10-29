@@ -581,15 +581,18 @@ class OriginalCoRARuntime:
                               "graph_forward_skipped=True FP32_CoRA=True",
                               flush=True)
                 else:
-                    counts = {key: getattr(model, "n20_" + key) for key in (
-                        "pair_keys", "pair_total", "pair_pos", "user_total",
-                        "user_pos", "group_prior",
-                    )}
+                    counts = None if state.graph_fast_base else {
+                        key: getattr(model, "n20_" + key) for key in (
+                            "pair_keys", "pair_total", "pair_pos", "user_total",
+                            "user_pos", "group_prior",
+                        )
+                    }
                     graph_pair_live, joint_features, joint_aux = model.graph_joint(
                         users, items, counts,
                         labels=samples["label"] if model.training and not state.graph_fast_base else None,
                         use_conditions=not state.graph_fast_base,
                         compute_aux=not state.graph_fast_base,
+                        assume_validated=state.graph_fast_base,
                     )
                     if state.graph_fast_base:
                         state.counters["fast_graph_forwards"] += 1
