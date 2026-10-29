@@ -19,6 +19,7 @@ from torch import nn
 from torch.nn import functional as F
 
 from experiments.no31_cora_original.weight_generator import PerceptualWeightsGenerator
+from experiments.no31_cora_original.preference_router import PreferenceResidualRouter
 from experiments.no31_cora_original.night24_joint_graph import JointLightGCN
 from experiments.no31_cora_original.night23_graph_features import (install_graph_history, graph_pair, make_graph_features)
 from experiments.no31_cora_original.granularity_signals import build_coarse_fine_signals
@@ -48,6 +49,12 @@ class OriginalCoRARuntime:
         # NIGHT26 seven-arm diagnostic: run *exactly* the same FP32
         # QFormer/CoRA-P numerical path without creating any graph module.
         self.force_fp32_cora = os.environ.get("NO31_CORA_FORCE_FP32", "0") == "1"
+        # R1-R4: preference-aware CoRA residual routing, independent of GNN.
+        self.preference_router_mode = os.environ.get("NO31_CORA_PREFERENCE_ROUTER", "off")
+        if self.preference_router_mode not in ("off",) + PreferenceResidualRouter.MODES:
+            raise ValueError("Unknown CoRA preference route")
+        self.preference_router_epsilon = float(os.environ.get(
+            "NO31_CORA_PREFERENCE_EPSILON", "0.1"))
         # N25: retain the original frozen MF CoRA input as a strong anchor,
         # and add a controlled, differentiable LightGCN residual.
         # Defaults exactly reproduce N24 unless N25 env vars are provided.
@@ -189,6 +196,15 @@ class OriginalCoRARuntime:
             or self.projections != ("q_proj", "k_proj", "v_proj", "o_proj")
         ):
             raise ValueError("Group projectors require G2 rank16, full32 QKVO, concat/shared")
+        if self.preference_router_mode != "off" and (
+            self.group_projector_mode != "group8"
+            or self.graph_mode != "off" or self.graph_joint
+            or self.collab_mode != "off"
+            or self.granularity_mode != "original"
+            or self.fine_residual_mode != "off"
+            or self.rank_profile is not None
+        ):
+            raise ValueError("Preference router requires plain G2 group8, no GNN or collab features")
         self.expected_targets = len(self.projections) * len(self.layers)
 
     def group_for_layer(self, layer_index):
@@ -495,6 +511,7 @@ class OriginalCoRARuntime:
                 mod.cora_dropout = nn.Dropout(p=0.05)
                 mod._cora_weight = None
                 mod._cora_condition = None
+                mod._cora_route_scale = None
                 mod.cora_layer_index = layer
                 mod.cora_projection_name = proj
                 mod.cora_rank = p_rank
@@ -503,6 +520,21 @@ class OriginalCoRARuntime:
             model.cora_fixed_user.requires_grad_(False)
             model.cora_fixed_item.requires_grad_(False)
             model.cora_weight_generator.to(model.cora_fixed_user.device)
+            if state.preference_router_mode != "off":
+                # Construct AFTER CoRA/P modules. Save the CPU RNG stream so
+                # router architecture does not change training data order.
+                _router_rng = torch.get_rng_state()
+                try:
+                    model.cora_preference_router = PreferenceResidualRouter(
+                        mode=state.preference_router_mode,
+                        embedding_size=e,
+                        epsilon=state.preference_router_epsilon,
+                    ).to(model.cora_fixed_user.device)
+                finally:
+                    torch.set_rng_state(_router_rng)
+                print(f"[N29-ROUTER-INIT] mode={state.preference_router_mode} "
+                      f"epsilon={state.preference_router_epsilon:g} "
+                      f"zero_identity=True graph_joint=False", flush=True)
             if state.graph_joint:
                 model.cora_weight_generator.n24_grad_probe = state.grad_probe
             if hasattr(model, "cora_token_gate"):
@@ -536,6 +568,7 @@ class OriginalCoRARuntime:
                 f"graph_layers={state.graph_layers} graph_anchor_lambda={state.graph_anchor_lambda:g} "
                 f"graph_aggregation={state.graph_aggregation} "
                 f"graph_fusion={state.graph_fusion} "
+                f"preference_router={state.preference_router_mode} "
                 f"graph_user_lambda={state.graph_user_lambda:g} "
                 f"graph_item_lambda={state.graph_item_lambda:g} "
                 f"fast_graph_base={int(state.graph_fast_base)} "
@@ -750,6 +783,22 @@ class OriginalCoRARuntime:
                         raise RuntimeError(f"CoRA generated non-finite weights for rank {rank}")
             if state.targets[0]._cora_weight is not None:
                 raise RuntimeError("Stale CoRA weights were not cleared")
+            route = None
+            if state.preference_router_mode != "off":
+                history_ids = samples.get("InteractedItemIDs_pad")
+                route = model.cora_preference_router(
+                    users, items, history_ids, model.cora_fixed_user,
+                    model.cora_fixed_item, int(model.rec_encoder.padding_index),
+                )
+                if route.shape != (users.shape[0], 8, 4):
+                    raise RuntimeError(f"Preference route matrix shape invalid: {route.shape}")
+                state.counters["router_conditioned_batches"] += 1
+                if state.counters["router_conditioned_batches"] == 1:
+                    with torch.no_grad():
+                        if not torch.equal(route, torch.ones_like(route)):
+                            raise RuntimeError("R1-R4 initial route must be exactly one")
+                    print(f"[N29-ROUTER-FIRST] mode={state.preference_router_mode} "
+                          "initial_multiplier_exactly_one=True", flush=True)
             for mod in state.targets:
                 if state.group_projector_mode != "off":
                     group_idx = state.group_for_layer(mod.cora_layer_index)
@@ -760,6 +809,11 @@ class OriginalCoRARuntime:
                         raise RuntimeError(f"Missing dynamic CoRA basis for rank {rank}")
                     mod._cora_weight = weights_by_rank[rank]
                 mod._cora_condition = condition
+                if route is not None:
+                    group_idx = state.group_for_layer(mod.cora_layer_index)
+                    proj_idx = PreferenceResidualRouter.PROJECTIONS.index(mod.cora_projection_name)
+                    mod._cora_route_scale = route[:, group_idx, proj_idx].view(
+                        users.shape[0], 1, 1)
             state.active = True
             state.counters["conditioned_batches"] += 1
             # Keep untouched NO31 GNN semantic/CTR/KD data flow. Its
@@ -829,6 +883,7 @@ class OriginalCoRARuntime:
         for mod in self.targets:
             mod._cora_weight = None
             mod._cora_condition = None
+            mod._cora_route_scale = None
         self.active = False
 
     def layer_scale(self, layer_index):
@@ -907,6 +962,14 @@ class OriginalCoRARuntime:
         residual = self.apply_residual_controls(
             base, residual, module.cora_layer_index, module.cora_projection_name
         )
+        if self.preference_router_mode != "off":
+            gain = module._cora_route_scale
+            if gain is None or gain.shape != (x.shape[0], 1, 1):
+                raise RuntimeError("R1-R4 CoRA route scale missing or malformed")
+            # Only scale the trainable CoRA branch; the frozen Vicuna
+            # base path and the original 128 per-projection P matrices stay.
+            residual = residual * gain.to(dtype=residual.dtype)
+            self.counters["router_projection_forwards"] += 1
         self.counters["projection_forwards"] += 1
         return (base + residual.to(dtype=base.dtype)).to(x.dtype)
 
