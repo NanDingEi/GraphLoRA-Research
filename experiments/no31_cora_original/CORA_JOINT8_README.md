@@ -8,7 +8,7 @@ This suite applies the *official* CoRA-MF title-only prompt / full QKVO dynamic 
 - Original baseline training configuration: `local_configs/cora_mf_ood2_official.yaml`.
 - Each run independently loads the **same pretrained MF**, Vicuna-7B, fresh CoRA adapter and seed **42**. Never continue from a previous run's best checkpoint.
 - BS=2, grad accumulation=4, original effective batch=8; 400 micro-steps = 100 optimizer updates per epoch.
-- Max-epoch scheduler horizon remains **1000**. Screening is capped at **8 epochs per variant** by runtime wrapper, without shortening cosine schedule. Run `--screen-epochs 0` for official early-stopping duration (up to 1000 epochs). Note: epoch 8 screening is **not** the final paper-reproduction result.
+- Original cosine scheduler horizon remains **1000**. By default, all eight runs train until **10 consecutive completed Valid evaluations have not improved the best Valid AUC** (patience=10), or the original 1000-epoch maximum is reached. The script tracks no-improve epochs and gracefully exits only after the original runner has saved any new best checkpoint. A finite `--screen-epochs N` flag adds an optional epoch cap for quick screening, independent of patience. The original upstream early-stop condition (>20) is still present in upstream code but the added runtime condition stops earlier, without altering original source files.
 - CoRA remains rank=16, alpha=32, Q/K/V/O all layers, dropout 0.05.
 - AdamW, initial LoRA LR from original config (nominal 1e-3), MF LR multiplier **0.1** (peak nominal 1e-4). Scheduler multiplier is applied *after each micro-step LR update*; not by ineffective AdamW gradient scaling.
 - Valid AUC and UAUC are the selection metrics. The training objective continues using the official **Yes-logit BCE**. Do not use Yes-minus-No, which already underperformed on Valid.
@@ -41,17 +41,17 @@ cd /home/bbx/user_lx/CoRA_official
 curl -fL --retry 3 https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/98bd5fe2957061b4984b40218cd7b3b42d405293/experiments/no31_cora_original/cora_joint8.py -o cora_joint8.py
 python -m py_compile cora_joint8.py
 python cora_joint8.py                  # preflight and generate all 8 configs, NO training
-CUDA_VISIBLE_DEVICES=0 python -u cora_joint8.py --run 2>&1 | tee logs/cora_joint8_console.log
+CUDA_VISIBLE_DEVICES=0 python -u cora_joint8.py --run --patience 10 2>&1 | tee logs/cora_joint8_console.log
 python cora_joint8.py --summary
 ```
 
 Logs: `logs/CORA_JOINT8_20261029/R*.log`. Best checkpoints: `output/CORA_JOINT8_20261029/<run>/<job_id>/checkpoint_best.pth`. Configs: `local_configs/CORA_JOINT8_20261029/R*.yaml`.
 
-The program **stops on first failure** instead of silently skipping a broken experiment. It refuses to overwrite a nonempty existing trial log; on restart choose an explicit `--only` subset of not-yet-run names. For a first-stage test, run `--only R1_MF_MAIN` (its log will be protected on subsequent runs).
+The program **stops on first failure** instead of silently skipping a broken experiment. It refuses to overwrite a nonempty existing trial log; on restart choose an explicit `--only` subset of not-yet-run names. For a first-stage test, run `--only R1_MF_MAIN --patience 10` (its log will be protected on subsequent runs). The default is **no 8-epoch cap**; for a deliberate short smoke screen specify `--screen-epochs 8` explicitly. Patience=10 cannot trigger if an 8-epoch cap ends training first.
 
 ## After screening
 
-Use best **Valid AUC** to select two promising joint variants, compare to R0 and R1. Then train these two for the full early-stopping horizon with independent output directories. Only after choosing a final checkpoint on Valid, evaluate Test once. No numerical outcomes are implied by creation of these scripts.
+Compare all eight best **Valid AUC** values (UAUC secondary), against R0 frozen and R1 MF-only, and inspect corresponding best checkpoints. With the default 10-epoch no-improvement early stop, the eight runs have already been trained to that criterion. Only after choosing a final checkpoint on Valid, evaluate Test once. No numerical outcomes are implied by creation of these scripts.
 
 ## Known constraints
 
