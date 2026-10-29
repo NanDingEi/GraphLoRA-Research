@@ -98,6 +98,7 @@ def prepare():
         "mf_lr_ratio":.1, "mf_lr_effective_peak":float(run["init_lr"])*.1,
         "batch_size_train":2, "accum_grad_iters":4,
         "iters_per_epoch":400, "scheduler_max_epoch":1000,
+        "default_early_stop_patience":10, "default_epoch_cap":0,
         "sem_note":"mean frozen Vicuna INPUT token embeddings (not deep hidden states)",
         "anchor_note":"pretrained MF embedding drift; not projector regularization",
         "variants":[{"id":n,"freeze_rec":f,"ctr":c,"kd":k,"sem_text":s,"mf_anchor":a}
@@ -109,9 +110,51 @@ def prepare():
     print(f"[CONFIGS] {CONFIG_DIR} [OUTPUT] {OUT_DIR} [LOGS] {LOG_DIR}",flush=True)
 
 
-def patch_runner(screen_epochs, mf_lr_ratio):
+def patch_runner(screen_epochs, mf_lr_ratio, patience):
     from minigpt4.runners.runner_base import RunnerBase
+    from minigpt4.runners.runner_base_rec import RecRunnerBase
     from minigpt4.common.optims import LinearWarmupCosineLRScheduler
+
+    if patience < 1:
+        raise ValueError("Patience must be a positive number of full validation epochs")
+
+    original_eval_epoch = RecRunnerBase.eval_epoch
+    original_model_to_be_trained = RunnerBase.model_to_betrained
+
+    def early_stopping_eval(self, split_name, cur_epoch, skip_reload=False):
+        result = original_eval_epoch(self, split_name, cur_epoch, skip_reload)
+        if split_name != "valid" or result is None or not isinstance(cur_epoch, int):
+            return result
+        auc = float(result["agg_metrics"])
+        if not (-float("inf") < auc < float("inf")):
+            raise RuntimeError(f"Invalid Valid AUC at epoch {cur_epoch}: {auc}")
+        best = getattr(self, "_joint8_best_valid_auc", -float("inf"))
+        if auc > best:
+            self._joint8_best_valid_auc = auc
+            self._joint8_best_epoch = cur_epoch
+            self._joint8_no_improve = 0
+            print(f"[JOINT8 BEST] epoch={cur_epoch} valid_auc={auc:.6f}; patience reset", flush=True)
+        else:
+            self._joint8_no_improve = getattr(self, "_joint8_no_improve", 0) + 1
+            print(f"[JOINT8 PATIENCE] epoch={cur_epoch} valid_auc={auc:.6f} "
+                  f"best={best:.6f} at epoch={self._joint8_best_epoch} "
+                  f"no_improve={self._joint8_no_improve}/{patience}", flush=True)
+            if self._joint8_no_improve >= patience:
+                self._joint8_should_stop = True
+                print(f"[JOINT8 EARLY STOP] {patience} consecutive epochs without "
+                      f"Valid AUC improvement; best_epoch={self._joint8_best_epoch} "
+                      f"best_auc={best:.6f}. Best checkpoint preserved.", flush=True)
+        return result
+
+    def stop_if_no_improvement(self):
+        if getattr(self, "_joint8_should_stop", False):
+            return False
+        return original_model_to_be_trained(self)
+
+    # The original runner checks model_to_betrained() AFTER saving its best
+    # checkpoint, so this stops cleanly with no exception and no source edit.
+    RecRunnerBase.eval_epoch = early_stopping_eval
+    RunnerBase.model_to_betrained = stop_if_no_improvement
 
     original_max_epoch = RunnerBase.max_epoch.fget
     if screen_epochs > 0:
@@ -164,7 +207,8 @@ def patch_runner(screen_epochs, mf_lr_ratio):
                 group["lr"] *= mf_lr_ratio
 
     LinearWarmupCosineLRScheduler.step = lr_step
-    print(f"[JOINT8 SCHED] original 1000-epoch cosine horizon, screen cap={screen_epochs}",flush=True)
+    print(f"[JOINT8 SCHED] original 1000-epoch cosine horizon, "
+          f"epoch_cap={screen_epochs or 'none'}, early_stop_patience={patience}", flush=True)
 
 
 def patch_model(spec):
@@ -284,9 +328,9 @@ def patch_model(spec):
     MiniGPT4Rec_vx.forward_v2 = joint_forward
 
 
-def worker(name, screen_epochs):
+def worker(name, screen_epochs, patience):
     spec = get_trial(name)
-    patch_runner(screen_epochs=screen_epochs, mf_lr_ratio=.1)
+    patch_runner(screen_epochs=screen_epochs, mf_lr_ratio=.1, patience=patience)
     patch_model(spec)
     cfg = CONFIG_DIR / (name+".yaml")
     sys.argv = ["train_collm_mf_din.py", "--cfg-path",str(cfg)]
@@ -312,19 +356,23 @@ def summarize():
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--run",action="store_true",help="Run all eight trials sequentially in foreground on GPU0")
-    parser.add_argument("--screen-epochs",type=int,default=8,
-                        help="First-stage screening epochs each, preserving scheduler horizon (0 = early-stop full training)")
+    parser.add_argument("--screen-epochs",type=int,default=0,
+                        help="Optional epoch cap; default 0 = run until Valid AUC early stopping")
+    parser.add_argument("--patience",type=int,default=10,
+                        help="Stop after N consecutive epochs without improving Valid AUC (default 10)")
     parser.add_argument("--only",default="",help="Optional comma-separated subset e.g. R1_MF_MAIN,R4_CTR_KD")
     parser.add_argument("--summary",action="store_true")
     parser.add_argument("--_worker",default="",help=argparse.SUPPRESS)
     args=parser.parse_args()
     os.chdir(ROOT)
     if args._worker:
-        worker(args._worker,args.screen_epochs)
+        worker(args._worker,args.screen_epochs,args.patience)
         return
     if args.summary:
         summarize()
         return
+    if args.patience < 1 or args.screen_epochs < 0:
+        parser.error("--patience must be >= 1 and --screen-epochs >= 0")
     prepare()
     if not args.run:
         print("PLAN only. To start eight foreground trials: python cora_joint8.py --run",flush=True)
@@ -339,7 +387,7 @@ def main():
         print(f"\n[JOINT8 START] {name} -- serial GPU0; log={log}",flush=True)
         env=dict(os.environ, CUDA_VISIBLE_DEVICES="0")
         cmd=[sys.executable,"-u",str(Path(__file__).resolve()),"--_worker",name,
-             "--screen-epochs",str(args.screen_epochs)]
+             "--screen-epochs",str(args.screen_epochs),"--patience",str(args.patience)]
         with log.open("w",encoding="utf-8") as fh:
             proc=subprocess.Popen(cmd,cwd=ROOT,env=env,stdout=subprocess.PIPE,
                                   stderr=subprocess.STDOUT,text=True,bufsize=1)
