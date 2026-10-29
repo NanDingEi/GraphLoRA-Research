@@ -176,6 +176,16 @@ class BaseTask:
         training stops after #iters_per_epoch iterations.
         """
         use_amp = scaler is not None
+        # Opt-in cache optimization for NIGHT26 graph experiments only.
+        # 1 preserves the historical per-microbatch behavior. 0 disables
+        # empty_cache; PyTorch's caching allocator releases unused blocks
+        # under memory pressure. Does not change any model tensor or RNG.
+        cache_interval = int(os.environ.get("NO31_CORA_EMPTY_CACHE_INTERVAL", "1"))
+        if cache_interval < 0:
+            raise ValueError("NO31_CORA_EMPTY_CACHE_INTERVAL must be >= 0")
+        if cache_interval != 1:
+            print(f"[N28-CACHE-CONTROL] empty_cache_interval={cache_interval}",
+                  flush=True)
         # graphlora-train-controls-v1: valid accumulation factor.
         accum_grad_iters = int(accum_grad_iters)
         if accum_grad_iters < 1:
@@ -309,7 +319,8 @@ class BaseTask:
             _mid_hook = getattr(self, "mid_epoch_hook", None)
             if _mid_hook is not None:
                 _mid_hook(cur_epoch=inner_epoch, cur_step=i, model=model)
-            torch.cuda.empty_cache()
+            if cache_interval > 0 and (i + 1) % cache_interval == 0:
+                torch.cuda.empty_cache()
 
         # after train_epoch()
         # gather the stats from all processes
