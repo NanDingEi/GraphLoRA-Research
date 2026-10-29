@@ -117,6 +117,14 @@ def patch_runner(screen_epochs, mf_lr_ratio):
     if screen_epochs > 0:
         RunnerBase.max_epoch = property(
             lambda self: min(original_max_epoch(self), screen_epochs))
+    # RunnerBase.lr_scheduler uses self.max_epoch. The screening cap above
+    # must NOT shorten the original cosine horizon; restore 1000 on scheduler.
+    original_scheduler = RunnerBase.lr_scheduler.fget
+    def joint_scheduler(self):
+        sched = original_scheduler(self)
+        sched.max_epoch = int(self.config.run_cfg.max_epoch)
+        return sched
+    RunnerBase.lr_scheduler = property(joint_scheduler)
     original_optimizer = RunnerBase.optimizer.fget
 
     def joint_optimizer(self):
