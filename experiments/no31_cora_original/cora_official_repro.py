@@ -28,7 +28,11 @@ PIN = "4d69c83504259ea8529725f95cfc277ffd1b8077"
 UPSTREAM = "https://github.com/VanillaCreamer/CoRA.git"
 SOURCE_DEFAULT = ROOT / "logs" / "CORA_OFFICIAL_UPSTREAM"
 CONFIG_REL = Path("train_configs/plora_pretrain_mf_ood_movie.yaml")
-DATA_FILES = ("train_ood2.pkl", "valid_small_ood2.pkl", "test_ood2.pkl")
+# The model builder loads valid_small_ood2.pkl for Valid evaluation, while
+# the original train_collm_mf_din.py reads valid_ood2.pkl solely to determine
+# U/I vocabulary sizes. BOTH are needed without patching upstream source.
+DATA_FILES = ("train_ood2.pkl", "valid_ood2.pkl",
+              "valid_small_ood2.pkl", "test_ood2.pkl")
 MODEL_DEFAULT = Path("/home/bbx/user_lx/models/vicuna-7b-v0")
 DATA_DEFAULT = Path("/home/bbx/user_lx/GraphLoRA/dataset/ml-1m")
 
@@ -72,7 +76,8 @@ def input_preflight(args, require_checkpoint):
         if not (args.data_root / fn).is_file():
             problems.append(f"Original OOD2 split missing: {args.data_root / fn}")
     for label, path in (("pretrained MF state_dict", args.mf_checkpoint),
-                        ("Stage-1 projection checkpoint", args.stage1_checkpoint)):
+                        ("Stage-1 projection checkpoint",
+                         args.stage1_checkpoint if require_checkpoint else None)):
         if path is None:
             if require_checkpoint:
                 problems.append(f"{label} path not supplied")
@@ -120,7 +125,7 @@ def verify_state_dicts(args):
                                "Do NOT freeze an untrained projector.")
     del stage
     print(f"[CORA-OFFICIAL-DATA] U={n_user} I={n_item} MF=256 "
-          "stage1_proj_present=True datasets=train/valid_small/test_ood2",
+          "stage1_proj_present=True datasets=train/valid/valid_small/test_ood2",
           flush=True)
 
 def build_config(source, args, output, evaluate=False):
