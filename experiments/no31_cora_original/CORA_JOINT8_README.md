@@ -13,6 +13,7 @@ This suite applies the *official* CoRA-MF title-only prompt / full QKVO dynamic 
 - AdamW, updated CoRA / dynamic PLoRA initial LR **3e-4**, and MF LR multiplier **0.1**, i.e. MF peak LR **3e-5**. The original source YAML is not modified; this suite generates *new* experiment YAMLs with `run.init_lr: 0.0003`. `warmup_lr: 1e-5` and `min_lr: 8e-5` stay as in the earlier successful single-variable LR=3e-4 comparison. Each MF group has its scheduler-updated LR multiplied by 0.1 after each micro-step.
 - Valid AUC and UAUC are the selection metrics. The training objective continues using the official **Yes-logit BCE**. Do not use Yes-minus-No, which already underperformed on Valid.
 - GPU0 only, sequential, foreground, log per run, no TEST evaluations and no background training.
+- **AMP stability fix (2026-10-30):** the previous R1 first-backward failure was caused by a diagnostic hook raising on the *loss-scaled* MF gradient before PyTorch GradScaler could perform overflow recovery. The updated suite uses an initial AMP loss scale of **256** (instead of default 65536), logs a handful of scaled gradient checks without aborting at the hook, and reports GradScaler overflow/step skips. **12 consecutive skipped optimizer updates** trigger an explicit failure rather than silently training without updates. This does not guarantee the backward graph is numerically stable; continued failures require deeper MF→QFormer→dynamic LoRA diagnosis. The updated suite writes to a new isolated protocol directory to preserve old R1 failure logs.
 - The original two small source fixes must already exist: gradient accumulation `loss / accum_grad_iters`, and dictionary `keys()` in evaluation. No new CoRA source code is modified by this suite.
 
 ## Eight variants
@@ -38,14 +39,14 @@ This suite applies the *official* CoRA-MF title-only prompt / full QKVO dynamic 
 
 ```bash
 cd /home/bbx/user_lx/CoRA_official
-curl -fL --retry 3 https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/d199751aa28a731b2063584a2ce4bf7a04e79905/experiments/no31_cora_original/cora_joint8.py -o cora_joint8.py
+curl -fL --retry 3 https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/132a7cbe1ca227e47af5bb661da04d1630308cb7/experiments/no31_cora_original/cora_joint8.py -o cora_joint8.py
 python -m py_compile cora_joint8.py
 python cora_joint8.py                  # preflight and generate all 8 configs, NO training
 CUDA_VISIBLE_DEVICES=0 python -u cora_joint8.py --run --patience 10 2>&1 | tee logs/cora_joint8_console.log
 python cora_joint8.py --summary
 ```
 
-Logs: `logs/CORA_JOINT8_LR3E4_20261030/R*.log`. Best checkpoints: `output/CORA_JOINT8_LR3E4_20261030/<run>/<job_id>/checkpoint_best.pth`. Configs: `local_configs/CORA_JOINT8_LR3E4_20261030/R*.yaml`.
+Logs: `logs/CORA_JOINT8_LR3E4_AMPFIX_20261030/R*.log`. Best checkpoints: `output/CORA_JOINT8_LR3E4_AMPFIX_20261030/<run>/<job_id>/checkpoint_best.pth`. Configs: `local_configs/CORA_JOINT8_LR3E4_AMPFIX_20261030/R*.yaml`.
 
 The program **stops on first failure** instead of silently skipping a broken experiment. It refuses to overwrite a nonempty existing trial log; on restart choose an explicit `--only` subset of not-yet-run names. For a first-stage test, run `--only R1_MF_MAIN --patience 10` (its log will be protected on subsequent runs). The default is **no 8-epoch cap**; for a deliberate short smoke screen specify `--screen-epochs 8` explicitly. Patience=10 cannot trigger if an 8-epoch cap ends training first.
 
