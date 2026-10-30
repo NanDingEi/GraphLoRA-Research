@@ -290,7 +290,9 @@ def patch_model(spec):
                   f"CoRA trainable={sum(p.numel() for p in self.llama_model_lora.parameters() if p.requires_grad)}",
                   flush=True)
             if not freeze:
-                import torch
+                # torch comes from patch_model() closure; do NOT import it here.
+                # A conditional import marks it function-local for *all* batches,
+                # causing UnboundLocalError once _joint8_checked is already set.
                 if rec.user_embedding.weight.dtype != torch.float32:
                     raise RuntimeError("MF embeddings must be float32 parameters for safe mixed-precision updates")
                 self._joint8_grad_checks = 0
