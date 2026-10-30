@@ -37,7 +37,9 @@ RUNS = [
     ("R6_CTR_KD_ANC",False,.05,  .05,  0,    5e-4),
     ("R7_ALL",      False,.05,  .05,  1e-4, 5e-4),
 ]
-PROTOCOL = "CORA_JOINT8_LR3E4_20261030"
+PROTOCOL = "CORA_JOINT8_LR3E4_AMPFIX_20261030"
+AMP_INIT_SCALE = 256.0
+MAX_CONSECUTIVE_AMP_SKIPS = 12
 CORA_LR = 3e-4
 MF_LR_RATIO = 0.1
 CONFIG_DIR = ROOT / "local_configs" / PROTOCOL
@@ -107,6 +109,8 @@ def prepare():
         "batch_size_train":2, "accum_grad_iters":4,
         "iters_per_epoch":400, "scheduler_max_epoch":1000,
         "default_early_stop_patience":10, "default_epoch_cap":0,
+        "amp_init_scale":AMP_INIT_SCALE,
+        "max_consecutive_amp_skips":MAX_CONSECUTIVE_AMP_SKIPS,
         "sem_note":"mean frozen Vicuna INPUT token embeddings (not deep hidden states)",
         "anchor_note":"pretrained MF embedding drift; not projector regularization",
         "variants":[{"id":n,"freeze_rec":f,"ctr":c,"kd":k,"sem_text":s,"mf_anchor":a}
@@ -128,6 +132,52 @@ def patch_runner(screen_epochs, mf_lr_ratio, patience):
     if patience < 1:
         raise ValueError("Patience must be a positive number of full validation epochs")
 
+    # Previously the MF parameter hook raised on the *scaled* gradient
+    # during backward(), before GradScaler.step/update could detect overflow
+    # and safely skip the optimizer step.  Use a modest initial loss scale,
+    # track actual skipped updates, and abort only if scaling never stabilizes.
+    original_scaler = RunnerBase.scaler.fget
+
+    def monitored_scaler(self):
+        if self.config.run_cfg.get("amp", False) and self._scaler is None:
+            import torch
+            self._scaler = torch.cuda.amp.GradScaler(
+                init_scale=AMP_INIT_SCALE, growth_interval=2000)
+            self._joint8_amp_skip_streak = 0
+            self._joint8_amp_skips_total = 0
+            original_update = self._scaler.update
+
+            def monitored_update(*args, **kwargs):
+                before = float(self._scaler.get_scale())
+                result = original_update(*args, **kwargs)
+                after = float(self._scaler.get_scale())
+                if after < before:
+                    self._joint8_amp_skip_streak += 1
+                    self._joint8_amp_skips_total += 1
+                    print(f"[JOINT8 AMP SKIP] before_scale={before:g} "
+                          f"after_scale={after:g} "
+                          f"consecutive={self._joint8_amp_skip_streak} "
+                          f"total={self._joint8_amp_skips_total}", flush=True)
+                    if self._joint8_amp_skip_streak >= MAX_CONSECUTIVE_AMP_SKIPS:
+                        raise RuntimeError(
+                            "AMP consistently found nonfinite gradients and skipped "
+                            f"{MAX_CONSECUTIVE_AMP_SKIPS} optimizer updates. "
+                            "This is a real numerical instability, not a gradient-hook error. "
+                            "Check the MF->weight_generator->dynamic LoRA backward path.")
+                else:
+                    if self._joint8_amp_skip_streak:
+                        print(f"[JOINT8 AMP RECOVERED] loss_scale={after:g}; "
+                              "optimizer update completed", flush=True)
+                    self._joint8_amp_skip_streak = 0
+                return result
+
+            self._scaler.update = monitored_update
+            print(f"[JOINT8 AMP INIT] loss_scale={AMP_INIT_SCALE:g}; "
+                  "overflow recovery enabled; skipped optimizer updates monitored",
+                  flush=True)
+        return original_scaler(self)
+
+    RunnerBase.scaler = property(monitored_scaler)
     original_eval_epoch = RecRunnerBase.eval_epoch
     original_model_to_be_trained = RunnerBase.model_to_betrained
 
@@ -240,14 +290,21 @@ def patch_model(spec):
                   f"CoRA trainable={sum(p.numel() for p in self.llama_model_lora.parameters() if p.requires_grad)}",
                   flush=True)
             if not freeze:
-                self._joint8_grad_reported = False
+                import torch
+                if rec.user_embedding.weight.dtype != torch.float32:
+                    raise RuntimeError("MF embeddings must be float32 parameters for safe mixed-precision updates")
+                self._joint8_grad_checks = 0
                 def audit(gradient):
-                    if not self._joint8_grad_reported:
-                        v = gradient.detach().float().norm().item()
-                        print(f"[JOINT8 MF GRAD] {name} norm={v:.6g}",flush=True)
-                        if not (v > 0 and v < float('inf')):
-                            raise RuntimeError("MF gradient is zero or nonfinite")
-                        self._joint8_grad_reported = True
+                    if self._joint8_grad_checks < 4:
+                        finite = bool(torch.isfinite(gradient).all())
+                        maxabs = (gradient.detach().float().abs().max().item()
+                                  if finite else float("nan"))
+                        print(f"[JOINT8 MF SCALED GRAD] {name} "
+                              f"backward={self._joint8_grad_checks + 1} "
+                              f"finite={finite} maxabs={maxabs:.6g} "
+                              "(observed BEFORE GradScaler unscale; not an update result)",
+                              flush=True)
+                    self._joint8_grad_checks += 1
                     return gradient
                 rec.user_embedding.weight.register_hook(audit)
             if anc_w:
