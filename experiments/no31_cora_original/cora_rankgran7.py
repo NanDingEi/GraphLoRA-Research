@@ -138,17 +138,37 @@ def _load_train_entity_ids():
             f"Train-only entity discovery requires {train_pickle}; "
             "refusing to use the full OOD2 pickle or cold-item rows")
     frame = pd.read_pickle(train_pickle)
-    if not {"uid", "iid"}.issubset(frame.columns):
+    if not {"uid", "iid", "label"}.issubset(frame.columns):
         raise RuntimeError(f"Unexpected train pickle schema in {train_pickle}: {list(frame.columns)}")
-    user_ids = set(int(x) for x in frame["uid"].dropna().tolist() if int(x) > 0)
-    item_ids = set(int(x) for x in frame["iid"].dropna().tolist() if int(x) > 0)
+    positive = frame.loc[frame["label"].astype(float) > 0.5]
+    if positive.empty:
+        raise RuntimeError(f"No positive training rows found in {train_pickle}")
+    user_ids = set(int(x) for x in positive["uid"].dropna().tolist() if int(x) > 0)
+    item_ids = set(int(x) for x in positive["iid"].dropna().tolist() if int(x) > 0)
+    # User histories are built only from the training split and represent
+    # observed positive interactions; include them even if the same item is
+    # not the row's positive target. Do not mark arbitrary negative candidates
+    # as trained MF entities.
     for col in ("his", "sessionItems"):
         if col in frame.columns:
-            for seq in frame[col].dropna().tolist():
+            for row_idx, seq in frame[col].items():
                 if seq is None:
                     continue
+                try:
+                    if len(seq) == 0:
+                        continue
+                except TypeError:
+                    continue
+                user_value = frame.at[row_idx, "uid"]
+                if user_value is not None:
+                    user_value = int(user_value)
+                    if user_value > 0:
+                        user_ids.add(user_value)
                 for value in seq:
-                    item = int(value)
+                    try:
+                        item = int(value)
+                    except (TypeError, ValueError, OverflowError):
+                        continue
                     if item > 0:
                         item_ids.add(item)
     return sorted(user_ids), sorted(item_ids), train_pickle
