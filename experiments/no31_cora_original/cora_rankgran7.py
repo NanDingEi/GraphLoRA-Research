@@ -55,12 +55,16 @@ def configure_core():
     combo.configure_protocol(PROTOCOL)
 
 
-def _kmeans_cosine(table, k, seed=42, iterations=15):
-    """Deterministic spherical k-means on the pretrained MF table (CPU only)."""
-    x = F.normalize(table.detach().float().cpu()[1:], dim=-1)
+def _kmeans_cosine(table, k, seed=42, iterations=15, seen_ids=None):
+    """Deterministic spherical k-means on train-seen pretrained MF rows only."""
+    if seen_ids is None:
+        raise ValueError("K-means requires explicit train-split entity IDs; refusing to cluster cold/random rows")
+    ids = torch.as_tensor(seen_ids, dtype=torch.long).cpu().unique(sorted=True)
+    ids = ids[(ids > 0) & (ids < table.shape[0])]
+    x = F.normalize(table.detach().float().cpu().index_select(0, ids), dim=-1)
     n, dim = x.shape
     if k < 1 or k >= n:
-        raise ValueError(f"K={k} must be in [1,{n-1}] for MF table with {n+1} rows")
+        raise ValueError(f"K={k} must be in [1,{n-1}] for {n} train-seen MF rows")
     gen = torch.Generator(device="cpu").manual_seed(seed)
     first = int(torch.randint(n, (1,), generator=gen).item())
     centers = [x[first].clone()]
@@ -88,26 +92,66 @@ def _kmeans_cosine(table, k, seed=42, iterations=15):
 
     labels = (x @ centers.T).argmax(dim=1)
     full = torch.full((table.shape[0],), -1, dtype=torch.long)
-    full[1:] = labels
-    members = [torch.nonzero(full == c, as_tuple=False).flatten() for c in range(k)]
-    return {"labels": full, "members": members, "k": k}
+    full[ids] = labels
+    members = [ids[labels == c] for c in range(k)]
+    return {"labels": full, "members": members, "k": k,
+            "seen_mask": torch.zeros(table.shape[0], dtype=torch.bool).scatter_(0, ids, True)}
 
 
-def _precompute_neighbors(table, max_k=40, chunk_size=512):
-    """Fixed neighbor IDs from pretrained MF cosine similarity; excludes ID 0/self."""
-    x = F.normalize(table.detach().float().cpu(), dim=-1)
-    n = x.shape[0]
-    if max_k > n - 2:
-        raise ValueError(f"TopK={max_k} requires at least {max_k+2} embedding rows; got {n}")
-    result = torch.zeros((n, max_k), dtype=torch.long)
-    for start in range(1, n, chunk_size):
-        end = min(n, start + chunk_size)
+def _precompute_neighbors(table, seen_ids, max_k=40, chunk_size=512):
+    """Fixed train-seen neighbor IDs; cold rows and padding have no neighbors."""
+    ids = torch.as_tensor(seen_ids, dtype=torch.long).cpu().unique(sorted=True)
+    ids = ids[(ids > 0) & (ids < table.shape[0])]
+    if max_k >= ids.numel():
+        raise ValueError(f"TopK={max_k} requires more than {max_k} train-seen entities; got {ids.numel()}")
+    x = F.normalize(table.detach().float().cpu().index_select(0, ids), dim=-1)
+    result = torch.zeros((table.shape[0], max_k), dtype=torch.long)
+    for start in range(0, ids.numel(), chunk_size):
+        end = min(ids.numel(), start + chunk_size)
         sim = x[start:end] @ x.T
-        sim[:, 0] = -float("inf")
         rows = torch.arange(start, end)
         sim[torch.arange(end-start), rows] = -float("inf")
-        result[start:end] = sim.topk(max_k, dim=1).indices
-    return result
+        top_local = sim.topk(max_k, dim=1).indices
+        result[ids[start:end]] = ids[top_local]
+    seen_mask = torch.zeros(table.shape[0], dtype=torch.bool)
+    seen_mask[ids] = True
+    return {"indices": result, "seen_mask": seen_mask}
+
+
+def _load_train_entity_ids():
+    """Read only the CoRA train OOD2 pickle; never inspect valid/test splits."""
+    import pandas as pd
+    cfg = yaml.safe_load(core.BASE.read_text())
+    datasets = cfg.get("datasets", {})
+    if not datasets:
+        raise RuntimeError("Base config has no datasets section")
+    dataset_cfg = next(iter(datasets.values()))
+    storage = dataset_cfg.get("build_info", {}).get("storage")
+    if not storage:
+        raise RuntimeError("Cannot locate movie_ood build_info.storage in base config")
+    storage_path = Path(storage).expanduser()
+    if not storage_path.is_absolute():
+        storage_path = (ROOT / storage_path).resolve()
+    train_pickle = storage_path / "train_ood2.pkl"
+    if not train_pickle.is_file():
+        raise FileNotFoundError(
+            f"Train-only entity discovery requires {train_pickle}; "
+            "refusing to use the full OOD2 pickle or cold-item rows")
+    frame = pd.read_pickle(train_pickle)
+    if not {"uid", "iid"}.issubset(frame.columns):
+        raise RuntimeError(f"Unexpected train pickle schema in {train_pickle}: {list(frame.columns)}")
+    user_ids = set(int(x) for x in frame["uid"].dropna().tolist() if int(x) > 0)
+    item_ids = set(int(x) for x in frame["iid"].dropna().tolist() if int(x) > 0)
+    for col in ("his", "sessionItems"):
+        if col in frame.columns:
+            for seq in frame[col].dropna().tolist():
+                if seq is None:
+                    continue
+                for value in seq:
+                    item = int(value)
+                    if item > 0:
+                        item_ids.add(item)
+    return sorted(user_ids), sorted(item_ids), train_pickle
 
 
 def _cluster_repr(table, ids, meta):
@@ -127,15 +171,17 @@ def _cluster_repr(table, ids, meta):
     return torch.stack(outputs, dim=0)
 
 
-def _neighbor_repr(table, ids, neighbor_table, k, temperature=0.2):
+def _neighbor_repr(table, ids, neighbor_meta, k, temperature=0.2):
     ids = ids.to(table.device).long().view(-1)
-    neighbor_ids = neighbor_table[ids.detach().cpu(), :k].to(table.device)
     query = table.index_select(0, ids)
+    neighbor_ids = neighbor_meta["indices"][ids.detach().cpu(), :k].to(table.device)
     neighbors = table[neighbor_ids]
     scores = F.cosine_similarity(query.unsqueeze(1), neighbors, dim=-1)
     weights = torch.softmax(scores / temperature, dim=-1)
     aggregate = (neighbors * weights.unsqueeze(-1)).sum(dim=1)
-    return torch.where((ids == 0).unsqueeze(-1), query, aggregate)
+    seen = neighbor_meta["seen_mask"][ids.detach().cpu()].to(table.device)
+    # Cold OOD entities have no train-derived neighbors: preserve their own MF vector.
+    return torch.where(seen.unsqueeze(-1), aggregate, query)
 
 
 def _cat_ui(user, item):
@@ -382,23 +428,34 @@ def _configure_initialized_model(model, trial, PLoraLinear, LlamaDecoderLayer):
     rec = model.rec_encoder
     if not hasattr(rec, "user_embedding") or not hasattr(rec, "item_embedding"):
         raise RuntimeError("Multi-granularity experiments require the official MF encoder")
-    print("[RANKGRAN KMEANS] building fixed assignments from pretrained MF tables on CPU", flush=True)
+    seen_users, seen_items, train_pickle = _load_train_entity_ids()
+    if max(seen_users, default=0) >= rec.user_embedding.num_embeddings:
+        raise RuntimeError("Train user IDs exceed the configured MF user embedding table")
+    if max(seen_items, default=0) >= rec.item_embedding.num_embeddings:
+        raise RuntimeError("Train item/history IDs exceed the configured MF item embedding table")
+    if len(seen_users) <= 128 or len(seen_items) <= 128:
+        raise RuntimeError(
+            f"Need >128 train-seen entities for K128: users={len(seen_users)}, items={len(seen_items)}")
+    print(f"[RANKGRAN TRAIN-ENTITIES] source={train_pickle} "
+          f"seen_users={len(seen_users)} seen_items={len(seen_items)} "
+          "cold/padding rows excluded from clusters and neighbor pools", flush=True)
+    print("[RANKGRAN KMEANS] building fixed train-only assignments from pretrained MF tables on CPU", flush=True)
     old_threads = torch.get_num_threads()
     torch.set_num_threads(min(old_threads, 8))
     try:
         generator._rankgran_meta = {
-            "user_k32": _kmeans_cosine(rec.user_embedding.weight, 32, SEED + 1),
-            "item_k32": _kmeans_cosine(rec.item_embedding.weight, 32, SEED + 2),
-            "user_k128": _kmeans_cosine(rec.user_embedding.weight, 128, SEED + 3),
-            "item_k128": _kmeans_cosine(rec.item_embedding.weight, 128, SEED + 4),
-            "user_neighbors": _precompute_neighbors(rec.user_embedding.weight, 40),
-            "item_neighbors": _precompute_neighbors(rec.item_embedding.weight, 40),
+            "user_k32": _kmeans_cosine(rec.user_embedding.weight, 32, SEED + 1, seen_ids=seen_users),
+            "item_k32": _kmeans_cosine(rec.item_embedding.weight, 32, SEED + 2, seen_ids=seen_items),
+            "user_k128": _kmeans_cosine(rec.user_embedding.weight, 128, SEED + 3, seen_ids=seen_users),
+            "item_k128": _kmeans_cosine(rec.item_embedding.weight, 128, SEED + 4, seen_ids=seen_items),
+            "user_neighbors": _precompute_neighbors(rec.user_embedding.weight, seen_users, 40),
+            "item_neighbors": _precompute_neighbors(rec.item_embedding.weight, seen_items, 40),
         }
     finally:
         torch.set_num_threads(old_threads)
     print(f"[RANKGRAN META] mode={trial['mode']} users={rec.user_embedding.num_embeddings} "
-          f"items={rec.item_embedding.num_embeddings} K=32/128 TopK=5/10/20/40 "
-          "assignments/neighbors are fixed from train-only pretrained MF; "
+          f"items={rec.item_embedding.num_embeddings} train_seen={len(seen_users)}/{len(seen_items)} "
+          "K=32/128 TopK=5/10/20/40; cold entities fall back to individual MF vectors; "
           "current trainable MF vectors remain differentiable", flush=True)
 
 
@@ -491,7 +548,8 @@ def prepare():
             "G2": "layers 0-7 K32; 8-15 K128; 16-23 TopK20; 24-31 individual MF",
             "G3": "K32 centroid-to-individual residual interpolation alpha=[0,1/3,2/3,1]",
             "G4": "layers 0-7 TopK5; 8-15 TopK10; 16-23 TopK20; 24-31 TopK40",
-            "cluster_and_neighbor_indices": "computed from pretrained train-only MF tables; fixed during training",
+            "cluster_and_neighbor_indices": "computed only from IDs present in train_ood2.pkl and fixed during training",
+            "cold_entities": "excluded from cluster/neighbor pools and fall back to their individual MF vectors",
             "centroids_and_neighbor_vectors": "computed from current trainable MF tables with gradients",
             "generator": "one shared official CoRA generator, called once for G1 and as a 4x-batched call for G2-G4",
         },
