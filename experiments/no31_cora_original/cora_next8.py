@@ -318,7 +318,18 @@ def main():
         worker(args._worker, args.patience, args.screen_epochs)
         return
     if args.summary:
-        core.summarize()
+        # Unified report covering R0-R7 and N1-N8 across both log protocols.
+        # Import only here: training workers never touch the report writer.
+        try:
+            from cora_all_summary import collect, display, write_reports
+        except ImportError as exc:
+            raise RuntimeError(
+                "Missing cora_all_summary.py: download the unified summary "
+                "script alongside cora_next8.py before using --summary") from exc
+        rows = collect(ROOT)
+        display(rows, "auc")
+        csv_path, md_path = write_reports(rows, ROOT / "out")
+        print(f"CSV: {csv_path}\\nMarkdown: {md_path}")
         return
     if args.patience < 1 or args.screen_epochs < 0:
         parser.error("patience must be >= 1, screen-epochs must be >= 0")
