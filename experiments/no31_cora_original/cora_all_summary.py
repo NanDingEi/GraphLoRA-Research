@@ -20,6 +20,8 @@ ORDER = (
     "N5_CTR5_KD1", "N6_CTR1_KD5", "N7_KD_RAMP10", "N8_MF_DECOUPLE",
     "C1_WEAK_BOTH", "C2_CTR_DOM", "C3_KD_DOM", "C4_KD_AGREE",
     "C5_KD_CONF", "C6_KD_BOTH", "C7_BIDIR", "C8_MAIN_HALF",
+    "P1_RANK_46810", "P2_RANK_8121620",
+    "G1_CLUSTER_K32", "G2_COARSE_FINE", "G3_CLUSTER_RESIDUAL", "G4_MULTI_TOPK",
 )
 NUMBER = re.compile(r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
 EVAL = re.compile(
@@ -34,6 +36,15 @@ FAILED = re.compile(
     r"^\s*OSError:|^\s*UnboundLocalError:|"
     r"\[NEXT8 CKPT FAIL\]", re.MULTILINE)
 RECOGNIZED = set(ORDER)
+
+def round_label(name):
+    if name.startswith("R"):
+        return "Round1"
+    if name.startswith("N"):
+        return "Round2"
+    if name.startswith("C"):
+        return "Round3"
+    return "Round4"
 
 def candidate_logs(root):
     """Discover known CoRA trial names only; never mix in unrelated GraphLoRA logs."""
@@ -141,7 +152,7 @@ def collect(root):
         attempts = [parse_log(p) for p in discovered[name]]
         chosen = pick(attempts)
         if chosen is None:
-            rows.append(dict(trial=name, round="Round1" if name.startswith("R") else "Round2" if name.startswith("N") else "Round3",
+            rows.append(dict(trial=name, round=round_label(name),
                              auc=None, uauc=None, epoch=None, status="NOT_FOUND",
                              ckpt="—", attempts=0, logfile="", protocol=""))
             continue
@@ -159,7 +170,7 @@ def collect(root):
         else:
             ckpt = "MISSING"
         rows.append(dict(
-            trial=name, round="Round1" if name.startswith("R") else "Round2" if name.startswith("N") else "Round3",
+            trial=name, round=round_label(name),
             auc=best["auc"] if best else None,
             uauc=best["uauc"] if best else None,
             epoch=best["epoch"] if best else None,
