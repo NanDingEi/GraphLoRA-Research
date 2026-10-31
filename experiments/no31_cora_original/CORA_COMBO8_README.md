@@ -83,3 +83,47 @@ python cora_combo8.py --summary
 最佳选择同时参考 AUC、UAUC、最佳 epoch 和有效训练状态。一次 seed=42 的小幅提升不能当作确定的泛化收益。尤其 C4–C7 的样本筛选可能使损失有效样本减少，要同时比较 kd_active/rev_active。优先与 N3_KD_001 (AUC=0.727718) 及 R2_MF_CTR (UAUC=0.698475) 作日志级对照。
 
 代码已提交 GitHub，但未在用户 GPU0 上进行训练验证；所有 C1–C8 指标仍为未知。
+
+## 后续实验安排（C8 未完成，需补跑）
+
+用户确认 C1–C7 已运行，C8_MAIN_HALF 尚未完成。下一批实验将先补跑 C8，再进行以下六组探索：
+
+| 顺序 | ID（暂定） | 方案 |
+|---:|---|---|
+| 1 | C8_MAIN_HALF | 补完本轮剩余实验；CTR=0.005、KD=0.01，LLM 主任务回传 MF 的梯度增益为 0.5 |
+| 2 | RANK_46810 | 32 层分四段，Rank=[4,6,8,10] |
+| 3 | RANK_8121620 | 32 层分四段，Rank=[8,12,16,20] |
+| 4 | CLUSTER_K32 | 全层使用 K=32 的聚类协同表示 |
+| 5 | COARSE_TO_FINE | 不同层使用 K=32、K=128、邻居聚合、个体 MF 表示 |
+| 6 | CLUSTER_RESIDUAL | 聚类中心与个体残差逐层融合 |
+| 7 | MULTI_TOPK | 不同层使用不同邻居 Top-K 粒度 |
+
+RANK 与粒度实验需保持损失配置一致，避免 Rank、信息粒度和损失同时变化。应先查看 C1–C7 的验证结果，再确定 RANK/粒度实验共同采用的辅助损失设置；C8 则按原实验定义补跑。所有实验仍为 VALID-only，seed=42，GPU0 前台串行，且仅保存可训练参数。
+
+若 C8_MAIN_HALF.log 已存在且是不完整日志，先保留历史记录并改名归档，再启动重跑，禁止直接覆盖旧日志：
+
+```bash
+cd /home/bbx/user_lx/CoRA_official
+LOG=logs/CORA_COMBO8_20261031/C8_MAIN_HALF.log
+if [ -f "$LOG" ]; then
+  mv "$LOG" logs/CORA_COMBO8_20261031/C8_MAIN_HALF.failed1.log
+fi
+CUDA_VISIBLE_DEVICES=0 python -u cora_combo8.py --run \
+  --only C8_MAIN_HALF --patience 10
+```
+
+## 全实验最优指标汇总（持久化）
+
+cora_all_summary.py 汇总已登记的全部 CoRA/MF 实验，按每组最高 Valid AUC 选取对应 UAUC，并保留 epoch、运行状态、checkpoint 状态和日志路径。执行：
+
+```bash
+python cora_all_summary.py --sort auc
+```
+
+输出：
+- logs/CORA_ALL_BEST_SUMMARY.log：全实验最优指标汇总日志；
+- out/cora_all_valid_best.csv：可筛选数据；
+- out/cora_all_valid_best.md：可直接阅读的汇总表；
+- out/cora_all_valid_best.log：独立文本汇总副本。
+
+当前 cora_combo8.py 在每组实验完成后，以及执行 --summary 时，都会自动刷新全实验汇总。今后新增实验时，必须把实验 ID 注册进 cora_all_summary.py 的 ORDER，并在每组结束后调用汇总脚本；不能只输出当前轮结果。
