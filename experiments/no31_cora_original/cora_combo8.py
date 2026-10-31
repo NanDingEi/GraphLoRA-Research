@@ -308,6 +308,12 @@ def run_selected(names, patience, epoch_cap):
             raise SystemExit(f"[COMBO8 STOP ON FAILURE] {name}, exit={code}; "
                              f"see {path}")
         summarize()
+        summary_script = ROOT / "cora_all_summary.py"
+        if summary_script.is_file():
+            print("[COMBO8 GLOBAL SUMMARY] refreshing all CoRA trial best metrics", flush=True)
+            subprocess.run(
+                [sys.executable, str(summary_script), "--sort", "auc"],
+                cwd=ROOT, check=True)
     print("[COMBO8 COMPLETE] requested trials completed; VALID-only.", flush=True)
 
 
@@ -326,6 +332,11 @@ def main():
         return
     if args.summary:
         summarize()
+        summary_script = ROOT / "cora_all_summary.py"
+        if summary_script.is_file():
+            subprocess.run(
+                [sys.executable, str(summary_script), "--sort", "auc"],
+                cwd=ROOT, check=True)
         return
     if args.patience < 1 or args.screen_epochs < 0:
         p.error("patience >= 1 and screen-epochs >= 0 required")
