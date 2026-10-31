@@ -210,8 +210,8 @@ def _cat_ui(user, item):
 
 def _make_group_inputs(generator, ui_embedding, ctx):
     rec = ctx["rec_encoder"]
-    user_ids = ctx["user_ids"].long()
-    item_ids = ctx["item_ids"].long()
+    user_ids = ctx["user_ids"].long().view(-1)
+    item_ids = ctx["item_ids"].long().view(-1)
     user_table = rec.user_embedding.weight
     item_table = rec.item_embedding.weight
     mode = generator._rankgran_mode
