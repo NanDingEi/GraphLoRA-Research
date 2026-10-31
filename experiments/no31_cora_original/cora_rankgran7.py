@@ -248,7 +248,7 @@ def _make_group_inputs(generator, ui_embedding, ctx):
 
     if mode == "multi_topk":
         groups = []
-        for k in (5, 10, 20, 40):
+        for k in (40, 20, 10, 5):
             u = _neighbor_repr(user_table, user_ids, meta["user_neighbors"], k)
             i = _neighbor_repr(item_table, item_ids, meta["item_neighbors"], k)
             groups.append(_cat_ui(u, i))
@@ -489,7 +489,7 @@ def _configure_initialized_model(model, trial, PLoraLinear, LlamaDecoderLayer):
         torch.set_num_threads(old_threads)
     print(f"[RANKGRAN META] mode={trial['mode']} users={rec.user_embedding.num_embeddings} "
           f"items={rec.item_embedding.num_embeddings} train_seen={len(seen_users)}/{len(seen_items)} "
-          "K=32/128 TopK=5/10/20/40; cold entities fall back to individual MF vectors; "
+          "K=32/128 TopK=40/20/10/5 coarse-to-fine; cold entities fall back to individual MF vectors; "
           "current trainable MF vectors remain differentiable", flush=True)
 
 
@@ -596,7 +596,7 @@ def prepare():
             "G1": "all 32 layers use K=32 cluster centroids",
             "G2": "layers 0-7 K32; 8-15 K128; 16-23 TopK20; 24-31 individual MF",
             "G3": "K32 centroid-to-individual residual interpolation alpha=[0,1/3,2/3,1]",
-            "G4": "layers 0-7 TopK5; 8-15 TopK10; 16-23 TopK20; 24-31 TopK40",
+            "G4": "coarse-to-fine: layers 0-7 TopK40; 8-15 TopK20; 16-23 TopK10; 24-31 TopK5",
             "cluster_and_neighbor_indices": "computed only from positive targets and histories in train_ood2.pkl and fixed during training",
             "cold_entities": "excluded from cluster/neighbor pools and fall back to their individual MF vectors",
             "centroids_and_neighbor_vectors": "computed from current trainable MF tables with gradients",
