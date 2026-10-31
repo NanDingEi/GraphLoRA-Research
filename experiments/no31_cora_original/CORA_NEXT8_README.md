@@ -91,3 +91,35 @@ find output/CORA_NEXT8_20261030/N8_MF_DECOUPLE -type f -name 'checkpoint_*.pth' 
 ```
 
 Preserve N1–N7 results. Inspect any failed/partial N8 checkpoint before deleting it. Rename only failed N8 log to N8_MF_DECOUPLE.failed.log before rerunning N8 with the updated code. A new timestamped job ID creates a new checkpoint subfolder.
+
+## Single cross-round best-VALID summary (read-only, no GPU)
+
+The old next8 `--summary` reported N1–N8 alone. The updated scripts read all known
+R0–R7 and N1–N8 trial logs from `logs/CORA_*` and print: best Valid AUC,
+corresponding Valid UAUC, best epoch, finished/failed status, and checkpoint existence.
+Reports go to `out/cora_all_valid_best.csv` and `out/cora_all_valid_best.md`.
+Failed N8's logged metrics are shown as failed, not as a successful checkpoint.
+Structural ZIP checks cannot guarantee a checkpoint loads or matches the best metric.
+
+Fetch and run from the CoRA server (these do not retrain):
+
+```bash
+cd /home/bbx/user_lx/CoRA_official
+curl -fL --retry 3 https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/2d30a01c50e6faf2be274b628d306d5b33844c9c/experiments/no31_cora_original/cora_joint8.py -o cora_joint8.py
+curl -fL --retry 3 https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/8bb2e87b16f7e4881f9d6a82d03e797176fa8991/experiments/no31_cora_original/cora_next8.py -o cora_next8.py
+curl -fL --retry 3 https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/08eb4c8a9bf5c3ec047baa90cd46e767b31b5eee/experiments/no31_cora_original/cora_all_summary.py -o cora_all_summary.py
+python -m py_compile cora_joint8.py cora_next8.py cora_all_summary.py
+python cora_next8.py --summary
+# Or: python cora_all_summary.py --sort uauc
+```
+
+## Project checkpoint rule — all future experiments
+
+Always save **trainable model parameters only** for best-model checkpoints.
+Do not serialize frozen Vicuna-7B parameters, full optimizer/AdamW state,
+or the AMP scaler in the best-model checkpoint. Both updated experiment
+runners apply atomic trainable-only saving. Preserve existing older checkpoints.
+Model-only checkpoints are suitable for loading after initializing the
+same base model/MF setup, but are **not** a full training-resume snapshot.
+If exact optimizer-state resumption is ever required, use a separately named,
+explicitly requested recovery artifact; never silently expand best checkpoints.
