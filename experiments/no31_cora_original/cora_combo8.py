@@ -305,6 +305,12 @@ def run_selected(names, patience, epoch_cap):
                 handle.write(line)
             code = process.wait()
         if code != 0:
+            summary_script = ROOT / "cora_all_summary.py"
+            if summary_script.is_file():
+                print("[COMBO8 GLOBAL SUMMARY] refreshing after failed/incomplete trial", flush=True)
+                subprocess.run(
+                    [sys.executable, str(summary_script), "--sort", "auc"],
+                    cwd=ROOT, check=False)
             raise SystemExit(f"[COMBO8 STOP ON FAILURE] {name}, exit={code}; "
                              f"see {path}")
         summarize()
