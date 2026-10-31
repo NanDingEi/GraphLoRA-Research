@@ -22,7 +22,7 @@
 | 4 | G1_CLUSTER_K32 | 所有层均使用 K=32 聚类中心 |
 | 5 | G2_COARSE_FINE | 0–7 层 K32；8–15 层 K128；16–23 层 TopK20；24–31 层原始 MF |
 | 6 | G3_CLUSTER_RESIDUAL | K32 聚类中心与个体残差按 0、1/3、2/3、1 逐层融合 |
-| 7 | G4_MULTI_TOPK | 0–7 层 TopK5；8–15 层 TopK10；16–23 层 TopK20；24–31 层 TopK40 |
+| 7 | G4_MULTI_TOPK | 0–7 层 TopK40；8–15 层 TopK20；16–23 层 TopK10；24–31 层 TopK5 |
 
 ## Rank 实现细节
 
@@ -39,7 +39,7 @@ Alpha 按 `alpha/r=2` 同步设置，因此 R1 的 Alpha=[8,12,16,20]，R2 的 A
 - 聚类中心每个 forward 都由当前可训练 MF embedding 表中属于该训练簇的行计算，因此中心仍有梯度，不是冻结的初始中心。
 - 邻居 ID 只在训练中出现过的实体之间，根据预训练 MF embedding 余弦相似度预计算并固定；每个 forward 使用当前可训练 MF embedding 重新计算邻居相似度和加权聚合，因此邻居向量仍可接收梯度。
 - 验证时遇到训练中未出现的冷实体，不会借用其他冷实体或验证/测试数据构造簇/邻居，而是回退到该实体自身 MF embedding。
-- G2 的 TopK20 与 G4 的 TopK5/10/20/40 均排除 padding ID=0 和节点自身。
+- G2 的 TopK20 与 G4 的 TopK40/20/10/5（由浅到深逐渐缩小邻域）均排除 padding ID=0 和节点自身。
 - G2–G4 将 4 组表示按批次拼接，一次批量调用共享 CoRA generator，再按 8 层一组路由对应动态权重；G1 只调用一次 generator。
 
 ## 执行指令
