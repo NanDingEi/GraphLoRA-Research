@@ -462,20 +462,25 @@ def _configure_initialized_model(model, trial, PLoraLinear, LlamaDecoderLayer):
 def _cpu_test():
     torch.manual_seed(42)
     table = torch.randn(65, 16, requires_grad=True)
-    k32 = _kmeans_cosine(table, 8, seed=42, iterations=4)
+    seen_ids = torch.arange(1, 65, dtype=torch.long)
+    k32 = _kmeans_cosine(table, 8, seed=42, iterations=4, seen_ids=seen_ids)
     assert k32["labels"].shape[0] == table.shape[0]
     assert int(k32["labels"][0]) == -1
     ids = torch.tensor([1, 2, 3, 4], dtype=torch.long)
     centers = _cluster_repr(table, ids, k32)
     centers.square().mean().backward()
     assert table.grad is not None and torch.isfinite(table.grad).all()
+    cold_center = _cluster_repr(table, torch.tensor([0]), k32)
+    assert torch.equal(cold_center[0], table[0])
 
     with torch.no_grad():
-        neighbors = _precompute_neighbors(table, max_k=5, chunk_size=16)
+        neighbors = _precompute_neighbors(table, seen_ids, max_k=5, chunk_size=16)
     table2 = table.detach().clone().requires_grad_(True)
     agg = _neighbor_repr(table2, ids, neighbors, 5)
     agg.sum().backward()
     assert table2.grad is not None and torch.isfinite(table2.grad).all()
+    cold_neighbor = _neighbor_repr(table2, torch.tensor([0]), neighbors, 5)
+    assert torch.equal(cold_neighbor[0], table2[0])
 
     assert [x["ranks"] for x in TRIALS[:2]] == [[4, 6, 8, 10], [8, 12, 16, 20]]
     assert all(len(x) == 4 for x in (TRIALS[0]["ranks"], TRIALS[1]["ranks"]))
