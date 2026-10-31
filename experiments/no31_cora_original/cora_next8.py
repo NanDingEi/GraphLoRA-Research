@@ -329,7 +329,7 @@ def main():
         rows = collect(ROOT)
         display(rows, "auc")
         csv_path, md_path = write_reports(rows, ROOT / "out")
-        print(f"CSV: {csv_path}\\nMarkdown: {md_path}")
+        print(f"CSV: {csv_path}\nMarkdown: {md_path}")
         return
     if args.patience < 1 or args.screen_epochs < 0:
         parser.error("patience must be >= 1, screen-epochs must be >= 0")
