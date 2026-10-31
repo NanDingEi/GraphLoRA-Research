@@ -43,10 +43,20 @@ NAMES = {x["name"]: x for x in TRIALS}
 # Reuse the original verified config/optimizer/early-stop functions; all output
 # goes into a new directory. This code must never overwrite earlier rounds.
 core.RUNS = [(t["name"], False, t["ctr"], t["kd"], 0., 0.) for t in TRIALS]
-core.PROTOCOL = PROTOCOL
-core.CONFIG_DIR = ROOT / "local_configs" / PROTOCOL
-core.LOG_DIR = ROOT / "logs" / PROTOCOL
-core.OUT_DIR = ROOT / "output" / PROTOCOL
+
+
+def configure_protocol(protocol):
+    global PROTOCOL
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", protocol):
+        raise ValueError("Protocol name may contain only letters, digits, '_' and '-'")
+    PROTOCOL = protocol
+    core.PROTOCOL = protocol
+    core.CONFIG_DIR = ROOT / "local_configs" / protocol
+    core.LOG_DIR = ROOT / "logs" / protocol
+    core.OUT_DIR = ROOT / "output" / protocol
+
+
+configure_protocol(PROTOCOL)
 
 
 def preflight():
@@ -292,7 +302,7 @@ def run_selected(names, patience, epoch_cap):
                                "Do not overwrite checkpoints or results.")
         command = [sys.executable, "-u", str(ROOT / "cora_combo8.py"),
                    "--_worker", name, "--patience", str(patience),
-                   "--screen-epochs", str(epoch_cap)]
+                   "--screen-epochs", str(epoch_cap), "--protocol", PROTOCOL]
         env = dict(os.environ, CUDA_VISIBLE_DEVICES="0")
         print(f"[COMBO8 START] {name}, GPU0 serial foreground; log={path}", flush=True)
         with path.open("x", encoding="utf-8") as handle:
@@ -330,8 +340,11 @@ def main():
     p.add_argument("--patience", type=int, default=10)
     p.add_argument("--screen-epochs", type=int, default=0)
     p.add_argument("--summary", action="store_true")
+    p.add_argument("--protocol", default=PROTOCOL,
+                   help="Isolated log/config/output namespace (default: existing COMBO8 protocol)")
     p.add_argument("--_worker", default="", help=argparse.SUPPRESS)
     args = p.parse_args()
+    configure_protocol(args.protocol)
     os.chdir(ROOT)
     if args._worker:
         worker(args._worker, args.patience, args.screen_epochs)
