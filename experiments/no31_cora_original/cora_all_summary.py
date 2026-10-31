@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Aggregate first- and second-round CoRA/MF VALID best metrics from local logs.
+"""Aggregate all rounds of CoRA/MF VALID best metrics from local logs.
 
 No GPU, imports of CoRA, checkpoint loading, training, or re-evaluation.
 For each trial, show max logged Valid AUC, its paired UAUC, epoch, run status,
@@ -18,6 +18,8 @@ ORDER = (
     "R4_CTR_KD", "R5_CTR_KD_SEM", "R6_CTR_KD_ANC", "R7_ALL",
     "N1_CTR_001", "N2_CTR_010", "N3_KD_001", "N4_KD_010",
     "N5_CTR5_KD1", "N6_CTR1_KD5", "N7_KD_RAMP10", "N8_MF_DECOUPLE",
+    "C1_WEAK_BOTH", "C2_CTR_DOM", "C3_KD_DOM", "C4_KD_AGREE",
+    "C5_KD_CONF", "C6_KD_BOTH", "C7_BIDIR", "C8_MAIN_HALF",
 )
 NUMBER = re.compile(r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
 EVAL = re.compile(
@@ -34,7 +36,7 @@ FAILED = re.compile(
 RECOGNIZED = set(ORDER)
 
 def candidate_logs(root):
-    """Discover known trial names only; never mix in unrelated GraphLoRA logs."""
+    """Discover known CoRA trial names only; never mix in unrelated GraphLoRA logs."""
     base = root / "logs"
     collected = {key: [] for key in ORDER}
     if not base.is_dir():
@@ -139,7 +141,7 @@ def collect(root):
         attempts = [parse_log(p) for p in discovered[name]]
         chosen = pick(attempts)
         if chosen is None:
-            rows.append(dict(trial=name, round="Round1" if name.startswith("R") else "Round2",
+            rows.append(dict(trial=name, round="Round1" if name.startswith("R") else "Round2" if name.startswith("N") else "Round3",
                              auc=None, uauc=None, epoch=None, status="NOT_FOUND",
                              ckpt="—", attempts=0, logfile="", protocol=""))
             continue
@@ -157,7 +159,7 @@ def collect(root):
         else:
             ckpt = "MISSING"
         rows.append(dict(
-            trial=name, round="Round1" if name.startswith("R") else "Round2",
+            trial=name, round="Round1" if name.startswith("R") else "Round2" if name.startswith("N") else "Round3",
             auc=best["auc"] if best else None,
             uauc=best["uauc"] if best else None,
             epoch=best["epoch"] if best else None,
