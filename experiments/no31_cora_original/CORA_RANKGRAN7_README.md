@@ -34,7 +34,7 @@ Alpha 按 `alpha/r=2` 同步设置，因此 R1 的 Alpha=[8,12,16,20]，R2 的 A
 
 ## 多粒度信息构建
 
-- 训练实体集合严格从配置中的 build_info.storage/train_ood2.pkl 读取，只使用训练 split 的 uid、iid，以及训练记录里的 his/sessionItems 历史物品 ID；不读取 valid/test pickle。
+- 训练实体集合严格从配置中的 build_info.storage/train_ood2.pkl 读取：用户来自训练正样本及其训练历史，物品来自 label=1 的训练目标和 his/sessionItems 历史；不把随机负样本目标当作已训练实体，也不读取 valid/test pickle。
 - K-Means 只对训练中出现过的用户/物品预训练 MF 表示建立固定聚类分配；K=32 和 K=128 分别建立。OOD2 冷物品和 padding ID=0 不进入聚类中心。
 - 聚类中心每个 forward 都由当前可训练 MF embedding 表中属于该训练簇的行计算，因此中心仍有梯度，不是冻结的初始中心。
 - 邻居 ID 只在训练中出现过的实体之间，根据预训练 MF embedding 余弦相似度预计算并固定；每个 forward 使用当前可训练 MF embedding 重新计算邻居相似度和加权聚合，因此邻居向量仍可接收梯度。
