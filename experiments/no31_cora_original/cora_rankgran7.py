@@ -459,18 +459,32 @@ def _configure_initialized_model(model, trial, PLoraLinear, LlamaDecoderLayer):
     print(f"[RANKGRAN TRAIN-ENTITIES] source={train_pickle} "
           f"seen_users={len(seen_users)} seen_items={len(seen_items)} "
           "cold/padding rows excluded from clusters and neighbor pools", flush=True)
-    print("[RANKGRAN KMEANS] building fixed train-only assignments from pretrained MF tables on CPU", flush=True)
+    print("[RANKGRAN KMEANS] building only the train-only structures required by this trial", flush=True)
     old_threads = torch.get_num_threads()
     torch.set_num_threads(min(old_threads, 8))
     try:
-        generator._rankgran_meta = {
-            "user_k32": _kmeans_cosine(rec.user_embedding.weight, 32, SEED + 1, seen_ids=seen_users),
-            "item_k32": _kmeans_cosine(rec.item_embedding.weight, 32, SEED + 2, seen_ids=seen_items),
-            "user_k128": _kmeans_cosine(rec.user_embedding.weight, 128, SEED + 3, seen_ids=seen_users),
-            "item_k128": _kmeans_cosine(rec.item_embedding.weight, 128, SEED + 4, seen_ids=seen_items),
-            "user_neighbors": _precompute_neighbors(rec.user_embedding.weight, seen_users, 40),
-            "item_neighbors": _precompute_neighbors(rec.item_embedding.weight, seen_items, 40),
-        }
+        meta = {}
+        mode = trial["mode"]
+        if mode in ("cluster_k32", "coarse_fine", "cluster_residual"):
+            meta["user_k32"] = _kmeans_cosine(
+                rec.user_embedding.weight, 32, SEED + 1, seen_ids=seen_users)
+            meta["item_k32"] = _kmeans_cosine(
+                rec.item_embedding.weight, 32, SEED + 2, seen_ids=seen_items)
+        if mode == "coarse_fine":
+            meta["user_k128"] = _kmeans_cosine(
+                rec.user_embedding.weight, 128, SEED + 3, seen_ids=seen_users)
+            meta["item_k128"] = _kmeans_cosine(
+                rec.item_embedding.weight, 128, SEED + 4, seen_ids=seen_items)
+            meta["user_neighbors"] = _precompute_neighbors(
+                rec.user_embedding.weight, seen_users, 20)
+            meta["item_neighbors"] = _precompute_neighbors(
+                rec.item_embedding.weight, seen_items, 20)
+        if mode == "multi_topk":
+            meta["user_neighbors"] = _precompute_neighbors(
+                rec.user_embedding.weight, seen_users, 40)
+            meta["item_neighbors"] = _precompute_neighbors(
+                rec.item_embedding.weight, seen_items, 40)
+        generator._rankgran_meta = meta
     finally:
         torch.set_num_threads(old_threads)
     print(f"[RANKGRAN META] mode={trial['mode']} users={rec.user_embedding.num_embeddings} "
@@ -536,6 +550,13 @@ def prepare():
     configure_core()
     core.check_sources()
     _model_api_preflight()
+    seen_users, seen_items, train_pickle = _load_train_entity_ids()
+    if len(seen_users) <= 128 or len(seen_items) <= 128:
+        raise RuntimeError(
+            f"Need >128 train-seen entities for K128: users={len(seen_users)}, items={len(seen_items)}")
+    print(f"[RANKGRAN TRAIN-ENTITY PREFLIGHT] {train_pickle}; "
+          f"positive/history train-seen users={len(seen_users)} items={len(seen_items)}",
+          flush=True)
     core.prepare()
     for trial in TRIALS:
         cfg_path = core.CONFIG_DIR / (trial["name"] + ".yaml")
@@ -568,12 +589,15 @@ def prepare():
             "alpha_over_rank": ALPHA_OVER_R,
             "implementation": "one shared max-rank generator output; each layer slices its prefix and has its own rank-specific P projection",
         },
+        "train_entity_source": str(train_pickle),
+        "train_seen_users": len(seen_users),
+        "train_seen_items": len(seen_items),
         "granularity": {
             "G1": "all 32 layers use K=32 cluster centroids",
             "G2": "layers 0-7 K32; 8-15 K128; 16-23 TopK20; 24-31 individual MF",
             "G3": "K32 centroid-to-individual residual interpolation alpha=[0,1/3,2/3,1]",
             "G4": "layers 0-7 TopK5; 8-15 TopK10; 16-23 TopK20; 24-31 TopK40",
-            "cluster_and_neighbor_indices": "computed only from IDs present in train_ood2.pkl and fixed during training",
+            "cluster_and_neighbor_indices": "computed only from positive targets and histories in train_ood2.pkl and fixed during training",
             "cold_entities": "excluded from cluster/neighbor pools and fall back to their individual MF vectors",
             "centroids_and_neighbor_vectors": "computed from current trainable MF tables with gradients",
             "generator": "one shared official CoRA generator, called once for G1 and as a 4x-batched call for G2-G4",
@@ -725,11 +749,13 @@ def main():
         print("Run: CUDA_VISIBLE_DEVICES=0 python -u cora_rankgran7.py --run --patience 10", flush=True)
         return
 
-    if "C8_MAIN_HALF" in selected:
-        run_c8(args.patience, args.screen_epochs)
     rank_names = [x for x in selected if x != "C8_MAIN_HALF"]
+    # Preflight all train-only metadata and model APIs before spending hours on C8.
     if rank_names:
         prepare()
+    if "C8_MAIN_HALF" in selected:
+        run_c8(args.patience, args.screen_epochs)
+    if rank_names:
         run_rankgran_trials(rank_names, args.patience, args.screen_epochs)
     _refresh_global_summary()
 
