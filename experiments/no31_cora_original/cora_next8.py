@@ -155,6 +155,92 @@ def prepare():
           "No training started.", flush=True)
 
 
+def install_compact_atomic_best_checkpoint():
+    """Patch only the new experiment's checkpoint saver, not official CoRA code.
+
+    Official RunnerBase serializes both a model state_dict and optimizer state.
+    This saves only the actually trainable parameter keys and simple metadata,
+    and writes via a checked, atomic temporary file. It is suitable for
+    best-model evaluation, but NOT full optimizer-state resumption.
+    """
+    import os
+    import shutil
+    import zipfile
+    import torch
+    from minigpt4.runners.runner_base import RunnerBase
+
+    def compact_save(self, cur_epoch, is_best=False):
+        model = self.unwrap_dist_model(self.model)
+        trainable = {name for name, p in model.named_parameters()
+                     if p.requires_grad}
+        if not trainable:
+            raise RuntimeError("[NEXT8 CKPT] No trainable parameters found")
+        state = model.state_dict()
+        missing = trainable - set(state)
+        if missing:
+            raise RuntimeError("[NEXT8 CKPT] trainable keys absent from state_dict: "
+                               + repr(sorted(missing)[:10]))
+        compact = {name: tensor.detach() for name, tensor in state.items()
+                   if name in trainable}
+        expected = sum(v.numel() * v.element_size() for v in compact.values())
+        if expected > 2 * (1024 ** 3):
+            raise RuntimeError("[NEXT8 CKPT] trainable state exceeds 2 GiB; "
+                               "inspect frozen/training parameter flags before saving")
+
+        output_dir = Path(self.output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        target = output_dir / (
+            "checkpoint_best.pth" if is_best else f"checkpoint_{cur_epoch}.pth"
+        )
+        temporary = target.with_name(target.name + ".writing")
+        if temporary.exists():
+            raise RuntimeError(
+                f"[NEXT8 CKPT] leftover temporary checkpoint: {temporary}. "
+                "Inspect it before renaming/removing; refusing to overwrite.")
+
+        free_space = shutil.disk_usage(output_dir).free
+        minimum = int(expected * 1.25) + 128 * (1024 ** 2)
+        print(f"[NEXT8 CKPT] epoch={cur_epoch} trainable_tensors={len(compact)} "
+              f"estimated={expected / (1024 ** 3):.3f}GiB "
+              f"disk_free={free_space / (1024 ** 3):.3f}GiB "
+              "model-only; no optimizer state", flush=True)
+        if free_space < minimum:
+            raise OSError(
+                "[NEXT8 CKPT] insufficient free disk for safe atomic save: "
+                f"free={free_space / (1024 ** 3):.3f}GiB "
+                f"required_at_least={minimum / (1024 ** 3):.3f}GiB. "
+                "Use df/du to inspect disk and preserve prior results.")
+
+        payload = {
+            "model": compact,
+            "config": self.config.to_dict(),
+            "epoch": int(cur_epoch),
+            "next8_checkpoint_format": "trainable_model_only_v1",
+            "optimizer_included": False,
+        }
+        try:
+            torch.save(payload, str(temporary))
+            with zipfile.ZipFile(temporary, "r") as zf:
+                error_member = zf.testzip()
+                if error_member:
+                    raise IOError(f"Checkpoint CRC error in {error_member}")
+            with open(temporary, "rb") as handle:
+                os.fsync(handle.fileno())
+            os.replace(temporary, target)
+        except BaseException:
+            # Never replace an existing good best checkpoint with a partial
+            # write. Preserve failed temporary files for investigation.
+            print(f"[NEXT8 CKPT FAIL] temporary={temporary} "
+                  f"existing_best_unchanged={target}", flush=True)
+            raise
+        print(f"[NEXT8 CKPT SAVED] path={target} "
+              f"size={target.stat().st_size / (1024 ** 3):.3f}GiB", flush=True)
+
+    RunnerBase._save_checkpoint = compact_save
+    print("[NEXT8 CKPT PATCH] atomic trainable-only saving enabled; "
+          "optimizer-state resume intentionally unavailable", flush=True)
+
+
 def worker(name, patience, screen_epochs):
     preflight()
     spec = core.get_trial(name)
@@ -163,6 +249,7 @@ def worker(name, patience, screen_epochs):
         mf_lr_ratio=EXPECTED_MF_RATIO,
         patience=patience,
     )
+    install_compact_atomic_best_checkpoint()
     if name == "N7_KD_RAMP10":
         spec = list(spec)
         spec[3] = EpochKDRamp(maximum=0.05, ramp_epochs=10)
