@@ -215,6 +215,51 @@ def display(rows, sort_by):
               "it does not prove an experiment was never run.")
     print("")
 
+
+def render_global_log(rows):
+    """Render a durable, plain-text global best-metrics log (VALID only)."""
+    ranked = sorted(rows, key=lambda r: (
+        r["auc"] is None, -(r["auc"] if r["auc"] is not None else -1.0)))
+    lines = [
+        "ALL CoRA/MF EXPERIMENTS — BEST VALID METRICS (NOT TEST)",
+        "UAUC is paired with each trial's best-AUC epoch.",
+        "Failed/incomplete trials retain their best logged Valid metrics but are not successful runs.",
+        "",
+        f"{'Trial':20} {'AUC':>10} {'UAUC@best':>12} {'Epoch':>6} "
+        f"{'Status':>16} {'Checkpoint':>18} {'Attempts':>8}",
+        "-" * 104,
+    ]
+    for r in ranked:
+        ep = "—" if r["epoch"] is None else str(r["epoch"])
+        lines.append(
+            f"{r['trial']:20} {metric(r['auc']):>10} "
+            f"{metric(r['uauc']):>12} {ep:>6} "
+            f"{status(r['status']):>16} {r['ckpt']:>18} "
+            f"{r['attempts']:>8}")
+    complete = [r for r in rows if r["status"] == "COMPLETE" and r["auc"] is not None]
+    if complete:
+        best_auc = max(complete, key=lambda r: r["auc"])
+        best_uauc = max(complete, key=lambda r: (r["uauc"] if r["uauc"] is not None else -1))
+        lines += [
+            "",
+            f"BEST COMPLETED VALID AUC: {best_auc['trial']} "
+            f"AUC={best_auc['auc']:.6f} UAUC@bestAUC={best_auc['uauc']:.6f} "
+            f"epoch={best_auc['epoch']}",
+            f"BEST UAUC@AUC-BEST: {best_uauc['trial']} "
+            f"UAUC={best_uauc['uauc']:.6f} AUC={best_uauc['auc']:.6f} "
+            f"epoch={best_uauc['epoch']}",
+        ]
+    else:
+        lines += ["", "No completed Valid experiment found."]
+    lines += [
+        "",
+        "Source: local logs/CORA_*/*.log",
+        "Checkpoint presence is a structural check only; it does not prove exact best-epoch correspondence.",
+        "",
+    ]
+    return "\n".join(lines)
+
+
 def write_reports(rows, folder):
     folder.mkdir(parents=True, exist_ok=True)
     csv_file = folder / "cora_all_valid_best.csv"
@@ -242,7 +287,12 @@ def write_reports(rows, folder):
                  "marker without a traceback. ZIP structural checks do not "
                  "prove that a checkpoint corresponds to the reported best "
                  "epoch or can load successfully.\n")
-    return csv_file, md_file
+    out_log_file = folder / "cora_all_valid_best.log"
+    out_log_file.write_text(render_global_log(rows), encoding="utf-8")
+    global_log_file = ROOT / "logs" / "CORA_ALL_BEST_SUMMARY.log"
+    global_log_file.parent.mkdir(parents=True, exist_ok=True)
+    global_log_file.write_text(render_global_log(rows), encoding="utf-8")
+    return csv_file, md_file, out_log_file, global_log_file
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -257,9 +307,11 @@ def main():
     rows = collect(root)
     display(rows, args.sort)
     if not args.no_write:
-        a, b = write_reports(rows, root / "out")
+        a, b, c, d = write_reports(rows, root / "out")
         print("CSV: ", a)
         print("Markdown:", b)
+        print("Summary log:", c)
+        print("Global summary log:", d)
 
 if __name__ == "__main__":
     main()
