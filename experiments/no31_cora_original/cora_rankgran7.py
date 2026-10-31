@@ -431,9 +431,29 @@ def _cpu_test():
           "neighbor aggregation gradients, unit-norm rank slicing, and both rank profiles", flush=True)
 
 
+def _model_api_preflight():
+    from minigpt4.models.minigpt4rec_vx import MiniGPT4Rec_vx
+    from minigpt4.models.ppeft.plora import Linear as PLoraLinear
+    from minigpt4.models.ppeft.weight_generator import PerceptualWeightsGenerator
+    from minigpt4.models.pllama import LlamaDecoderLayer
+    required = {
+        "MiniGPT4Rec_vx.forward_v2": hasattr(MiniGPT4Rec_vx, "forward_v2"),
+        "MiniGPT4Rec_vx.generate_for_samples_v2": hasattr(MiniGPT4Rec_vx, "generate_for_samples_v2"),
+        "PLoraLinear.forward": hasattr(PLoraLinear, "forward"),
+        "PLoraLinear.lora_P support": hasattr(PLoraLinear, "update_layer"),
+        "PerceptualWeightsGenerator.final": hasattr(PerceptualWeightsGenerator, "forward"),
+        "LlamaDecoderLayer.forward": hasattr(LlamaDecoderLayer, "forward"),
+    }
+    failed = [name for name, ok in required.items() if not ok]
+    if failed:
+        raise RuntimeError("CoRA source API incompatible with rank/granularity runner: " + repr(failed))
+    print("[RANKGRAN API PASS] official CoRA model, PLora, weight generator and Llama decoder APIs found", flush=True)
+
+
 def prepare():
     configure_core()
     core.check_sources()
+    _model_api_preflight()
     core.prepare()
     for trial in TRIALS:
         cfg_path = core.CONFIG_DIR / (trial["name"] + ".yaml")
