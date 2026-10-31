@@ -208,6 +208,10 @@ def _patch_runtime_classes(trial):
                         f"Dynamic weight rank {w.shape[-1]} is smaller than layer rank {rank}")
                 if w.shape[-1] != rank:
                     w = w[..., :rank]
+                    # CoRA normalizes the generated H x r matrix to unit norm.
+                    # Re-normalize each truncated prefix so lower-rank layers
+                    # do not receive a smaller signal solely because of slicing.
+                    w = F.normalize(w.flatten(start_dim=1), p=2, dim=1).view_as(w)
             return original_linear_forward(self, x, w)
 
         PLoraLinear.forward = rank_slice_forward
