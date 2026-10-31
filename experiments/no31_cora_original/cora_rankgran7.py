@@ -422,8 +422,13 @@ def _cpu_test():
 
     assert [x["ranks"] for x in TRIALS[:2]] == [[4, 6, 8, 10], [8, 12, 16, 20]]
     assert all(len(x) == 4 for x in (TRIALS[0]["ranks"], TRIALS[1]["ranks"]))
+    probe = torch.randn(2, 16, 20)
+    for rank in (4, 6, 8, 10, 12, 16, 20):
+        prefix = probe[..., :rank]
+        normalized = F.normalize(prefix.flatten(start_dim=1), p=2, dim=1)
+        assert torch.allclose(normalized.norm(dim=1), torch.ones(2), atol=1e-6)
     print("[RANKGRAN CPU PASS] deterministic clustering, centroid gradients, "
-          "neighbor aggregation gradients, and both rank profiles", flush=True)
+          "neighbor aggregation gradients, unit-norm rank slicing, and both rank profiles", flush=True)
 
 
 def prepare():
