@@ -71,3 +71,23 @@ Files are under local_configs/CORA_NEXT8_20261030, logs/CORA_NEXT8_20261030, and
 Compare N1/N2 to prior R2, N3/N4 to prior R3, N5–N8 to prior R4. Inspect Valid AUC, matched UAUC, best epoch, AMP skips, and whether each loss term is nonzero. Relative gain at seed 42 is not yet evidence of statistical significance. Recheck top variants at more seeds after these eight, and only evaluate Test after selecting by Valid.
 
 The script was committed but has not yet been executed on the user's server; do not claim new AUC values before real runs.
+
+## N8 checkpoint-write failure and compact-save fix (2026-10-31)
+
+Observed at N8: torch.save failed at about 12.98 GB with an 'unexpected pos' message while saving checkpoint_best.pth. This is a serialization/storage failure, not proof of bad gradients or GPU OOM. Check disk free space, quota, and the saved model state size on the server.
+
+Updated cora_next8.py commit ebd4594af0cc0b0b2c510c84e5936e4c7ae12d9c saves only actually trainable parameter keys (CoRA and MF), excluding frozen Vicuna and optimizer state, after measuring the expected size and available disk. It writes to checkpoint_best.pth.writing, checks ZIP archive CRC, and uses atomic os.replace only after successful completion. Failed writes preserve existing best checkpoint and leave the diagnostic temporary file.
+
+These **model-only** checkpoints can be evaluated with model.load_state_dict(ckpt['model'], strict=False) after reconstructing the same Vicuna/CoRA/MF architecture. They CANNOT be used for full optimizer-state resume. They do not eliminate a real disk-full condition.
+
+Inspect disk and N8 partial files before retrying:
+
+```bash
+cd /home/bbx/user_lx/CoRA_official
+df -h .
+df -i .
+du -sh output/CORA_NEXT8_20261030/* 2>/dev/null
+find output/CORA_NEXT8_20261030/N8_MF_DECOUPLE -type f -name 'checkpoint_*.pth' -printf '%s %p\n' 2>/dev/null | sort -nr
+```
+
+Preserve N1–N7 results. Inspect any failed/partial N8 checkpoint before deleting it. Rename only failed N8 log to N8_MF_DECOUPLE.failed.log before rerunning N8 with the updated code. A new timestamped job ID creates a new checkpoint subfolder.
