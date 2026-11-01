@@ -348,6 +348,7 @@ def main():
         prepare()
         print("[STRUCT10 PLAN ONLY] no training started", flush=True)
         return
+    configure()  # Make the directory check target this suite, not imported COMBO8.
     if not base.core.CONFIG_DIR.is_dir():
         prepare()
     run_selected(names, args.patience, args.screen_epochs)
