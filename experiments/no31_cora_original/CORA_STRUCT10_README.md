@@ -43,7 +43,7 @@
 cd /home/bbx/user_lx/CoRA_official
 # 保持原先成功运行 cora_rankgran7.py 的 Python/conda 环境
 
-REV=1a44f8de2d4c27b0abcf1f0e1e8374262277a265
+REV=fd2cbe36a1b3908f704afb4214fef308d1d9b931
 BASE=https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/$REV/experiments/no31_cora_original
 
 # 保留本机已经存在的代码版本
