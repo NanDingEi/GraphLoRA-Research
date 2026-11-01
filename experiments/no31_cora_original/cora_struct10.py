@@ -171,14 +171,46 @@ def _cpu_test():
                                       retain_graph=True)
         torch.testing.assert_close(gp, torch.full_like(gp, alpha))
         torch.testing.assert_close(gg, torch.full_like(gg, 1-alpha))
+    # Exercise every real feature branch end to end, including grouping and
+    # gradients back to both trainable MF embedding tables (no Vicuna needed).
+    from types import SimpleNamespace
+    users = torch.nn.Embedding(65, 16)
+    items = torch.nn.Embedding(65, 16)
+    seen = torch.arange(1, 65)
+    meta = {
+        "user_k32": base._kmeans_cosine(users.weight, 8, 43, seen_ids=seen),
+        "item_k32": base._kmeans_cosine(items.weight, 8, 44, seen_ids=seen),
+        "user_neighbors": base._precompute_neighbors(users.weight, seen, 40),
+        "item_neighbors": base._precompute_neighbors(items.weight, seen, 40),
+    }
+    rec = SimpleNamespace(user_embedding=users, item_embedding=items)
+    user_ids = torch.tensor([1, 2], dtype=torch.long)
+    item_ids = torch.tensor([3, 4], dtype=torch.long)
+    ui = torch.cat([users(user_ids), items(item_ids)], dim=-1)
+    ctx = {"rec_encoder": rec, "user_ids": user_ids, "item_ids": item_ids}
+    for trial in TRIALS[1:7]:
+        gen = SimpleNamespace(_rankgran_mode=trial["mode"],
+                              _rankgran_meta=meta, _struct10_trial=trial)
+        groups = group_inputs(gen, ui, ctx)
+        assert len(groups) == (1 if trial["mode"] == "cluster_mix" else 4)
+        assert all(g.shape == ui.shape and torch.isfinite(g).all() for g in groups)
+        if trial["mode"] == "select_cluster":
+            assert groups[2] is ui and groups[3] is ui
+        if trial["mode"] == "select_neighbor":
+            assert groups[0] is ui and groups[1] is ui
+        gu, gi = torch.autograd.grad(
+            sum(g.square().mean() for g in groups), (users.weight, items.weight),
+            retain_graph=True, allow_unused=False)
+        assert torch.isfinite(gu).all() and torch.isfinite(gi).all()
+        assert gu.abs().sum() > 0 and gi.abs().sum() > 0
     assert len(TRIALS) == 10
     assert len(set(ORDER)) == len(ORDER)
     assert [t["ranks"][0] for t in TRIALS[-3:]] == [8, 12, 20]
     assert all(t.get("mode") in (
         "baseline", "cluster_mix", "neighbor_mix",
         "select_cluster", "select_neighbor", "rank") for t in TRIALS)
-    print("[STRUCT10 CPU PASS] residual mixing and gradients, "
-          "experiment registry, uniform rank controls", flush=True)
+    print("[STRUCT10 CPU PASS] centroid/neighborhood residuals, grouped routing, "
+          "selective layers, MF gradients and uniform rank controls", flush=True)
 
 
 def _preflight():
