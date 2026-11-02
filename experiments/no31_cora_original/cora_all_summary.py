@@ -26,6 +26,8 @@ ORDER = (
     "D4_TOPK_RES025", "D5_TOPK_RES050", "D6_LOW_K32",
     "D7_HIGH_TOPK20", "D8_UNIFORM_R8", "D9_UNIFORM_R12",
     "D10_UNIFORM_R20",
+    "L1_LATE_SOFTVOTE", "L2_LATE_PAIRKL", "L3_LATE_CONSENSUS",
+    "L4_LATE_AUXBCE",
 )
 NUMBER = re.compile(r"[-+]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)(?:[eE][-+]?[0-9]+)?")
 EVAL = re.compile(
@@ -50,6 +52,8 @@ def round_label(name):
         return "Round3"
     if name.startswith("D"):
         return "Round5"
+    if name.startswith("L"):
+        return "Round6"
     return "Round4"
 
 def candidate_logs(root):
