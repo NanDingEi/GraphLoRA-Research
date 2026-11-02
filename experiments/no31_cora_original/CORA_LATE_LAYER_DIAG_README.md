@@ -5,14 +5,14 @@ This is not a training experiment. It restores the existing best D4 trainable-on
 ## What it measures
 
 - Decoder layers 29, 30, 31, and 32 (1-based).
-- For each layer, capture the target-position hidden vector at the official answer position -t_posi, apply the shared final RMSNorm and LM Head, and read the Yes-token logit.
+- For each layer, capture the target-position hidden vector at the official answer position -t_posi, apply the shared final RMSNorm and LM Head, and read both Yes and No token logits. The script evaluates both the Yes-only score and the Yes-minus-No margin, then checks which one reproduces the official Layer-32 AUC.
 - Layer 32 reconstruction is checked against the model's final forward-hook logit.
-- Per-layer: AUC, per-user UAUC, Brier score, accuracy, probability/logit distribution, saturation rate.
-- Pairwise: Spearman correlation of logits, prediction disagreement, error overlap/Jaccard.
+- Per-layer under both score conventions (Yes raw logit; Yes-minus-No margin): AUC, per-user UAUC, Brier score, accuracy, probability/logit distribution, saturation rate.
+- Pairwise under both score conventions: Spearman correlation, prediction disagreement, error overlap/Jaccard.
 - Complementarity: for each earlier layer, how many Layer-32 errors it corrects and how often it damages a correct Layer-32 prediction.
 - Saves per-example user/item/label/logit/probability/prediction/error rows for audit.
 
-UAUC is computed as the unweighted mean of per-user AUC over users having both positive and negative labels. The report includes the number of computed and excluded users. Compare Layer-32 AUC with the official runner's aggregate AUC; if they differ by more than 0.005, do not interpret intermediate-layer results until the official scoring convention is reconciled.
+UAUC is computed as the unweighted mean of per-user AUC over users having both positive and negative labels. The report includes the number of computed and excluded users. The script compares both Layer-32 score conventions with the official runner's aggregate AUC and selects the matching convention only when the absolute difference is at most 0.005. If neither matches, do not interpret intermediate-layer results until the official scoring expression is reconciled.
 
 ## Checkpoint and configuration
 
@@ -27,7 +27,7 @@ Run inside the already working CoRA environment:
 \`\`\`bash
 cd /home/bbx/user_lx/CoRA_official
 
-REV=8378530205c634283a14a3ef646d6d8b876a15d9
+REV=5b9501c6634eff7ff789b334392fafc826ad36ae
 BASE=https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/$REV/experiments/no31_cora_original
 curl -fL --retry 3 "$BASE/cora_late_layer_diag.py" -o cora_late_layer_diag.py
 
@@ -51,9 +51,10 @@ CUDA_VISIBLE_DEVICES=0 python -u cora_late_layer_diag.py --run --tag "$TAG" \
 ## Output
 
 - out/<TAG>/diagnostics.json
-- out/<TAG>/per_layer_metrics.csv
-- out/<TAG>/pairwise_metrics.csv
-- out/<TAG>/final_layer_rescue.csv
+- out/<TAG>/per_layer_metrics_yes_raw_logit.csv
+- out/<TAG>/per_layer_metrics_yes_minus_no_logit.csv
+- out/<TAG>/pairwise_metrics_*.csv
+- out/<TAG>/final_layer_rescue_*.csv
 - out/<TAG>/sample_predictions.csv
 - out/<TAG>/layer_logits_valid.npz
 - logs/<TAG>/run.log
