@@ -405,6 +405,8 @@ def _install_eval_only_runner(checkpoint, protocol, capture, tag):
     def eval_only(self):
         model = self.unwrap_dist_model(self.model)
         _load_compact_trainable_state(model, checkpoint)
+        for parameter in model.parameters():
+            parameter.requires_grad_(False)
         model.eval()
         self.model.eval()
         print(
@@ -420,8 +422,18 @@ def _install_eval_only_runner(checkpoint, protocol, capture, tag):
         print("[LAYERDIAG DONE] inference-only; no optimizer step or checkpoint save", flush=True)
         return result
 
-    RunnerBase.train = eval_only
-    if "train" in RecRunnerBase.__dict__:
+    # Patch RunnerBase and every already-imported subclass so a custom
+    # registered runner cannot accidentally enter the original train loop.
+    pending = [RunnerBase]
+    seen = set()
+    while pending:
+        cls = pending.pop()
+        if cls in seen:
+            continue
+        seen.add(cls)
+        cls.train = eval_only
+        pending.extend(cls.__subclasses__())
+    if RecRunnerBase not in seen:
         RecRunnerBase.train = eval_only
 
 
