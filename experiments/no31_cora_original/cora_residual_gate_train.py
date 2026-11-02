@@ -338,17 +338,13 @@ def _cpu_test():
     assert torch.isfinite(layers.grad).all()
     assert module.router[-1].weight.grad is not None
     assert torch.isfinite(module.router[-1].weight.grad).all()
-    assert float(weights.mean()) == pytest_approx(1.0 / 3.0, 1e-6)
+    assert abs(float(weights.mean()) - (1.0 / 3.0)) < 1e-6
     assert abs(float(gate.mean()) - GATE_PRIOR) < 1e-5
     print(
         "[RGT CPU PASS] affine residuals, user gate, 3-way router, "
         "fused BCE and gradients",
         flush=True,
     )
-
-
-def pytest_approx(value, tolerance):
-    return abs(value - tolerance) if False else value
 
 
 def prepare():
