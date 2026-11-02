@@ -132,15 +132,13 @@ def _capture_layer_pair(model, samples, fn, *args, **kwargs):
         raise RuntimeError(
             f"Layer capture incomplete: missing={missing}, final_pair={'final_pair' in captured}")
     rows = []
-    lm_head = causal_lm.lm_head
-    selected_weight = lm_head.weight.index_select(0, token_ids)
-    selected_bias = (lm_head.bias.index_select(0, token_ids)
-                     if lm_head.bias is not None else None)
     for idx in DIAG_LAYERS:
         hidden = captured["layers"][idx]
         normalized = decoder.norm(hidden)
-        # Read only two vocabulary rows instead of materializing [B,V] logits.
-        rows.append(F.linear(normalized, selected_weight, selected_bias).float())
+        # Reuse the actual LM-head module so quantized/tied-weight behavior
+        # exactly matches the official forward path.
+        full_logits = causal_lm.lm_head(normalized)
+        rows.append(full_logits.index_select(-1, token_ids).float())
     layer_pair = torch.stack(rows, dim=0)  # [4, batch, (Yes, No)]
     final_pair = captured["final_pair"]
     if not torch.isfinite(layer_pair).all() or not torch.isfinite(final_pair).all():
