@@ -51,7 +51,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import cora_latevote4 as late  # noqa: E402
 
 
-PROTOCOL = "CORA_RESIDUAL_GATE_TRAIN_20261103"
+PROTOCOL = "CORA_RESIDUAL_GATE_TRAIN_20261103_R1"
 SEED = 42
 CORA_LR = 3e-4
 MF_LR_RATIO = 0.1
@@ -73,6 +73,7 @@ GATE_INIT_BIAS = -1.5
 GATE_PRIOR = 1.0 / (1.0 + 2.718281828459045 ** 1.5)
 GATE_PRIOR_WEIGHT = 1e-3
 AFFINE_PRIOR_WEIGHT = 1e-4
+MIN_FREE_GPU0_MIB = 22000
 
 
 def configure():
@@ -350,6 +351,54 @@ def _cpu_test():
     )
 
 
+def gpu0_preflight(stage):
+    """Refuse to load the 7B model unless physical GPU0 is essentially idle."""
+    query = subprocess.run(
+        [
+            "nvidia-smi",
+            "--query-gpu=index,memory.free",
+            "--format=csv,noheader,nounits",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    if query.returncode != 0:
+        raise RuntimeError(
+            f"[RGT GPU PREFLIGHT] nvidia-smi query failed at {stage}: "
+            f"{query.stderr.strip()}"
+        )
+
+    gpu0_free_mib = None
+    for line in query.stdout.splitlines():
+        fields = [part.strip() for part in line.split(",")]
+        if len(fields) >= 2 and fields[0] == "0":
+            gpu0_free_mib = int(fields[1])
+            break
+    if gpu0_free_mib is None:
+        raise RuntimeError(
+            f"[RGT GPU PREFLIGHT] physical GPU0 not found at {stage}: "
+            f"{query.stdout.strip()}"
+        )
+
+    print(
+        f"[RGT GPU PREFLIGHT] stage={stage} GPU0_free={gpu0_free_mib} MiB "
+        f"required>={MIN_FREE_GPU0_MIB} MiB",
+        flush=True,
+    )
+    if gpu0_free_mib < MIN_FREE_GPU0_MIB:
+        detail = subprocess.run(
+            ["nvidia-smi"],
+            capture_output=True,
+            text=True,
+        ).stdout
+        raise RuntimeError(
+            "[RGT GPU PREFLIGHT] Refusing to start: GPU0 is not sufficiently "
+            f"free ({gpu0_free_mib} MiB available; need {MIN_FREE_GPU0_MIB} MiB). "
+            "No training/model loading was started. Current nvidia-smi:\n"
+            + detail
+        )
+
+
 def prepare():
     configure()
     late.prepare()
@@ -385,6 +434,7 @@ def prepare():
 
 def worker(name, patience, screen_epochs):
     configure()
+    gpu0_preflight("worker-before-model-load")
     if name != TRIAL["name"]:
         raise ValueError(f"Unknown residual-gate trial: {name}")
     late.base.core.patch_runner(
@@ -418,6 +468,7 @@ def worker(name, patience, screen_epochs):
 
 def run_selected(patience, screen_epochs):
     configure()
+    gpu0_preflight("launcher-before-spawn")
     if not late.base.core.CONFIG_DIR.is_dir():
         prepare()
     log = late.base.core.LOG_DIR / (TRIAL["name"] + ".log")
