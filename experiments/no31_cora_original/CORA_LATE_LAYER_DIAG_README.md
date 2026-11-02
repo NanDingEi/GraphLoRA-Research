@@ -27,7 +27,7 @@ Run inside the already working CoRA environment:
 \`\`\`bash
 cd /home/bbx/user_lx/CoRA_official
 
-REV=54b98d7a60dc84b05058ba6118c9cd5301f8577b
+REV=8378530205c634283a14a3ef646d6d8b876a15d9
 BASE=https://raw.githubusercontent.com/NanDingEi/GraphLoRA-Research/$REV/experiments/no31_cora_original
 curl -fL --retry 3 "$BASE/cora_late_layer_diag.py" -o cora_late_layer_diag.py
 
