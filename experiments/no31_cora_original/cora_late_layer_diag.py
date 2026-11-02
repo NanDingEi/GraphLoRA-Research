@@ -515,10 +515,6 @@ def _install_eval_only_runner(checkpoint, protocol, capture, tag):
         # The original runner's initialization path normally selects the
         # v2 dispatcher before calling valid_step(). This inference-only
         # runner replaces train(), so that setup must be reproduced here.
-        if not hasattr(model, "set_mode"):
-            raise RuntimeError(
-                "MiniGPT4Rec_vx has no set_mode(); inspect the local model API "
-                "before running this diagnostic.")
         if not hasattr(model, "generate_for_samples_v2"):
             raise RuntimeError(
                 "MiniGPT4Rec_vx has no generate_for_samples_v2(); "
@@ -529,7 +525,12 @@ def _install_eval_only_runner(checkpoint, protocol, capture, tag):
             raise RuntimeError(
                 f"Expected D4 ans_type=v2 (Yes/No), got "
                 f"pos_ans={model.pos_ans!r}, neg_ans={model.neg_ans!r}.")
-        model.set_mode("v2")
+        if hasattr(model, "set_mode"):
+            model.set_mode("v2")
+        else:
+            # Some local MiniGPT4Rec_vx variants expose the dispatcher field
+            # but omit the convenience setter used by the upstream model.
+            model.run_mode_ = "v2"
         if getattr(model, "run_mode_", None) != "v2":
             raise RuntimeError(
                 f"Failed to set inference dispatcher to v2: "
