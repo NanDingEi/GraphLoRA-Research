@@ -511,6 +511,33 @@ def _install_eval_only_runner(checkpoint, protocol, capture, tag):
         model = self.unwrap_dist_model(self.model)
         payload = _load_compact_trainable_state(model, checkpoint)
         capture["checkpoint_epoch"] = payload.get("epoch")
+
+        # The original runner's initialization path normally selects the
+        # v2 dispatcher before calling valid_step(). This inference-only
+        # runner replaces train(), so that setup must be reproduced here.
+        if not hasattr(model, "set_mode"):
+            raise RuntimeError(
+                "MiniGPT4Rec_vx has no set_mode(); inspect the local model API "
+                "before running this diagnostic.")
+        if not hasattr(model, "generate_for_samples_v2"):
+            raise RuntimeError(
+                "MiniGPT4Rec_vx has no generate_for_samples_v2(); "
+                "the D4 checkpoint requires the v2 inference path.")
+        if not getattr(model, "pos_ans", None) or not getattr(model, "neg_ans", None):
+            raise RuntimeError("Answer tokens are not initialized; expected ans_type=v2.")
+        if model.pos_ans[0] != "Yes" or model.neg_ans[0] != "No":
+            raise RuntimeError(
+                f"Expected D4 ans_type=v2 (Yes/No), got "
+                f"pos_ans={model.pos_ans!r}, neg_ans={model.neg_ans!r}.")
+        model.set_mode("v2")
+        if getattr(model, "run_mode_", None) != "v2":
+            raise RuntimeError(
+                f"Failed to set inference dispatcher to v2: "
+                f"run_mode_={getattr(model, 'run_mode_', None)!r}")
+        print("[LAYERDIAG MODE] explicitly selected v2; "
+              "valid_step -> generate_for_samples -> generate_for_samples_v2",
+              flush=True)
+
         for parameter in model.parameters():
             parameter.requires_grad_(False)
         model.eval()
@@ -523,8 +550,9 @@ def _install_eval_only_runner(checkpoint, protocol, capture, tag):
             result = self.eval_epoch("valid", 0, skip_reload=True)
         if not capture["labels"]:
             raise RuntimeError(
-                "No layer predictions captured. Evaluation did not call "
-                "generate_for_samples_v2; inspect rec_base_task.py before proceeding.")
+                "No layer predictions captured. Expected valid_step() to call "
+                "generate_for_samples() -> generate_for_samples_v2(); inspect "
+                "the local rec_base_task.py/model dispatcher before proceeding.")
         _write_outputs(capture, checkpoint, protocol, result, tag)
         print("[LAYERDIAG DONE] inference-only; no optimizer step or checkpoint save", flush=True)
         return result
