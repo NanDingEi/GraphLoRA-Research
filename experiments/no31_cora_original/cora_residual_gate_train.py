@@ -43,9 +43,10 @@ def _find_project_root():
     )
 
 
-ROOT = _find_project_root()
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+PROJECT_ROOT = _find_project_root()
+EXP_DIR = Path(__file__).resolve().parent
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 
 import cora_latevote4 as late  # noqa: E402
 
@@ -76,7 +77,9 @@ AFFINE_PRIOR_WEIGHT = 1e-4
 
 def configure():
     """Reuse the tested C6/D4 runtime and point all outputs at a new protocol."""
-    late.ROOT = ROOT
+    # Experiment configs/logs stay beside the experiment scripts; model source
+    # imports and source checks resolve against the separate CoRA project root.
+    late.ROOT = EXP_DIR
     late.PROTOCOL = PROTOCOL
     late.SEED = SEED
     late.CORA_LR = CORA_LR
@@ -87,9 +90,9 @@ def configure():
     late.TRIAL_BY_NAME = {TRIAL["name"]: TRIAL}
     late.ORDER = ORDER
 
-    late.base.ROOT = ROOT
-    late.base.core.ROOT = ROOT
-    late.base.combo.ROOT = ROOT
+    late.base.ROOT = EXP_DIR
+    late.base.core.ROOT = PROJECT_ROOT
+    late.base.combo.ROOT = EXP_DIR
     late.configure()
 
 
@@ -221,7 +224,7 @@ def install_router_module():
         original_init(self, *args, **kwargs)
         if hasattr(self, "cora_late_residual_router"):
             raise RuntimeError("Residual router unexpectedly already exists")
-        user_dim = int(self.rec_encoder.config.embedding_size)
+        user_dim = int(self.rec_encoder.user_embedding.weight.shape[1])
         self.cora_late_residual_router = UserConditionedResidualRouter(user_dim)
         n_params = sum(p.numel() for p in self.cora_late_residual_router.parameters())
         print(
@@ -410,7 +413,7 @@ def worker(name, patience, screen_epochs):
         raise RuntimeError("Residual-gate training config violates fixed controls")
 
     sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(cfg_path)]
-    runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
+    runpy.run_path(str(PROJECT_ROOT / "train_collm_mf_din.py"), run_name="__main__")
 
 
 def run_selected(patience, screen_epochs):
@@ -422,7 +425,7 @@ def run_selected(patience, screen_epochs):
         raise RuntimeError(f"Refusing to overwrite existing log: {log}")
 
     command = [
-        sys.executable, "-u", str(ROOT / "cora_residual_gate_train.py"),
+        sys.executable, "-u", str(EXP_DIR / "cora_residual_gate_train.py"),
         "--_worker", TRIAL["name"],
         "--patience", str(patience),
         "--screen-epochs", str(screen_epochs),
@@ -432,7 +435,7 @@ def run_selected(patience, screen_epochs):
     with log.open("x", encoding="utf-8") as handle:
         proc = subprocess.Popen(
             command,
-            cwd=ROOT,
+            cwd=PROJECT_ROOT,
             env=env,
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
@@ -460,7 +463,7 @@ def main():
     parser.add_argument("--_worker", default="", help=argparse.SUPPRESS)
     args = parser.parse_args()
 
-    os.chdir(ROOT)
+    os.chdir(PROJECT_ROOT)
     if args.cpu_test:
         _cpu_test()
         return
