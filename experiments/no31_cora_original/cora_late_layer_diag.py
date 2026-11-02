@@ -244,6 +244,18 @@ def _write_outputs(capture, checkpoint, protocol, eval_result, tag):
     metrics = _compute_metrics(labels, users, layer_logits)
     metrics["layer32_vs_final_hook_max_abs_error"] = max_layer32_error
     metrics["official_eval_result"] = _json_safe(eval_result)
+    official_auc = None
+    if isinstance(eval_result, dict):
+        candidate = eval_result.get("agg_metrics")
+        if isinstance(candidate, (int, float, np.integer, np.floating)):
+            official_auc = float(candidate)
+    metrics["official_aggregate_auc"] = official_auc
+    metrics["layer32_auc_abs_delta_vs_official"] = (
+        abs(metrics["layer_metrics"][-1]["auc"] - official_auc)
+        if official_auc is not None else None)
+    metrics["layer32_auc_matches_official_within_0_005"] = (
+        abs(metrics["layer_metrics"][-1]["auc"] - official_auc) <= 0.005
+        if official_auc is not None else None)
     metrics["checkpoint"] = str(checkpoint)
     metrics["protocol"] = protocol
     metrics["layers_one_based"] = [x + 1 for x in DIAG_LAYERS]
@@ -309,6 +321,15 @@ def _write_outputs(capture, checkpoint, protocol, eval_result, tag):
         f"rate among final errors={metrics['any_earlier_layer_rescue_rate']:.6f}",
         flush=True)
     print(f"[LAYERDIAG L32 CHECK] max_abs_error={max_layer32_error:.8g}", flush=True)
+    if metrics["official_aggregate_auc"] is not None:
+        delta = metrics["layer32_auc_abs_delta_vs_official"]
+        print(f"[LAYERDIAG OFFICIAL AUC CHECK] official={metrics['official_aggregate_auc']:.6f} "
+              f"captured_L32={metrics['layer_metrics'][-1]['auc']:.6f} "
+              f"abs_delta={delta:.6f}", flush=True)
+        if delta > 0.005:
+            print("[LAYERDIAG WARNING] Captured Layer32 AUC does not reproduce official Valid AUC; "
+                  "do not interpret intermediate-layer metrics until score semantics are reconciled.",
+                  flush=True)
 
 
 def _install_capture():
