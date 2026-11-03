@@ -59,7 +59,7 @@ TRIALS = [
          mode="neighbor_mix", personal_share=0.25),
     dict(name="S2_FIXED_TOP2", expert_mode="fixed_top2",
          mode="neighbor_mix", personal_share=0.25),
-    dict(name="S3_SIM_TOP2", expert_mode="prototype_top2",
+    dict(name="S3_SIM_TOP2", expert_mode="prototype",
          mode="neighbor_mix", personal_share=0.25),
     dict(name="S4_SOFT4", expert_mode="soft4",
          mode="neighbor_mix", personal_share=0.25),
@@ -71,7 +71,7 @@ TRIALS = [
 TRIAL_BY_NAME = {t["name"]: t for t in TRIALS}
 ORDER = [t["name"] for t in TRIALS]
 LEARNED = {"soft4", "warmup_top2", "shared_c2f"}
-PROTOTYPE = {"prototype_top2"}
+PROTOTYPE = {"prototype"}
 WARMUP = {"warmup_top2", "shared_c2f"}
 
 
@@ -191,7 +191,7 @@ class SplitExperts6(nn.Module):
             summary = [choices.reshape(-1)] * 4
             aux = zeros
 
-        elif mode == "prototype_top2":
+        elif mode == "prototype":
             labels = self.train_cluster_labels
             if bool((ids < 0).any()) or bool((ids >= labels.numel()).any()):
                 raise RuntimeError("UserID outside MF user table/prototype labels")
@@ -385,7 +385,7 @@ def cpu_test():
     for trial in TRIALS:
         mode = trial["expert_mode"]
         kwargs = {}
-        if mode == "prototype_top2":
+        if mode == "prototype":
             kwargs = dict(prototype_labels=labels, prototypes=centroids)
         module = SplitExperts6(mode, udim, **kwargs)
         masks, aux, stats = module(users, ids)
@@ -398,13 +398,13 @@ def cpu_test():
                 torch.testing.assert_close(
                     mask, torch.ones_like(mask), atol=1e-6, rtol=0
                 )
-        if mode in ("fixed_top2", "prototype_top2"):
+        if mode in ("fixed_top2", "prototype"):
             assert all(
                 bool((m.view(batch, EXPERTS, RANK_PER).abs() > 1e-6)
                      .any(dim=-1).sum(dim=-1).eq(2).all())
                 for m in masks
             )
-        if mode == "prototype_top2":
+        if mode == "prototype":
             assert stats["cold_users_in_batch"] == 2
         if mode in WARMUP:
             module.microsteps = WARMUP_MICROSTEPS + 1
