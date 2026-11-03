@@ -121,3 +121,22 @@ When investigating experts, search individual training logs for
 `experiments/no31_cora_original/logs/CORA_RANK4_EXPERTS5_20261103/`.
 The expert-count window aggregates 100 microsteps to avoid interpreting
 single batch=2 counts as a user-level trend.
+
+## Fix 2026-11-03: Module attribute check
+
+The first E1 run under `CORA_RANK4_EXPERTS5_20261103` failed at the
+first training batch, because a model module's auxiliary tensor was checked
+using container membership instead of an attribute check. The script on
+this branch now uses `hasattr(generator, "_r4e_aux")`.
+
+The prior failed log is retained. After re-downloading the script, use a
+**new protocol** to re-run all five trials without overwriting that record:
+
+```bash
+python -u experiments/no31_cora_original/cora_rank4_experts5.py \
+  --run --protocol CORA_RANK4_EXPERTS5_20261103_FIX1
+```
+
+The `--run` entry generates missing configs automatically. To view the
+new results, append `--protocol CORA_RANK4_EXPERTS5_20261103_FIX1` to
+`--summary`.
