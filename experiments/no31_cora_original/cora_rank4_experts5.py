@@ -251,7 +251,7 @@ class Rank4Experts(nn.Module):
                 # 32 decoder layers grouped in four blocks of 8:
                 # L1-L16 dense (coarse), L17-L24 Top2, L25-L32 Top1.
                 masks = [dense, dense, mid, deep]
-                summary = [torch.arange(N_EXPERTS, device=ids.device),
+                summary = [torch.arange(N_EXPERTS, device=ids.device).repeat(batch),
                            im.reshape(-1), idp.reshape(-1)]
                 aux = BALANCE_WEIGHT * (
                     (pm.mean(dim=0) - .25).square().sum()
@@ -688,6 +688,7 @@ def summary(protocol):
                                 float(uauc) if uauc is not None else None,
                                 result_path.parent,
                                 f"{result_path}:{line_no}",
+                                entry.get("valid_best_epoch"),
                             ))
                 except OSError:
                     pass
@@ -710,23 +711,28 @@ def summary(protocol):
             "trial": name,
             "valid_auc": best[0] if best else None,
             "valid_uauc_at_best_auc": best[1] if best else None,
+            "best_epoch": best[4] if best else None,
+            "delta_auc_vs_RR1": best[0] - .732387 if best else None,
+            "delta_uauc_vs_RR1": best[1] - .701999 if best and best[1] is not None else None,
             "status": status,
             "ckpt": "FOUND" if ckpt else "MISSING",
             "source": best[3] if best else "",
         })
     print("\nRANK4 EXPERTS (VALID ONLY; best AUC and paired UAUC)")
-    print(f"{'trial':22} {'AUC':>10} {'UAUC@best':>12} {'dAUC_vs_RR1':>12} {'status':>12} {'ckpt':>10}")
+    print(f"{'trial':22} {'AUC':>10} {'UAUC@best':>12} {'dAUC':>10} {'dUAUC':>10} {'epoch':>6} {'status':>12} {'ckpt':>10}")
     for row in rows:
         auc = row["valid_auc"]
         ua = row["valid_uauc_at_best_auc"]
         print(
             f"{row['trial']:22} "
-            f"{auc:.6f}" if auc is not None else f"{row['trial']:22} {'—':>10}",
-            end=" "
+            f"{auc:.6f} " if auc is not None else f"{row['trial']:22} {'—':>10} ",
+            end=""
         )
         print(
             f"{ua:.6f}" if ua is not None else "—",
-            f"{auc - .732387:+.6f}" if auc is not None else "—",
+            f"{row['delta_auc_vs_RR1']:+.6f}" if row["delta_auc_vs_RR1"] is not None else "—",
+            f"{row['delta_uauc_vs_RR1']:+.6f}" if row["delta_uauc_vs_RR1"] is not None else "—",
+            str(row["best_epoch"]) if row["best_epoch"] is not None else "—",
             row["status"], row["ckpt"],
         )
     report_dir = EXP_DIR / "out" / PROTOCOL
