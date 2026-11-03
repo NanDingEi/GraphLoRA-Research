@@ -393,7 +393,7 @@ def install_loss_audit(trial):
             raise RuntimeError(
                 "Rank4 expert generator was not invoked during the CoRA training forward"
             )
-        if "_r4e_aux" not in gen:
+        if not hasattr(gen, "_r4e_aux"):
             raise RuntimeError("Missing Rank4 route auxiliary loss")
         aux = gen._r4e_aux
         result["loss"] = result["loss"] + aux
