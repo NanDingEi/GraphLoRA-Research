@@ -27,7 +27,7 @@ NAMES = [
 ]
 NUM = r"[-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[Ee][-+]?\d+)?"
 EVAL = re.compile(
-    r"\*\*\*auc:\s*(" + NUM + r").*?\*\*\*uauc:\s*[\(\[]?\s*(" + NUM + r")",
+    r"\*\*\*auc:\s*(" + NUM + r").*?\*\*\*uauc:\s*[\(\[]?\s*(?:np\.float(?:32|64)\s*\()?\s*(" + NUM + r")",
     re.I,
 )
 EPOCH = re.compile(r"Start training epoch\s+(\d+)", re.I)
