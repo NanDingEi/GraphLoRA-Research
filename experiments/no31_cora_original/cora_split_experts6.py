@@ -468,7 +468,10 @@ def main():
         plan(args.protocol)
         return
     if args.summary:
-        base.summary(args.protocol)
+        from cora_split_experts6_recover import recover, display, write_csv
+        rows = recover(args.protocol)
+        display(rows, debug=False)
+        write_csv(rows, args.protocol)
         return
     if args.run:
         selected = [x.strip() for x in args.only.split(",") if x.strip()] if args.only else ORDER
