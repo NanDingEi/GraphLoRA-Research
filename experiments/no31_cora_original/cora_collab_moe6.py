@@ -353,9 +353,14 @@ def install_moe_model(trial):
         labels = centers = None
         if mode in CLUSTERS:
             labels, centers = _train_centroids(rec, mode)
-        gen.rank4_experts = CollaborativeMoE(
-            mode, user_dim, labels=labels, centers=centers
-        )
+        # Keep the original CoRA weight init AND the subsequent data-loader
+        # RNG stream matched across all six trials. The additional MLP/query
+        # random draws live inside a restored CPU RNG scope.
+        with torch.random.fork_rng(devices=[]):
+            torch.manual_seed(SEED + 104)
+            gen.rank4_experts = CollaborativeMoE(
+                mode, user_dim, labels=labels, centers=centers
+            )
         n = sum(p.numel() for p in gen.rank4_experts.parameters() if p.requires_grad)
         print(
             f"[MOE6 INIT] name={trial['name']} mode={mode} "
