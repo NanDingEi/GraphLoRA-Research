@@ -296,6 +296,18 @@ def display(rows, debug):
     )
 
 
+def write_csv(rows, protocol):
+    out = HERE / "out" / protocol
+    out.mkdir(parents=True, exist_ok=True)
+    csv_path = out / "split_experts6_recovered_valid.csv"
+    with csv_path.open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+    print("[RECOVER] CSV:", csv_path)
+    return csv_path
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--protocol", default=DEFAULT_PROTOCOL)
@@ -305,14 +317,7 @@ def main():
     rows = recover(args.protocol)
     display(rows, args.debug)
     if not args.no_write:
-        out = HERE / "out" / args.protocol
-        out.mkdir(parents=True, exist_ok=True)
-        csv_path = out / "split_experts6_recovered_valid.csv"
-        with csv_path.open("w", newline="", encoding="utf-8-sig") as stream:
-            writer = csv.DictWriter(stream, fieldnames=list(rows[0].keys()))
-            writer.writeheader()
-            writer.writerows(rows)
-        print("[RECOVER] CSV:", csv_path)
+        write_csv(rows, args.protocol)
 
 
 if __name__ == "__main__":
