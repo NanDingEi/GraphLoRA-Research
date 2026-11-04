@@ -595,13 +595,18 @@ def cpu_test():
         assert stats["empty_histories"] == (1 if kind == "multi_interest" else 0)
         if kind == "layer_pair":
             assert len({p.data_ptr() for p in probabilities.unbind(dim=1)}) == 4
-        output = F.linear(
-            torch.bmm(
-                x.unsqueeze(1), w * masks[-1].unsqueeze(1)
-            ).squeeze(1), P
-        )
-        torch.testing.assert_close(output, dense, atol=1e-5, rtol=1e-5)
-        loss = output.square().mean() + aux
+        group_outputs = [
+            F.linear(
+                torch.bmm(
+                    x.unsqueeze(1), w * mask.unsqueeze(1)
+                ).squeeze(1), P
+            )
+            for mask in masks
+        ]
+        for output in group_outputs:
+            torch.testing.assert_close(output, dense, atol=1e-5, rtol=1e-5)
+        # Exercise every group, including all four M6 heads, in backward.
+        loss = sum(out.square().mean() for out in group_outputs) / 4.0 + aux
         loss.backward(retain_graph=True)
         expected = list(module.parameters())
         assert expected and all(p.grad is not None for p in expected)
