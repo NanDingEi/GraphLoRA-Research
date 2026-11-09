@@ -274,7 +274,9 @@ def plan(protocol):
             "pair": "normalized detached [user, item, user*item], one shared route for all 4 layer groups",
             "layer_pair": "same user-item pair input, 4 independent output groups of 4 expert logits",
         },
+        "mask": "per-trial lambda; see lambda_by_trial",
         "mask_formula": "mask = 1 + lambda * (4 * softmax(logits) - 1)",
+        "lambda": "per_trial",
         "lambda_values": [0.2, 1.0],
         "diagnostics": [
             "per-layer-group expert probability mean/std",
