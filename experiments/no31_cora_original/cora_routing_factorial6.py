@@ -18,6 +18,7 @@ Commands:
   python experiments/no31_cora_original/cora_routing_factorial6.py --summary
 """
 import argparse
+import csv
 import json
 import os
 import re
@@ -301,8 +302,47 @@ def plan(protocol):
 def summary(protocol, debug=False):
     import cora_collab_moe6_summary as summary_module
     summary_module.NAMES = ORDER
-    summary_module.DEFAULT_PROTOCOL = DEFAULT_PROTOCOL
-    summary_module.run_summary(protocol, debug=debug)
+    rows = summary_module.collect(protocol)
+    for row in rows:
+        row["delta_auc_vs_E1"] = row.pop("delta_auc_vs_S1")
+        row["delta_uauc_vs_E1"] = row.pop("delta_uauc_vs_S1")
+
+    print("\\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
+    print(f'{"trial":24} {"AUC":>10} {"UAUC@best":>12} '
+          f'{"dAUC vs E1":>12} {"dUAUC vs E1":>13} {"Epoch":>7} '
+          f'{"Status":>16} {"Checkpoint":>18}')
+    print("-" * 126)
+    for row in rows:
+        auc = row["valid_auc"]
+        uauc = row["valid_uauc_at_best_auc"]
+        da = row["delta_auc_vs_E1"]
+        du = row["delta_uauc_vs_E1"]
+        epoch = str(row["best_epoch"]) if row["best_epoch"] is not None else "—"
+        fmt = lambda value: "—" if value is None else f"{value:.6f}"
+        signed = lambda value: "—" if value is None else f"{value:+.6f}"
+        print(
+            f'{row["trial"]:24} {fmt(auc):>10} {fmt(uauc):>12} '
+            f'{signed(da):>12} {signed(du):>13} {epoch:>7} '
+            f'{row["status"]:>16} {row["checkpoint"]:>18}'
+        )
+        if debug:
+            print("  source=", row["source"])
+            print("  checkpoints=", row["checkpoint_paths"])
+            print("  search_dirs=", row["search_dirs"])
+
+    out = HERE / "out" / protocol
+    out.mkdir(parents=True, exist_ok=True)
+    target = out / "routing_factorial6_valid_summary.csv"
+    with target.open("w", newline="", encoding="utf-8-sig") as stream:
+        writer = csv.DictWriter(stream, fieldnames=list(rows[0].keys()))
+        writer.writeheader()
+        writer.writerows(rows)
+    print(f"\\n[RFX6 SUMMARY] {target}")
+    print(
+        "UAUC is paired with the best-AUC validation record. "
+        "FOUND_UNVERIFIED checks file/ZIP structure only, not model loadability. "
+        "No GPU or TEST evaluation was performed."
+    )
 
 
 def cpu_test():
