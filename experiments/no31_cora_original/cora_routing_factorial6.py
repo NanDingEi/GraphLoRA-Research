@@ -303,29 +303,57 @@ def summary(protocol, debug=False):
     import cora_collab_moe6_summary as summary_module
     summary_module.NAMES = ORDER
     rows = summary_module.collect(protocol)
+    by_name = {row["trial"]: row for row in rows}
+    matched = {
+        "E1_USER_SOFT4_L02": "E1_USER_SOFT4_L02",
+        "E2_USER_SOFT4_L10": "E2_USER_SOFT4_L10",
+        "E3_PAIR_SHARED_L02": "E1_USER_SOFT4_L02",
+        "E4_PAIR_SHARED_L10": "E2_USER_SOFT4_L10",
+        "E5_LAYER_PAIR_L02": "E3_PAIR_SHARED_L02",
+        "E6_LAYER_PAIR_L10": "E4_PAIR_SHARED_L10",
+    }
     for row in rows:
         row["delta_auc_vs_E1"] = row.pop("delta_auc_vs_S1")
         row["delta_uauc_vs_E1"] = row.pop("delta_uauc_vs_S1")
+        ref_name = matched[row["trial"]]
+        ref = by_name[ref_name]
+        row["matched_reference"] = ref_name
+        row["delta_auc_vs_matched"] = (
+            row["valid_auc"] - ref["valid_auc"]
+            if row["valid_auc"] is not None and ref["valid_auc"] is not None
+            else None
+        )
+        row["delta_uauc_vs_matched"] = (
+            row["valid_uauc_at_best_auc"] - ref["valid_uauc_at_best_auc"]
+            if row["valid_uauc_at_best_auc"] is not None
+            and ref["valid_uauc_at_best_auc"] is not None
+            else None
+        )
 
-    print("\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
+    print("\\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
     print(f'{"trial":24} {"AUC":>10} {"UAUC@best":>12} '
-          f'{"dAUC vs E1":>12} {"dUAUC vs E1":>13} {"Epoch":>7} '
+          f'{"dAUC matched":>13} {"dUAUC matched":>14} {"Epoch":>7} '
           f'{"Status":>16} {"Checkpoint":>18}')
-    print("-" * 126)
+    print("-" * 132)
     for row in rows:
         auc = row["valid_auc"]
         uauc = row["valid_uauc_at_best_auc"]
-        da = row["delta_auc_vs_E1"]
-        du = row["delta_uauc_vs_E1"]
+        da = row["delta_auc_vs_matched"]
+        du = row["delta_uauc_vs_matched"]
         epoch = str(row["best_epoch"]) if row["best_epoch"] is not None else "—"
         fmt = lambda value: "—" if value is None else f"{value:.6f}"
         signed = lambda value: "—" if value is None else f"{value:+.6f}"
         print(
             f'{row["trial"]:24} {fmt(auc):>10} {fmt(uauc):>12} '
-            f'{signed(da):>12} {signed(du):>13} {epoch:>7} '
+            f'{signed(da):>13} {signed(du):>14} {epoch:>7} '
             f'{row["status"]:>16} {row["checkpoint"]:>18}'
         )
         if debug:
+            print(
+                f'  matched_reference={row["matched_reference"]} '
+                f'delta_auc_vs_E1={row["delta_auc_vs_E1"]} '
+                f'delta_uauc_vs_E1={row["delta_uauc_vs_E1"]}'
+            )
             print("  source=", row["source"])
             print("  checkpoints=", row["checkpoint_paths"])
             print("  search_dirs=", row["search_dirs"])
@@ -337,13 +365,14 @@ def summary(protocol, debug=False):
         writer = csv.DictWriter(stream, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
-    print(f"\n[RFX6 SUMMARY] {target}")
+    print(f"\\n[RFX6 SUMMARY] {target}")
     print(
         "UAUC is paired with the best-AUC validation record. "
+        "Matched deltas compare Pair against User at the same lambda, "
+        "and Layer Pair against Pair at the same lambda. "
         "FOUND_UNVERIFIED checks file/ZIP structure only, not model loadability. "
         "No GPU or TEST evaluation was performed."
     )
-
 
 def cpu_test():
     from types import SimpleNamespace
