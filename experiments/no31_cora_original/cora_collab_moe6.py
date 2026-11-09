@@ -10,8 +10,9 @@ M1 GLOBAL:          global learned expert weighting, no user/item.
 M2 USER CLUSTER:    four train-only MF user centroids, shared cluster router.
 M3 ITEM CLUSTER:    four train-only MF item centroids, shared cluster router.
 M4 PAIR:            user MF + target MF + elementwise user*item.
-M5 MULTI INTEREST:  three trainable interests attend to the user's real sas_seq
-                    history, target-item attention chooses context for routing.
+M5 MULTI INTEREST:  three trainable interests attend to the real OOD2
+                    InteractedItemIDs_pad history, target-item attention
+                    chooses context for routing.
 M6 LAYER PAIR:      four independent group routes from the user-item pair,
                     applied to L1-8, L9-16, L17-24, L25-32.
 
@@ -192,16 +193,18 @@ class CollaborativeMoE(nn.Module):
     def _multi_interest(self, candidate, history, item_table):
         if history is None:
             raise RuntimeError(
-                "M5_MULTI_INTEREST requires samples['sas_seq']; "
-                "will not silently replace multi-interest routing with user-only routing"
+                "M5_MULTI_INTEREST requires a real history sequence "
+                "(samples['InteractedItemIDs_pad'] for the CoRA OOD2 dataset, "
+                "or samples['sas_seq'] when supplied); refusing user-only fallback"
             )
         if not torch.is_tensor(history) or history.ndim != 2:
             raise RuntimeError(
-                "M5 expects the real [batch,history_len] sas_seq integer Tensor"
+                "M5 expects a collated integer history Tensor with shape "
+                "[batch, history_len]"
             )
         if history.shape[0] != candidate.shape[0] or history.shape[1] < 1:
             raise RuntimeError(
-                f"sas_seq shape {tuple(history.shape)} is incompatible with "
+                f"history shape {tuple(history.shape)} is incompatible with "
                 f"batch={candidate.shape[0]}"
             )
         h = history.to(item_table.device).long()
@@ -274,8 +277,23 @@ class CollaborativeMoE(nn.Module):
         elif self.mode == "pair":
             logits = self.router(torch.cat([user, item, user * item], dim=-1))
         elif self.mode == "multi_interest":
+            # The standard CoRA OOD2 dataset emits InteractedItemIDs_pad;
+            # sas_seq is a SASRec-specific name and is not present in this batch.
+            history = samples.get("sas_seq")
+            if history is None:
+                history = samples.get("InteractedItemIDs_pad")
+            if history is None:
+                history_keys = sorted(
+                    key for key in samples
+                    if any(token in key.lower() for token in ("hist", "seq", "interact"))
+                )
+                raise RuntimeError(
+                    "M5_MULTI_INTEREST could not find a history tensor. "
+                    "Expected 'InteractedItemIDs_pad' (CoRA OOD2) or 'sas_seq'; "
+                    f"history-like batch keys={history_keys}"
+                )
             context, empty_hist = self._multi_interest(
-                item, samples.get("sas_seq"), item_table
+                item, history, item_table
             )
             logits = self.router(
                 torch.cat([user, item, user * item, context], dim=-1)
@@ -457,7 +475,7 @@ def install_moe_model(trial):
     MiniGPT4Rec_vx._collab_moe6_installed = True
     print(
         f"[MOE6 FORWARD] {trial['name']} group-aware, dense soft masks, "
-        "C6/D4 paths unchanged; context includes actual sas_seq for M5",
+        "C6/D4 paths unchanged; M5 reads actual OOD2 InteractedItemIDs_pad history",
         flush=True,
     )
 
@@ -519,7 +537,7 @@ def plan(protocol):
         "auxiliary": "C6_KD_BOTH CTR=.005 KD=.01",
         "user_cluster": "K4 trained ONLY from positive/history train_ood2.pkl user IDs",
         "item_cluster": "K4 trained ONLY from positive/history train_ood2.pkl item IDs",
-        "multi_interest": "three learned latent queries over actual sas_seq MF item embeddings; target-aware interest attention",
+        "multi_interest": "three learned latent queries over actual OOD2 InteractedItemIDs_pad MF item embeddings; target-aware interest attention",
         "layer_pair": "four independent user-item routes on layer blocks 1-8/9-16/17-24/25-32",
         "loss_extra": "1e-3 * mean_probability_balance",
         "no_test": True,
@@ -561,7 +579,8 @@ def cpu_test():
         [2, 10, 0, 0],
         [5, 7, 1, 0],
     ])
-    samples = {"sas_seq": hist}
+    # Match the real CoRA OOD2 dataset batch schema.
+    samples = {"InteractedItemIDs_pad": hist}
     labels_u = torch.full((40,), -1, dtype=torch.long)
     labels_i = torch.full((50,), -1, dtype=torch.long)
     labels_u[1:9] = torch.arange(8) % EXPERTS
