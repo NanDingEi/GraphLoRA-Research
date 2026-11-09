@@ -330,7 +330,7 @@ def summary(protocol, debug=False):
             else None
         )
 
-    print("\\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
+    print("\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
     print(f'{"trial":24} {"AUC":>10} {"UAUC@best":>12} '
           f'{"dAUC matched":>13} {"dUAUC matched":>14} {"Epoch":>7} '
           f'{"Status":>16} {"Checkpoint":>18}')
@@ -365,7 +365,7 @@ def summary(protocol, debug=False):
         writer = csv.DictWriter(stream, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
-    print(f"\\n[RFX6 SUMMARY] {target}")
+    print(f"\n[RFX6 SUMMARY] {target}")
     print(
         "UAUC is paired with the best-AUC validation record. "
         "Matched deltas compare Pair against User at the same lambda, "
@@ -373,6 +373,7 @@ def summary(protocol, debug=False):
         "FOUND_UNVERIFIED checks file/ZIP structure only, not model loadability. "
         "No GPU or TEST evaluation was performed."
     )
+
 
 def cpu_test():
     from types import SimpleNamespace
