@@ -337,7 +337,7 @@ def summary(protocol, debug=False):
         writer = csv.DictWriter(stream, fieldnames=list(rows[0].keys()))
         writer.writeheader()
         writer.writerows(rows)
-    print(f"\\n[RFX6 SUMMARY] {target}")
+    print(f"\n[RFX6 SUMMARY] {target}")
     print(
         "UAUC is paired with the best-AUC validation record. "
         "FOUND_UNVERIFIED checks file/ZIP structure only, not model loadability. "
