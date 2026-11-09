@@ -307,7 +307,7 @@ def summary(protocol, debug=False):
         row["delta_auc_vs_E1"] = row.pop("delta_auc_vs_S1")
         row["delta_uauc_vs_E1"] = row.pop("delta_uauc_vs_S1")
 
-    print("\\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
+    print("\nROUTING FACTORIAL 6 — BEST VALID (NOT TEST)")
     print(f'{"trial":24} {"AUC":>10} {"UAUC@best":>12} '
           f'{"dAUC vs E1":>12} {"dUAUC vs E1":>13} {"Epoch":>7} '
           f'{"Status":>16} {"Checkpoint":>18}')
