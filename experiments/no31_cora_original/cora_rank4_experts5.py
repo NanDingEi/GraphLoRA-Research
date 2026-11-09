@@ -612,6 +612,11 @@ def run_selected(names, protocol, patience, screen_epochs):
     configure(protocol)
     if not late.base.core.CONFIG_DIR.is_dir():
         plan(protocol)
+    # The user may have deleted only the logs directory while keeping the
+    # generated YAML configs. Do not require --plan (or destructive cleanup)
+    # just to recreate the log directory before exclusive file creation.
+    late.base.core.LOG_DIR.mkdir(parents=True, exist_ok=True)
+    late.base.core.OUT_DIR.mkdir(parents=True, exist_ok=True)
     for name in names:
         if name not in TRIAL_BY_NAME:
             raise ValueError(f"Unknown experiment: {name}")
