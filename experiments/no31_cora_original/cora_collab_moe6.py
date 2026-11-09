@@ -148,6 +148,9 @@ class CollaborativeMoE(nn.Module):
             self.cluster_logits = nn.Parameter(torch.zeros(EXPERTS, EXPERTS))
         elif mode == "pair":
             self.router = _build_mlp(3 * dim, EXPERTS)
+        elif mode == "user_soft4":
+            # Controlled factorial: same per-user router as S4, without item inputs.
+            self.router = _build_mlp(dim, EXPERTS)
         elif mode == "multi_interest":
             self.router = _build_mlp(4 * dim, EXPERTS)
             self.interest_queries = nn.Parameter(
@@ -276,6 +279,8 @@ class CollaborativeMoE(nn.Module):
             logits, cold = self._route_cluster(iids, item)
         elif self.mode == "pair":
             logits = self.router(torch.cat([user, item, user * item], dim=-1))
+        elif self.mode == "user_soft4":
+            logits = self.router(user)
         elif self.mode == "multi_interest":
             # The standard CoRA OOD2 dataset emits InteractedItemIDs_pad;
             # sas_seq is a SASRec-specific name and is not present in this batch.
