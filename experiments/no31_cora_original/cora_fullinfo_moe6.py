@@ -7,7 +7,8 @@ of the input z, no additive residual branch, no extra Q-Former copies.
 An orthogonal, dense initialization ensures that the sum of all four experts
 with uniform router weights exactly reconstructs the original RR1 P(z).
 
-We freeze RR1 and train new expert B/P parameters with controlled routing:
+We restore RR1 and continue joint training its MF and dynamic weight generator;
+only superseded original P matrices are frozen. Train new expert B/P with controlled routing:
 uniform, user-only, pair-shared, or pair-layer routing; lambda=0.2 / 1.0.
 All variants use dense full-rank16 input to every expert. Expert-only warmup
 precedes learned-router training, and the RR1 checkpoint is not overwritten.
@@ -43,8 +44,8 @@ for directory in (ROOT, HERE):
 import cora_rank4_experts5 as base
 
 SEED = 42
-NAME = 'FULLINFO4_RR1_FROZEN'
-DEFAULT_PROTOCOL = 'CORA_FULLINFO_MOE6_20261110'
+NAME = 'FULLINFO4_RR1_JOINT'
+DEFAULT_PROTOCOL = 'CORA_FULLINFO_MOE6_MFJOINT_FIX1_20261110'
 DEFAULT_RR1_PROTOCOL = 'CORA_RESIDUAL_ROUTING6_20261103'
 DEFAULT_CHECKPOINT = (HERE / 'output' / DEFAULT_RR1_PROTOCOL /
                       'RR1_L32_BASE' / '20261103092' / 'checkpoint_best.pth')
@@ -242,9 +243,28 @@ def _attach_model():
             self.cora_fullinfo_moe = FullInfoCoRAMoE(
                 user_dim, warmup, route_mode=route_mode,
                 route_strength=route_strength, balance_weight=balance_weight)
-        for name, param in self.named_parameters():
-            if not name.startswith('cora_fullinfo_moe.'):
+        # Keep RR1's existing MF, weight-generator and other trainable
+        # parameters trainable. Only the 128 superseded P weights are bypassed
+        # below, so freeze those dead weights to avoid wasting optimizer state.
+        replaced_p_ids = {
+            id(mod.lora_P[mod.active_adapter].weight)
+            for mod in modules.values()
+        }
+        for _name, param in self.named_parameters():
+            if id(param) in replaced_p_ids:
                 param.requires_grad_(False)
+        mf_trainable = sum(p.numel() for p in self.rec_encoder.parameters()
+                           if p.requires_grad)
+        generator_trainable = sum(
+            p.numel() for p in
+            self.llama_model_lora.base_model.weight_generator.parameters()
+            if p.requires_grad
+        )
+        if mf_trainable == 0 or generator_trainable == 0:
+            raise RuntimeError(
+                f'RR1 joint training requires MF and generator trainable: '
+                f'MF={mf_trainable} generator={generator_trainable}'
+            )
         self._fullinfo_original_modules = modules  # Python dict; no new module registration.
         ref = weakref.ref(self.cora_fullinfo_moe)
         for slot, mod in modules.items():
@@ -257,8 +277,11 @@ def _attach_model():
             old_p.forward = types.MethodType(projection_forward, old_p)
         self._fullinfo_rr1_names = rr1_names
         self._fullinfo_rr1_loaded = False
-        print(f'[FULL MODEL] original RR1 frozen; 128 PLora-P calls replaced by '
-              f'four full-input Rank4 experts; original_P_keys={len(rr1_names)}', flush=True)
+        print(f'[FULL MODEL] RR1 joint: trainable_MF={mf_trainable} '
+              f'trainable_generator={generator_trainable}; '
+              f'128 bypassed original P weights frozen; four full-input '
+              f'Rank4 experts; original_RR1_trainable_keys={len(rr1_names)}',
+              flush=True)
 
     def wrap(fn, training_method):
         def routed(self, samples, *args, **kwargs):
@@ -327,20 +350,43 @@ def _install_rr1_loader_and_saver(checkpoint):
         model._fullinfo_rr1_loaded = True
         self._fullinfo_source_checkpoint = str(source)
         self._fullinfo_rr1_epoch = int(payload.get('epoch', -1))
-        orig_trainable = [n for n, p in model.named_parameters()
-                          if p.requires_grad and not n.startswith('cora_fullinfo_moe.')]
-        if orig_trainable:
-            raise RuntimeError('Original CoRA or MF unexpectedly trainable: ' + repr(orig_trainable[:10]))
-        print('[FULL RR1 LOADED] path={} epoch={} tensors={} original_frozen=True '
-              'new_trainables={}'.format(source, self._fullinfo_rr1_epoch, len(supplied),
-                   sum(p.numel() for p in model.cora_fullinfo_moe.parameters())), flush=True)
+        remaining_rr1 = {
+            n for n, p in model.named_parameters()
+            if p.requires_grad and not n.startswith('cora_fullinfo_moe.')
+        }
+        if not remaining_rr1:
+            raise RuntimeError('RR1 MF/generator were accidentally frozen')
+        print('[FULL RR1 LOADED] path={} epoch={} tensors={} '
+              'MF_and_generator_trainable=True new_expert_params={}'.format(
+                  source, self._fullinfo_rr1_epoch, len(supplied),
+                  sum(p.numel() for p in model.cora_fullinfo_moe.parameters())
+              ), flush=True)
         optimizer = self.optimizer
-        in_optimizer = {id(p) for group in optimizer.param_groups for p in group['params']}
-        expected = {id(p) for p in model.cora_fullinfo_moe.parameters()}
+        in_optimizer = {
+            id(p) for group in optimizer.param_groups for p in group['params']
+        }
+        expected = {id(p) for p in model.parameters() if p.requires_grad}
+        mf_params = {id(p) for p in model.rec_encoder.parameters() if p.requires_grad}
+        stale_p_params = {
+            id(mod.lora_P[mod.active_adapter].weight)
+            for mod in model._fullinfo_original_modules.values()
+        }
         if in_optimizer != expected:
-            raise RuntimeError('Optimizer must contain ONLY full-input experts + router; '
-                               f'missing={len(expected-in_optimizer)} extra={len(in_optimizer-expected)}')
-        print('[FULL OPT PASS] expert and router only; fresh AdamW, no RR1 optimizer resume', flush=True)
+            raise RuntimeError(
+                'Optimizer must include exactly the current trainable MF, '
+                'CoRA generator, experts, and router; '
+                f'missing={len(expected-in_optimizer)} '
+                f'extra={len(in_optimizer-expected)}'
+            )
+        if not mf_params or not mf_params.issubset(in_optimizer):
+            raise RuntimeError('MF parameters missing from joint optimizer')
+        if not any(group.get('joint8_mf') for group in optimizer.param_groups):
+            raise RuntimeError('Expected Joint8 0.1x MF learning-rate group')
+        if stale_p_params & in_optimizer:
+            raise RuntimeError('Superseded original P weights must remain frozen')
+        print('[FULL OPT PASS] joint MF + original CoRA generator + new '
+              'experts/router; replaced original P frozen; fresh AdamW, '
+              'no RR1 optimizer resume', flush=True)
         return prev_train(self)
 
     def save_self_contained(self, cur_epoch, is_best=False, **kwargs):
@@ -375,7 +421,9 @@ def _install_rr1_loader_and_saver(checkpoint):
                 'rank': RANK, 'experts': EXPERTS, 'expert_rank': EXPERT_RANK,
                 'architecture': 'full-rank16-input four independent rank4 experts',
                 'training_microsteps': model.cora_fullinfo_moe._steps,
-                'backbone_frozen': True,
+                'backbone_frozen': False,
+                'original_P_replaced_and_frozen': True,
+                'mf_and_generator_joint_training': True,
                 'route_mode': model.cora_fullinfo_moe.route_mode,
                 'route_strength': model.cora_fullinfo_moe.route_strength,
             },
@@ -458,7 +506,7 @@ def plan(args):
         'lr': float(args.lr),
         'epochs_cap': args.epochs, 'test': False,
         'loss': 'original RR1 C6 + mean-route balance * balance_weight',
-        'train': 'frozen original RR1; full-input experts + router only; no optimizer resume',
+        'train': 'RR1 warm start; joint MF, dynamic generator, full-input experts and router; replaced old P frozen; fresh optimizer',
         'checkpoint': 'trainable-only original RR1 keys plus MoE new parameters',
     }
     (log_path.parent / 'manifest.json').write_text(
@@ -484,7 +532,7 @@ def worker(args):
     base.late.base._patch_runtime_classes(trial)
     _attach_model()
     _install_rr1_loader_and_saver(args.rr1_checkpoint)
-    print('[FULL WORKER] RR1 frozen; D4+C6 kept; independent 128 projection full-input expert banks; '
+    print('[FULL WORKER] RR1 joint MF+CoRA; replaced original P frozen; D4+C6 kept; independent 128 projection full-input expert banks; '
           f'route={args.route_mode} lambda={args.route_strength}; Valid-only; no TEST', flush=True)
     sys.argv = ['train_collm_mf_din.py', '--cfg-path', str(cfg_path)]
     runpy.run_path(str(ROOT / 'train_collm_mf_din.py'), run_name='__main__')
