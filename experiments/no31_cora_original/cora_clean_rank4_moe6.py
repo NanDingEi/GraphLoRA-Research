@@ -228,15 +228,16 @@ def _patch_model(args):
             torch.manual_seed(SEED + 304)
             moe = CleanRank4MoE(SLOTS, hidden, d, args.route_mode, args.route_strength,
                                 args.warmup_microsteps)
-        original_p = next(iter(modules.values())).lora_P["default"].weight
+        first_module = next(iter(modules.values()))
+        original_p = first_module.lora_P[first_module.active_adapter].weight
         # New P parameters follow the original LoRA P device and dtype.
         moe = moe.to(device=original_p.device, dtype=original_p.dtype)
         self.cora_clean_rank4_moe = moe
         # Superseded old single-expert P weights do not participate in forward.
         # Leave MF and QFormer fully trainable; freeze only unused old P.
-        for mod in modules.values():
+        for slot, mod in modules.items():
             mod.lora_P[mod.active_adapter].weight.requires_grad_(False)
-            mod._clean_rank4_slot = next(k for k, v in modules.items() if v is mod)
+            mod._clean_rank4_slot = slot
             mod._clean_rank4_ref = weakref.ref(self.cora_clean_rank4_moe)
         train_mf = sum(p.numel() for p in rec.parameters() if p.requires_grad)
         train_gen = sum(p.numel() for p in gen.parameters() if p.requires_grad)
