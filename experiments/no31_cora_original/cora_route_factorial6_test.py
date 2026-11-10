@@ -106,7 +106,12 @@ def test_config_path(source_path, cfg, protocol):
     target_dir.mkdir(parents=True, exist_ok=True)
     target = target_dir / (TRIAL_NAME + "_TEST.yaml")
     cfg = json.loads(json.dumps(cfg))  # independent vanilla mapping
-    cfg["run"]["evaluate"] = True
+    # Keep evaluate=False ONLY for dataset construction: the CoRA builder
+    # otherwise unnecessarily loads test_warm/test_cold subsets that may not
+    # be available. RunnerBase.train is replaced below by the test-only
+    # procedure, so NO training can happen.
+    cfg["run"]["evaluate"] = False
+    cfg["run"]["e2_test_only"] = True
     cfg["run"]["valid_splits"] = []
     cfg["run"]["test_splits"] = ["test"]
     cfg["run"]["output_dir"] = str(HERE / "output" / protocol / TRIAL_NAME)
@@ -160,7 +165,6 @@ def install_runtime():
         mf_lr_ratio=factorial.moe.base.MF_LR_RATIO,
         patience=factorial.moe.base.PATIENCE,
     )
-    core.combo.install_combo_model(core.combo.NAMES["C6_KD_BOTH"]) if False else None
     # The original training worker installs C6 on CoRA before D4 and MoE.
     factorial.moe.base.late.base.combo.install_combo_model(
         factorial.moe.base.late.base.combo.NAMES["C6_KD_BOTH"]
@@ -174,8 +178,10 @@ def install_test_runner(ckpt, report_path, config_source):
     from minigpt4.runners.runner_base import RunnerBase
 
     def test_only(self):
-        if self.config.run_cfg.get("evaluate") is not True:
-            raise RuntimeError("Evaluation-only flag missing: refusing training")
+        if self.config.run_cfg.get("e2_test_only") is not True:
+            raise RuntimeError("E2 test-only sentinel missing: refusing to run")
+        if self.config.run_cfg.get("evaluate") is not False:
+            raise RuntimeError("Unexpected dataset construction mode; refusing to run")
         if list(self.test_splits) != ["test"]:
             raise RuntimeError(f"Expected test-only split, got {self.test_splits}")
         if report_path.exists():
