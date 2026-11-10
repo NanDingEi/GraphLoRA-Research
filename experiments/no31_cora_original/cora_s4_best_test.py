@@ -52,6 +52,38 @@ def _protocol(value):
     return value
 
 
+# GPU0 Test is inference-only (RR1 prior observed peak was ~14 GiB).
+# Keep this threshold scoped to test entrypoints; training preflights unchanged.
+TEST_MIN_FREE_GPU0_MIB = 16 * 1024
+
+
+def _test_gpu0_preflight(stage):
+    import subprocess
+
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=index,memory.free",
+         "--format=csv,noheader,nounits"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"GPU0 test preflight failed: {result.stderr.strip()}")
+    free = None
+    for line in result.stdout.splitlines():
+        values = [value.strip() for value in line.split(",")]
+        if len(values) >= 2 and values[0] == "0":
+            free = int(values[1])
+            break
+    if free is None:
+        raise RuntimeError("Physical GPU0 is unavailable")
+    print(f"[TEST GPU0 PREFLIGHT] {stage} free={free} MiB "
+          f"required>16384 MiB (16 GiB)", flush=True)
+    if free <= TEST_MIN_FREE_GPU0_MIB:
+        raise RuntimeError(
+            f"Physical GPU0 has only {free} MiB free; "
+            "requires >16 GiB before inference. Do not stop other jobs."
+        )
+
+
 def _sha256(path):
     dig = hashlib.sha256()
     with path.open("rb") as reader:
@@ -317,7 +349,7 @@ def main():
             "Existing S4 Test result detected; use --output-protocol with "
             "a unique name rather than overwriting."
         )
-    split.base._gpu0_preflight("S4-test-before-model")
+    _test_gpu0_preflight("S4-test-before-model")
     test_yaml = _test_config(source, output_protocol)
     _install_s4()
     _install_eval_runner(checkpoint, orig_yaml, report_json, report_csv, best_epoch)
