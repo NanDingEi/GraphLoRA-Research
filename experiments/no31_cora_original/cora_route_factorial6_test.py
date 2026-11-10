@@ -70,6 +70,38 @@ def locate_checkpoint(source, given):
     return path
 
 
+# GPU0 Test is inference-only (RR1 prior observed peak was ~14 GiB).
+# Keep this threshold scoped to test entrypoints; training preflights unchanged.
+TEST_MIN_FREE_GPU0_MIB = 16 * 1024
+
+
+def _test_gpu0_preflight(stage):
+    import subprocess
+
+    result = subprocess.run(
+        ["nvidia-smi", "--query-gpu=index,memory.free",
+         "--format=csv,noheader,nounits"],
+        capture_output=True, text=True,
+    )
+    if result.returncode != 0:
+        raise RuntimeError(f"GPU0 test preflight failed: {result.stderr.strip()}")
+    free = None
+    for line in result.stdout.splitlines():
+        values = [value.strip() for value in line.split(",")]
+        if len(values) >= 2 and values[0] == "0":
+            free = int(values[1])
+            break
+    if free is None:
+        raise RuntimeError("Physical GPU0 is unavailable")
+    print(f"[TEST GPU0 PREFLIGHT] {stage} free={free} MiB "
+          f"required>16384 MiB (16 GiB)", flush=True)
+    if free <= TEST_MIN_FREE_GPU0_MIB:
+        raise RuntimeError(
+            f"Physical GPU0 has only {free} MiB free; "
+            "requires >16 GiB before inference. Do not stop other jobs."
+        )
+
+
 def sha256_file(path):
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -293,7 +325,7 @@ def main():
     # User's environment has one physical GPU0. No GPU1 fallback.
     if os.environ.get("CUDA_VISIBLE_DEVICES") != "0":
         raise RuntimeError("Set CUDA_VISIBLE_DEVICES=0 (GPU0 exclusively)")
-    factorial.moe.base._gpu0_preflight("E2-TEST-before-model")
+    _test_gpu0_preflight("E2-TEST-before-model")
     cfg_path = test_config_path(config_source, cfg, out)
     install_runtime()
     install_test_runner(ckpt, report, config_source)
