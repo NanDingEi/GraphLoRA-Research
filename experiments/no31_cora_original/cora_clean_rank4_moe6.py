@@ -576,6 +576,29 @@ def cpu_test():
             else:
                 assert all(p.grad is not None for p in moe.router.parameters())
             moe.end()
+    # Preflight the ACTUAL uncapped runner patch and corrected global-step LR.
+    # This prevents launching six GPU trials when the local RunnerBase differs
+    # from the GitHub version or the warmup still restarts at Epoch 1.
+    _remove_training_ceiling_and_fix_warmup()
+    from minigpt4.runners.runner_base import RunnerBase
+    from minigpt4.common.optims import LinearWarmupCosineLRScheduler
+    if "S2_NIGHT_EPOCHS" in str(RunnerBase.train.__code__.co_consts):
+        raise RuntimeError("Forced S2_NIGHT_EPOCHS cap remained in compiled runner")
+    toy = torch.optim.SGD([nn.Parameter(torch.zeros(1))], lr=1e-5)
+    sched = LinearWarmupCosineLRScheduler(
+        toy, max_epoch=1000, iters_per_epoch=400,
+        min_lr=8e-5, init_lr=3e-4, warmup_steps=800, warmup_start_lr=1e-5,
+    )
+    sched.step(0, 399)
+    prev_lr = toy.param_groups[0]["lr"]
+    sched.step(1, 0)
+    current_lr = toy.param_groups[0]["lr"]
+    assert current_lr > prev_lr and current_lr > 1.5e-4, (
+        f"Warmup discontinuity: epoch0_end={prev_lr} epoch1_start={current_lr}"
+    )
+    print("[CLEAN R4 TRAIN-CTRL CPU PASS] uncapped runner patch; "
+          f"warmup continuous across epoch boundary {prev_lr:.8g}->{current_lr:.8g}",
+          flush=True)
     print("[CLEAN R4 CPU PASS] each expert sees complete MF condition, "
           "4 independent rank4 dynamic heads, rank4 P, routing gradients", flush=True)
 
