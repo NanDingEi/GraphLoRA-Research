@@ -22,6 +22,7 @@ Run from CoRA_official root:
 """
 
 import argparse
+import inspect
 import json
 import math
 import os
@@ -29,6 +30,7 @@ import re
 import runpy
 import subprocess
 import sys
+import textwrap
 import types
 import weakref
 from pathlib import Path
@@ -334,6 +336,9 @@ def plan(args):
     run["test_splits"] = []
     run["resume_ckpt_path"] = None
     run["output_dir"] = str(out)
+    # The trainer's epoch iterator is uncapped at runtime, and will stop
+    # only after 5 consecutive Valid AUC non-improvements. Keep 1000 merely
+    # as the unchanged cosine LR horizon, not a hard training cutoff.
     run["max_epoch"] = max(int(run.get("max_epoch", 1000)), 1000)
     cfg_path.parent.mkdir(parents=True, exist_ok=True)
     log.parent.mkdir(parents=True, exist_ok=True)
@@ -351,12 +356,109 @@ def plan(args):
             "loss": "original CoRA Yes-token BCE + 1e-3 router balance",
             "mode": args.route_mode, "strength": args.route_strength,
             "warmup_microsteps": args.warmup_microsteps,
-            "lr": args.lr, "epochs": args.epochs,
+            "lr": args.lr, "epoch_cap": None,
+            "stop": "5 consecutive Valid AUC evaluations without improvement",
+            "global_warmup_fixed": True,
             "batch_size": 2, "gradient_accumulation": 4,
             "valid_only": True, "test_disabled": True,
             "gpu0_only": True,
         }, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[CLEAN R4 PLAN PASS] cfg={cfg_path} log={log} output={out}", flush=True)
+    print(f"[CLEAN R4 PLAN PASS] cfg={cfg_path} log={log} output={out} "
+          "epochs=uncapped patience=5", flush=True)
+
+
+
+def _remove_training_ceiling_and_fix_warmup():
+    """Experiment-local runner compatibility patch; source files unchanged.
+
+    Some CoRA_official RunnerBase versions hardcode S2_NIGHT_EPOCHS=1/2
+    in train(). That forcibly stops regardless of the externally requested
+    patience. Rewrite only that trusted method in memory, refusing unknown
+    implementations. The main training loop becomes itertools.count and
+    stops exclusively by the existing Valid-AUC early-stop hook (patience=5).
+
+    Also correct the original scheduler bug: warmup uses cur_step, resetting
+    the LR on each short-epoch boundary. Use the accumulated global step.
+    No other scheduler hyperparameter is altered.
+    """
+    from minigpt4.runners.runner_base import RunnerBase
+    from minigpt4.common.optims import (
+        LinearWarmupCosineLRScheduler,
+        warmup_lr_schedule,
+        cosine_lr_schedule,
+    )
+
+    train_src = textwrap.dedent(inspect.getsource(RunnerBase.train))
+    bounded_loop = "            for cur_epoch in range(self.start_epoch, self.max_epoch):"
+    unbounded_loop = (
+        '            for cur_epoch in __import__("itertools").count(self.start_epoch):'
+    )
+    if train_src.count(bounded_loop) != 1:
+        raise RuntimeError("Unknown RunnerBase.train loop: refusing unsafe uncapping")
+
+    night_cap = (
+        '                _night_epochs=int(__import__("os").environ["S2_NIGHT_EPOCHS"])\n'
+        '                assert _night_epochs in (1,2)\n'
+        '                if cur_epoch+1 >= _night_epochs:\n'
+        '                    logging.info("[NIGHT8-STOP] trained_epochs=%d max_epoch=%d "\n'
+        '                                 "Valid and checkpoint completed",cur_epoch+1,self.max_epoch)\n'
+        '                    break\n'
+    )
+    if train_src.count(night_cap) != 1:
+        raise RuntimeError(
+            "Unknown S2_NIGHT_EPOCHS runner stop block: refusing unsafe uncapping"
+        )
+
+    train_src = train_src.replace(bounded_loop, unbounded_loop)
+    train_src = train_src.replace(night_cap, "", 1)
+    patched_globals = RunnerBase.train.__globals__
+    patched_local = {}
+    exec(
+        compile(
+            train_src,
+            inspect.getsourcefile(RunnerBase.train) or "<clean-rank4-runner>",
+            "exec",
+        ),
+        patched_globals,
+        patched_local,
+    )
+    RunnerBase.train = patched_local["train"]
+    print(
+        "[CLEAN R4 UNCAPPED PASS] no fixed epoch/step stop; "
+        "S2_NIGHT_EPOCHS forced 1/2 stop removed locally; "
+        "Valid-AUC early stopping remains active",
+        flush=True,
+    )
+
+    def continuous_warmup_step(self, cur_epoch, cur_step):
+        total = cur_epoch * self.iters_per_epoch + cur_step
+        if total < self.warmup_steps:
+            warmup_lr_schedule(
+                step=total,
+                optimizer=self.optimizer,
+                max_step=self.warmup_steps,
+                init_lr=self.warmup_start_lr,
+                max_lr=self.init_lr,
+                total_step=total,
+            )
+        else:
+            # Keep the original long-horizon cosine schedule unchanged.
+            cosine_lr_schedule(
+                epoch=total,
+                optimizer=self.optimizer,
+                max_epoch=self.max_epoch * self.iters_per_epoch,
+                init_lr=self.init_lr,
+                min_lr=self.min_lr,
+            )
+
+    # Install BEFORE joint.patch_runner(), which wraps step with the
+    # original 0.1x MF LR multiplier. The MF split is therefore preserved.
+    LinearWarmupCosineLRScheduler.step = continuous_warmup_step
+    print(
+        "[CLEAN R4 LR PASS] warmup uses global microstep across epochs; "
+        "MF=0.1x, original LR/cosine schedule preserved",
+        flush=True,
+    )
 
 
 def _audit_optimizer():
@@ -394,14 +496,20 @@ def worker(args):
         raise RuntimeError("CUDA_VISIBLE_DEVICES must be exactly 0")
     # Reuse the validated MF LR split, AMP monitoring and early stopping,
     # but NOT any C6/D4 forward or multi-granularity patches.
-    joint.patch_runner(screen_epochs=args.epochs, mf_lr_ratio=0.1, patience=args.patience)
+
+    if args.epochs != 0 or args.patience != 5:
+        raise RuntimeError("Uncapped Clean R4 protocol requires --epochs 0 --patience 5")
+    _remove_training_ceiling_and_fix_warmup()
+    joint.patch_runner(screen_epochs=0, mf_lr_ratio=0.1, patience=5)
     joint.install_compact_atomic_best_checkpoint()
     _patch_model(args)
     _audit_optimizer()
     print(f"[CLEAN R4 WORKER] protocol={args.protocol} from_scratch=True "
           f"MF_joint=True expert_rank=4 num_experts=4 total_rank=16 "
           f"route={args.route_mode} lambda={args.route_strength} "
-          "no_RR1=True no_D4=True no_C6=True valid_only=True", flush=True)
+          "no_RR1=True no_D4=True no_C6=True valid_only=True "
+          "no_epoch_cap=True early_stop_patience=5 global_warmup_fixed=True",
+          flush=True)
     sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(cfg_path)]
     runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
 
@@ -471,16 +579,16 @@ def main():
     p.add_argument("--route-strength", type=float, default=0.2)
     p.add_argument("--warmup-microsteps", type=int, default=200)
     p.add_argument("--lr", type=float, default=3e-4)
-    p.add_argument("--epochs", type=int, default=2)
-    p.add_argument("--patience", type=int, default=2)
+    p.add_argument("--epochs", type=int, default=0, help="0 means no epoch ceiling")
+    p.add_argument("--patience", type=int, default=5)
     p.add_argument("--min-free-mib", type=int, default=22000)
     args = p.parse_args()
     if args.cpu_test:
         cpu_test()
         return
-    if not (0 < args.lr <= 0.001 and args.epochs >= 1 and args.patience >= 1
+    if not (0 < args.lr <= 0.001 and args.epochs == 0 and args.patience == 5
             and args.warmup_microsteps >= 0 and 0 <= args.route_strength <= 1):
-        p.error("Invalid LR/epochs/patience/warmup/route strength")
+        p.error("Require --epochs 0 (unlimited), --patience 5, valid LR/warmup/route")
     if args.plan:
         plan(args)
         return
