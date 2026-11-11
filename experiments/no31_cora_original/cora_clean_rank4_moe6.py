@@ -358,7 +358,6 @@ def plan(args):
             "warmup_microsteps": args.warmup_microsteps,
             "lr": args.lr, "epoch_cap": None,
             "stop": "5 consecutive Valid AUC evaluations without improvement",
-            "global_warmup_fixed": True,
             "batch_size": 2, "gradient_accumulation": 4,
             "valid_only": True, "test_disabled": True,
             "gpu0_only": True,
@@ -368,7 +367,7 @@ def plan(args):
 
 
 
-def _remove_training_ceiling_and_fix_warmup():
+def _remove_training_ceiling():
     """Experiment-local runner compatibility patch; source files unchanged.
 
     Some CoRA_official RunnerBase versions hardcode S2_NIGHT_EPOCHS=1/2
@@ -377,17 +376,9 @@ def _remove_training_ceiling_and_fix_warmup():
     implementations. The main training loop becomes itertools.count and
     stops exclusively by the existing Valid-AUC early-stop hook (patience=5).
 
-    Also correct the original scheduler bug: warmup uses cur_step, resetting
-    the LR on each short-epoch boundary. Use the accumulated global step.
-    No other scheduler hyperparameter is altered.
+    Keep the existing working CoRA learning-rate scheduler untouched.
     """
     from minigpt4.runners.runner_base import RunnerBase
-    from minigpt4.common.optims import (
-        LinearWarmupCosineLRScheduler,
-        warmup_lr_schedule,
-        cosine_lr_schedule,
-    )
-
     train_src = textwrap.dedent(inspect.getsource(RunnerBase.train))
     lines = train_src.splitlines(keepends=True)
     old_loop = "for cur_epoch in range(self.start_epoch, self.max_epoch):"
@@ -449,35 +440,6 @@ def _remove_training_ceiling_and_fix_warmup():
         flush=True,
     )
 
-    def continuous_warmup_step(self, cur_epoch, cur_step):
-        total = cur_epoch * self.iters_per_epoch + cur_step
-        if total < self.warmup_steps:
-            warmup_lr_schedule(
-                step=total,
-                optimizer=self.optimizer,
-                max_step=self.warmup_steps,
-                init_lr=self.warmup_start_lr,
-                max_lr=self.init_lr,
-                total_step=total,
-            )
-        else:
-            # Keep the original long-horizon cosine schedule unchanged.
-            cosine_lr_schedule(
-                epoch=total,
-                optimizer=self.optimizer,
-                max_epoch=self.max_epoch * self.iters_per_epoch,
-                init_lr=self.init_lr,
-                min_lr=self.min_lr,
-            )
-
-    # Install BEFORE joint.patch_runner(), which wraps step with the
-    # original 0.1x MF LR multiplier. The MF split is therefore preserved.
-    LinearWarmupCosineLRScheduler.step = continuous_warmup_step
-    print(
-        "[CLEAN R4 LR PASS] warmup uses global microstep across epochs; "
-        "MF=0.1x, original LR/cosine schedule preserved",
-        flush=True,
-    )
 
 
 def _audit_optimizer():
@@ -518,7 +480,7 @@ def worker(args):
 
     if args.epochs != 0 or args.patience != 5:
         raise RuntimeError("Uncapped Clean R4 protocol requires --epochs 0 --patience 5")
-    _remove_training_ceiling_and_fix_warmup()
+    _remove_training_ceiling()
     joint.patch_runner(screen_epochs=0, mf_lr_ratio=0.1, patience=5)
     joint.install_compact_atomic_best_checkpoint()
     _patch_model(args)
@@ -527,7 +489,7 @@ def worker(args):
           f"MF_joint=True expert_rank=4 num_experts=4 total_rank=16 "
           f"route={args.route_mode} lambda={args.route_strength} "
           "no_RR1=True no_D4=True no_C6=True valid_only=True "
-          "no_epoch_cap=True early_stop_patience=5 global_warmup_fixed=True",
+          "no_epoch_cap=True early_stop_patience=5 original_lr_scheduler=True",
           flush=True)
     sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(cfg_path)]
     runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
@@ -582,28 +544,18 @@ def cpu_test():
             else:
                 assert all(p.grad is not None for p in moe.router.parameters())
             moe.end()
-    # Preflight the ACTUAL uncapped runner patch and corrected global-step LR.
-    # This prevents launching six GPU trials when the local RunnerBase differs
-    # from the GitHub version or the warmup still restarts at Epoch 1.
-    _remove_training_ceiling_and_fix_warmup()
+    # Preflight only the requested change: remove the training ceiling.
+    # Keep the original CoRA LR scheduler, which worked in previous runs.
+    _remove_training_ceiling()
     from minigpt4.runners.runner_base import RunnerBase
-    from minigpt4.common.optims import LinearWarmupCosineLRScheduler
     if "S2_NIGHT_EPOCHS" in str(RunnerBase.train.__code__.co_consts):
         raise RuntimeError("Forced S2_NIGHT_EPOCHS cap remained in compiled runner")
-    toy = torch.optim.SGD([nn.Parameter(torch.zeros(1))], lr=1e-5)
-    sched = LinearWarmupCosineLRScheduler(
-        toy, max_epoch=1000, iters_per_epoch=400,
-        min_lr=8e-5, init_lr=3e-4, warmup_steps=800, warmup_start_lr=1e-5,
-    )
-    sched.step(0, 399)
-    prev_lr = toy.param_groups[0]["lr"]
-    sched.step(1, 0)
-    current_lr = toy.param_groups[0]["lr"]
-    assert current_lr > prev_lr and current_lr > 1.5e-4, (
-        f"Warmup discontinuity: epoch0_end={prev_lr} epoch1_start={current_lr}"
-    )
-    print("[CLEAN R4 TRAIN-CTRL CPU PASS] uncapped runner patch; "
-          f"warmup continuous across epoch boundary {prev_lr:.8g}->{current_lr:.8g}",
+    if "count" not in RunnerBase.train.__code__.co_names:
+        raise RuntimeError("Uncapped epoch iterator missing from patched runner")
+    if "model_to_betrained" not in RunnerBase.train.__code__.co_names:
+        raise RuntimeError("Early-stopping condition missing from patched runner")
+    print("[CLEAN R4 TRAIN-CTRL CPU PASS] uncapped epoch loop; "
+          "original CoRA LR scheduler untouched; early-stop hook retained",
           flush=True)
     print("[CLEAN R4 CPU PASS] each expert sees complete MF condition, "
           "4 independent rank4 dynamic heads, rank4 P, routing gradients", flush=True)
