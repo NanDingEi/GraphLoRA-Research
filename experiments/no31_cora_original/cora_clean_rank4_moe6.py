@@ -394,7 +394,7 @@ def _remove_training_ceiling_and_fix_warmup():
     old_night = '_night_epochs=int(__import__("os").environ["S2_NIGHT_EPOCHS"])'
     loop_idxs = [i for i, line in enumerate(lines) if line.strip() == old_loop]
     night_idxs = [i for i, line in enumerate(lines) if line.strip() == old_night]
-    if len(loop_idxs) != 1 or len(night_idxs) != 1:
+    if len(loop_idxs) != 1 or len(night_idxs) > 1:
         raise RuntimeError(
             "Unexpected RunnerBase.train structure: refuse unsafe uncapping "
             f"loop={loop_idxs} stop={night_idxs}"
@@ -404,25 +404,32 @@ def _remove_training_ceiling_and_fix_warmup():
     lines[loop_i] = (
         indentation + 'for cur_epoch in __import__("itertools").count(self.start_epoch):\n'
     )
-    night_i = night_idxs[0]
-    expected_night_lines = [
-        old_night,
-        "assert _night_epochs in (1,2)",
-        "if cur_epoch+1 >= _night_epochs:",
-        'logging.info("[NIGHT8-STOP] trained_epochs=%d max_epoch=%d "',
-        '"Valid and checkpoint completed",cur_epoch+1,self.max_epoch)',
-        "break",
-    ]
-    actual_night_lines = [v.strip() for v in lines[night_i:night_i + 6]]
-    if actual_night_lines != expected_night_lines:
-        raise RuntimeError(
-            "Unknown RunnerBase.train forced-stop block; refusing to modify: "
-            + repr(actual_night_lines)
-        )
-    del lines[night_i:night_i + 6]
+    # Older servers hardcode S2_NIGHT_EPOCHS=1/2; other installed RunnerBase
+    # versions don't contain that block at all. Both are valid. Remove the
+    # block ONLY when present, after verifying its exact six-line structure.
+    if night_idxs:
+        night_i = night_idxs[0]
+        expected_night_lines = [
+            old_night,
+            "assert _night_epochs in (1,2)",
+            "if cur_epoch+1 >= _night_epochs:",
+            'logging.info("[NIGHT8-STOP] trained_epochs=%d max_epoch=%d "',
+            '"Valid and checkpoint completed",cur_epoch+1,self.max_epoch)',
+            "break",
+        ]
+        actual_night_lines = [v.strip() for v in lines[night_i:night_i + 6]]
+        if actual_night_lines != expected_night_lines:
+            raise RuntimeError(
+                "Unknown RunnerBase.train forced-stop block; refusing to modify: "
+                + repr(actual_night_lines)
+            )
+        del lines[night_i:night_i + 6]
+        runner_mode = "hardcoded_1_or_2_epoch_cap_removed"
+    else:
+        runner_mode = "no_hardcoded_cap_present"
     train_src = "".join(lines)
     if "S2_NIGHT_EPOCHS" in train_src or old_loop in train_src:
-        raise RuntimeError("Failed to remove all hard training limits")
+        raise RuntimeError("Remaining hardcoded ceiling in RunnerBase.train")
 
     patched_globals = RunnerBase.train.__globals__
     patched_local = {}
@@ -437,9 +444,8 @@ def _remove_training_ceiling_and_fix_warmup():
     )
     RunnerBase.train = patched_local["train"]
     print(
-        "[CLEAN R4 UNCAPPED PASS] no fixed epoch/step stop; "
-        "S2_NIGHT_EPOCHS forced 1/2 stop removed locally; "
-        "Valid-AUC early stopping remains active",
+        f"[CLEAN R4 UNCAPPED PASS] runner_mode={runner_mode}; "
+        "epoch loop unbounded; Valid-AUC patience=5 early stopping active",
         flush=True,
     )
 
