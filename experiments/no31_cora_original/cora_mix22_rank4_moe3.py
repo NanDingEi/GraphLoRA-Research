@@ -232,7 +232,10 @@ def cpu_test():
         # Gradient path must reach both current MF table and the centroids.
         rec.zero_grad(set_to_none=True)
         test_loss = (out * torch.randn_like(out)).sum()
-        test_loss.backward()
+        # Same synthetic raw MF embedding is shared by both ablation checks.
+        # Keep the graph for the second check; production forwards build a new
+        # graph per batch and do not need retain_graph.
+        test_loss.backward(retain_graph=True)
         assert rec.user_embedding.weight.grad is not None
         assert rec.item_embedding.weight.grad is not None
         assert float(rec.user_embedding.weight.grad.abs().sum()) > 0
