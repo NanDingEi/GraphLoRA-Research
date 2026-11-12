@@ -187,6 +187,9 @@ def worker(args):
 
 
 def cpu_test():
+    # Recheck the upstream experiment planning regression before launching
+    # three GPU runs (manifest belongs under logs/, not local_configs/).
+    hier._cpu_test_plan_recovery()
     torch.manual_seed(SEED)
     dim = 12
     rec = nn.Module()
