@@ -497,7 +497,62 @@ def worker(args):
     runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
 
 
+def _cpu_test_plan_recovery():
+    """Regression test for config-vs-log manifest path and interrupted plan."""
+    import tempfile
+    with tempfile.TemporaryDirectory(prefix="hcluster_plan_test_") as work:
+        work = Path(work)
+        cfg = work / "local_configs" / "TRIAL" / "CLEAN_R4_MOE.yaml"
+        log = work / "logs" / "TRIAL" / "CLEAN_R4_MOE.log"
+        out = work / "output" / "TRIAL" / "CLEAN_R4_MOE"
+        cfg.parent.mkdir(parents=True)
+        log.parent.mkdir(parents=True)
+        cfg.write_text(yaml.safe_dump({
+            "run": {
+                "seed": SEED,
+                "init_lr": 3e-4,
+                "test_splits": [],
+                "output_dir": str(out),
+                "resume_ckpt_path": None,
+            },
+            "model": {"lora_config": {"r": RANK}, "ckpt": None},
+        }), encoding="utf-8")
+        manifest = log.parent / "clean_rank4_manifest.json"
+        manifest.write_text(json.dumps({
+            "protocol": "TRIAL", "seed": SEED,
+            "mode": "uniform", "strength": 0.2,
+        }), encoding="utf-8")
+        args = types.SimpleNamespace(
+            protocol="TRIAL", route_mode="uniform",
+            route_strength=0.2, condition_kind="hier", lr=3e-4,
+        )
+        old = globals()["_paths"]
+        try:
+            globals()["_paths"] = lambda _: (cfg, log, out)
+            # clean.plan already created cfg + manifest, but hierarchy plan
+            # previously crashed before adding its metadata. Repair safely.
+            plan(args)
+            loaded = json.loads(manifest.read_text(encoding="utf-8"))
+            assert loaded["condition_kind"] == "hier"
+            assert loaded["cluster_user_levels"] == USER_K
+            # Repeated planning is harmless before training has started.
+            plan(args)
+            # Any actual run log MUST protect against overwrite.
+            log.touch()
+            try:
+                plan(args)
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("Existing training log was not protected")
+        finally:
+            globals()["_paths"] = old
+    print("[HCLUSTER PLAN CPU PASS] manifest stored in logs/, "
+          "partial config repaired, existing training log protected", flush=True)
+
+
 def cpu_test():
+    _cpu_test_plan_recovery()
     torch.manual_seed(SEED)
     u_n, i_n, dim = 80, 160, 12
     rec = nn.Module()
