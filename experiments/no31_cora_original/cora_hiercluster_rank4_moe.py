@@ -534,7 +534,7 @@ def _cpu_test_plan_recovery():
             plan(args)
             loaded = json.loads(manifest.read_text(encoding="utf-8"))
             assert loaded["condition_kind"] == "hier"
-            assert loaded["cluster_user_levels"] == USER_K
+            assert tuple(loaded["cluster_user_levels"]) == USER_K
             # Repeated planning is harmless before training has started.
             plan(args)
             # Any actual run log MUST protect against overwrite.
