@@ -109,12 +109,13 @@ def _train_only_entities(source_yaml):
     return sorted(users), sorted(items), str(source)
 
 
-def _spherical_kmeans(x, k, seed, iterations=18):
-    """Self-contained, deterministic CPU spherical k-means; nonempty clusters."""
+def _spherical_kmeans(x, k, seed, iterations=18, min_size=1):
+    """Deterministic spherical k-means with minimum viable child-group size."""
     x = F.normalize(x.detach().float().cpu(), dim=-1, eps=1e-12)
     n = x.shape[0]
-    if k < 2 or n < 2*k:
-        raise ValueError(f"Cannot split {n} train-seen vectors into {k} clusters")
+    if k < 2 or min_size < 1 or n < k * min_size:
+        raise ValueError(f"Cannot split {n} observed vectors into {k} groups "
+                         f"with at least {min_size} members each")
     rng = torch.Generator(device="cpu").manual_seed(int(seed))
     first = int(torch.randint(n, (1,), generator=rng))
     centers = [x[first]]
@@ -130,23 +131,27 @@ def _spherical_kmeans(x, k, seed, iterations=18):
         sim = x @ centers.T
         labels = sim.argmax(dim=1)
         counts = torch.bincount(labels, minlength=k)
-        # Repair empty clusters deterministically by moving a low-similarity
-        # vector from the biggest cluster; no arbitrary phantom centers.
-        for empty in torch.where(counts == 0)[0].tolist():
-            donor = int(counts.argmax())
-            donor_rows = torch.where(labels == donor)[0]
-            if donor_rows.numel() < 2:
-                raise RuntimeError("Cannot repair empty cluster")
-            moved = donor_rows[sim[donor_rows, donor].argmin()]
-            labels[moved] = empty
-            counts[donor] -= 1
-            counts[empty] += 1
+        # For the NEXT hierarchy level to exist, guarantee each parent
+        # has enough train-seen members. Repair underfull groups by relocating
+        # a member from an oversized donor with minimal similarity penalty.
+        for target in range(k):
+            while int(counts[target]) < min_size:
+                surplus = counts - min_size
+                donor = int(surplus.argmax())
+                if int(surplus[donor]) <= 0:
+                    raise RuntimeError("Insufficient members to repair cluster")
+                donor_rows = torch.where(labels == donor)[0]
+                advantage = sim[donor_rows, target] - sim[donor_rows, donor]
+                moved = donor_rows[advantage.argmax()]
+                labels[moved] = target
+                counts[donor] -= 1
+                counts[target] += 1
         sums = torch.zeros_like(centers)
         sums.index_add_(0, labels, x)
         means = sums / counts.to(x.dtype)[:, None]
         centers = F.normalize(means, dim=-1, eps=1e-12)
-    if int(torch.bincount(labels, minlength=k).min()) == 0:
-        raise RuntimeError("k-means returned an empty cluster")
+    if int(torch.bincount(labels, minlength=k).min()) < min_size:
+        raise RuntimeError("Spherical k-means violated minimum subgroup size")
     return labels
 
 
@@ -154,13 +159,17 @@ def _nested_hierarchy(table, train_ids, ks, seed):
     """True nested hierarchy: K0 -> 4 children each -> 2 children each."""
     ids = torch.tensor(sorted(set(train_ids)), dtype=torch.long)
     ids = ids[(ids > 0) & (ids < table.shape[0])]
-    if ids.numel() < ks[-1] * 2:
+    # Coarse groups need 4 middle children and each middle child needs 2
+    # fine children. Enforce at least 16 observed entities per coarse group.
+    if ids.numel() < ks[0] * 16:
         raise ValueError(f"Insufficient observed entities: {ids.numel()} for K={ks}")
     if ks[1] != 4 * ks[0] or ks[2] != 2 * ks[1]:
         raise ValueError("Hierarchy must be K,4K,8K")
     all_vec = table.detach().float().cpu()
     assignments = torch.full((3, table.shape[0]), -1, dtype=torch.long)
-    root = _spherical_kmeans(all_vec.index_select(0, ids), ks[0], seed)
+    root = _spherical_kmeans(
+        all_vec.index_select(0, ids), ks[0], seed, min_size=4 * 4
+    )
     assignments[0, ids] = root
     for level, children in ((1, 4), (2, 2)):
         nparents = ks[level - 1]
@@ -174,6 +183,7 @@ def _nested_hierarchy(table, train_ids, ks, seed):
             local = _spherical_kmeans(
                 all_vec.index_select(0, selected),
                 children, seed + 1000*level + p,
+                min_size=4 if level == 1 else 1,
             )
             assignments[level, selected] = p * children + local
         if (assignments[level, ids] < 0).any():
