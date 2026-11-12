@@ -357,13 +357,13 @@ def plan(args):
             "mode": args.route_mode, "strength": args.route_strength,
             "warmup_microsteps": args.warmup_microsteps,
             "lr": args.lr, "epoch_cap": None,
-            "stop": "5 consecutive Valid AUC evaluations without improvement",
+            "stop": f"{args.patience} consecutive Valid AUC evaluations without improvement",
             "batch_size": 2, "gradient_accumulation": 4,
             "valid_only": True, "test_disabled": True,
             "gpu0_only": True,
         }, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[CLEAN R4 PLAN PASS] cfg={cfg_path} log={log} output={out} "
-          "epochs=uncapped patience=5", flush=True)
+          f"epochs=uncapped patience={args.patience}", flush=True)
 
 
 
@@ -374,7 +374,7 @@ def _remove_training_ceiling():
     in train(). That forcibly stops regardless of the externally requested
     patience. Rewrite only that trusted method in memory, refusing unknown
     implementations. The main training loop becomes itertools.count and
-    stops exclusively by the existing Valid-AUC early-stop hook (patience=5).
+    stops exclusively by the Valid-AUC early-stop hook configured separately.
 
     Keep the existing working CoRA learning-rate scheduler untouched.
     """
@@ -436,7 +436,7 @@ def _remove_training_ceiling():
     RunnerBase.train = patched_local["train"]
     print(
         f"[CLEAN R4 UNCAPPED PASS] runner_mode={runner_mode}; "
-        "epoch loop unbounded; Valid-AUC patience=5 early stopping active",
+        "epoch loop unbounded; Valid-AUC early-stopping hook remains active",
         flush=True,
     )
 
