@@ -19,7 +19,7 @@ Controls: all-raw; flat group (one cluster level repeated for E1/E2/E3);
           nested hierarchical groups, uniform/pair/layer_pair routing.
 No RR1, D4, neighbor TopK, C6 CTR/KD, data leakage from valid/test, or new
 optimization method. Reuses the existing working Clean Rank4 training path:
-GPU0, seed42, original CoRA LR, no epoch ceiling, Early Stop patience5.
+GPU0, seed42, original CoRA LR, no epoch ceiling; default patience10.
 Runtime patches are process-local; repository source files are not modified.
 
 Cluster assignments are ALSO saved as an experiment-local metadata sidecar,
@@ -467,6 +467,8 @@ def plan(args):
         "qformer_cost": "four packed MF conditions for every experiment (including raw control)",
         "nested_guarantee": "middle//4=coarse, fine//2=middle",
         "no_D4_no_C6_no_RR1": True,
+        "stop": f"{args.patience} consecutive Valid AUC evaluations without improvement",
+        "early_stopping_patience": args.patience,
     })
     manifest.write_text(json.dumps(meta, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"[HCLUSTER PLAN] kind={args.condition_kind} "
@@ -475,15 +477,15 @@ def plan(args):
 
 
 def worker(args):
-    if args.epochs != 0 or args.patience != 5:
-        raise RuntimeError("Hierarchical CoRA experiments require uncapped/patience5 protocol")
+    if args.epochs != 0 or args.patience < 1:
+        raise RuntimeError("Hierarchical CoRA requires uncapped epochs and positive patience")
     cfg, _, _ = _paths(args.protocol)
     if not cfg.exists():
         raise FileNotFoundError("Missing experiment configuration: " + str(cfg))
     if os.environ.get("CUDA_VISIBLE_DEVICES") != "0":
         raise RuntimeError("GPU0 only")
     clean._remove_training_ceiling()
-    joint.patch_runner(screen_epochs=0, mf_lr_ratio=0.1, patience=5)
+    joint.patch_runner(screen_epochs=0, mf_lr_ratio=0.1, patience=args.patience)
     joint.install_compact_atomic_best_checkpoint()
     clean._patch_model(args)
     patch_cluster_conditioning(args)
@@ -492,7 +494,8 @@ def worker(args):
           f"route={args.route_mode} lambda={args.route_strength} "
           "fresh_CoRA=True MF_trainable=True no_RR1=True "
           "four_independent_rank4=True no_D4_CTR_KD=True "
-          "early_stop=5 no_max_epoch=True original_CoRA_LR=True", flush=True)
+          f"early_stop_patience={args.patience} no_max_epoch=True "
+          "original_CoRA_LR=True", flush=True)
     sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(cfg)]
     runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
 
@@ -525,6 +528,7 @@ def _cpu_test_plan_recovery():
         args = types.SimpleNamespace(
             protocol="TRIAL", route_mode="uniform",
             route_strength=0.2, condition_kind="hier", lr=3e-4,
+            patience=10,
         )
         old = globals()["_paths"]
         try:
@@ -535,6 +539,7 @@ def _cpu_test_plan_recovery():
             loaded = json.loads(manifest.read_text(encoding="utf-8"))
             assert loaded["condition_kind"] == "hier"
             assert tuple(loaded["cluster_user_levels"]) == USER_K
+            assert loaded["early_stopping_patience"] == 10
             # Repeated planning is harmless before training has started.
             plan(args)
             # Any actual run log MUST protect against overwrite.
@@ -629,11 +634,11 @@ def _args():
     p.add_argument("--warmup-microsteps", type=int, default=200)
     p.add_argument("--lr", type=float, default=3e-4)
     p.add_argument("--epochs", type=int, default=0)
-    p.add_argument("--patience", type=int, default=5)
+    p.add_argument("--patience", type=int, default=10)
     p.add_argument("--min-free-mib", type=int, default=22000)
     args = p.parse_args()
-    if args.epochs != 0 or args.patience != 5 or args.lr <= 0 or args.lr > 0.001:
-        p.error("Need no epoch ceiling, patience=5 and 0<lr<=0.001")
+    if args.epochs != 0 or args.patience < 1 or args.lr <= 0 or args.lr > 0.001:
+        p.error("Need no epoch ceiling, patience>=1 (default 10), and 0<lr<=0.001")
     if not (0 <= args.route_strength <= 1 and args.warmup_microsteps >= 0):
         p.error("Invalid router strength or warmup")
     return p, args
@@ -667,7 +672,7 @@ def main():
         "--route-strength", str(args.route_strength),
         "--warmup-microsteps", str(args.warmup_microsteps),
         "--lr", str(args.lr),
-        "--epochs", "0", "--patience", "5",
+        "--epochs", "0", "--patience", str(args.patience),
     ]
     print("[HCLUSTER RUN] " + " ".join(cmd), flush=True)
     with log.open("x", encoding="utf-8") as fh:
