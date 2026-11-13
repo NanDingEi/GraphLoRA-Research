@@ -101,5 +101,23 @@ def run():
         member=m.Member('fake','B',labels,users,items,recon,z31,z32,True,['fused_logits'])
         result=m.audit_rr5_gate(member,str(ckpt))
         assert result['max_abs_error']<1e-6
+        # Server-like RR5 capture has ONLY yes_logits, no fused_logits:
+        # checkpoint reconstruction must recover exactly the same B scores.
+        mat_raw=np.stack((z32,z32,z31,z32))
+        raw_path=root/"B_test_raw_only.npz"
+        np.savez(raw_path, labels=labels, users=users, items=items, yes_logits=mat_raw)
+        raw=m.load_member(raw_path,"B")
+        assert not raw.has_fused
+        rebuilt=m.audit_rr5_gate(raw,str(ckpt),user_offset=0)
+        assert rebuilt["score_source"]=="checkpoint_reconstructed"
+        assert rebuilt["user_offset"]==0 and rebuilt["max_abs_error"] is None
+        assert np.max(np.abs(raw.score-recon))<1e-6
+        # A wrong offset must not be tuned using labeled test data.
+        try:
+            m.audit_rr5_gate(m.load_member(raw_path,"B"),str(ckpt),user_offset=-1)
+        except RuntimeError as e:
+            assert "indexing failed" in str(e)
+        else:
+            raise AssertionError("Invalid user-index offset silently accepted")
         print("[CPU TEST PASS] A/B/C fusion, grouped UAUC, VALID selection, alignment fail-closed, independent RR5 gate+MF reconstruction",flush=True)
 if __name__=="__main__": run()
