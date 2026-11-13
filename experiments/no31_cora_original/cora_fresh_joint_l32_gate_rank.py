@@ -387,9 +387,9 @@ def cpu_test():
     import pandas as pd
     torch.manual_seed(SEED)
     ann=pd.DataFrame({
-        "UserID":np.repeat(np.arange(1,21),4),
-        "TargetItemID":np.arange(80)+1,
-        "label":np.tile([0,1,0,1],20)})
+        "UserID":np.repeat(np.arange(1,31),4),
+        "TargetItemID":np.arange(120)+1,
+        "label":np.tile([0,1,0,1],30)})
     first=UserBalancedPairSampler(ann,steps=24)
     second=UserBalancedPairSampler(ann,steps=24)
     a=list(iter(first))
