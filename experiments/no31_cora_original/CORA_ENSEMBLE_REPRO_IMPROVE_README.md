@@ -23,7 +23,7 @@ C: experiments/no31_cora_original/output/CORA_GATE_TUNE_20261112/G3_FIXED_A025/2
 - B 的 test AUC 参考值 `0.739113`，取 RR5 的 `z32+sigmoid(g(u))*(z31-z32)`，**不能把 RR5 的 L32 当 B**；RR5 MF 用户表来自 RR5 checkpoint。
 - C 的 test AUC 参考值约 `0.7369`，本脚本用 `(L31,L32)` 以固定 `0.25` 重建。
 - 全部必须对齐 `(label, UserID, TargetItemID)`，test 与 valid 不能交叉。
-- 源 NPZ 至少提供 `labels`, `users`, `items`, `yes_logits`(4×N)；B 还需 `fused_logits`（或 `fused_scores`/`fused_yes_logits`/`fused`/`score`），若键名不同可 `--b-score-key 键名`。
+- 源 NPZ 至少提供 `labels`, `users`, `items`, `yes_logits`(4×N)；B 有 `fused_logits`（或 `fused_scores`/`fused_yes_logits`/`fused`/`score`）时会用其审计；若只有四层 `yes_logits`，脚本会从 RR5 checkpoint 的 MF 用户表与 6 个 gate 张量自动重建 B，不再要求额外 GPU 推理。缺少 fused 时使用明确指定的 user-id offset（默认 0），绝不通过 Test AUC 猜索引。
 - 已存储的 `out/LATE_LAYER_DIAG_D4_C6_FIX_20261102_165625/layer_logits_valid.npz` **不保证**是 RR1(ep37) 的 valid logits。务必用相同 RR1 checkpoint 验证，不可静默替代。
 
 ## 原始捕获命令（仅服务器已有脚本时执行）
@@ -95,7 +95,7 @@ python -u cora_ensemble_repro_improve.py \
   2>&1 | tee log/CORA_ENSEMBLE_REPRO_20261113_test.log
 ```
 
-**硬校验：** 逐行 `(label,users,items)` 完全对齐；A/B/C 的 test 单模型 AUC 与历史值相差不超过默认 `0.002`；C 固定公式重建检查；RR5 从 checkpoint 中寻找 6 个 gate 张量和 `rec_encoder.user_embedding.weight`，尝试 UserID 索引偏移 0/-1/+1，重算 fused 与存档分数最大绝对误差不超过 `0.005`，并要求重算的 test AUC 距 `0.739113` 不超过 `1e-4`。任何失败都拒绝输出完整 test 汇总。
+**硬校验：** 逐行 `(label,users,items)` 完全对齐；A/B/C 的 test 单模型 AUC 与历史值相差不超过默认 `0.002`；C 固定公式重建检查；RR5 从 checkpoint 中寻找 6 个 gate 张量和 `rec_encoder.user_embedding.weight`，若 NPZ 保存了 fused，则通过 0/-1/+1 索引候选的无标签重建误差审计（最大误差不超过 `0.005`）；若 NPZ 只有逐层 logits，则明确使用 `--rr5-user-offset`（默认 0）重建，之后强制核对重建后的 Test AUC，并要求重算的 test AUC 距 `0.739113` 不超过 `1e-4`。任何失败都拒绝输出完整 test 汇总。
 
 如果 RR5 权重或 userID 对应关系有别于原程序，必须先在原始运行时确认，**不能使用** `--skip-rr5-audit` 得到的结果作为严格复现数据。测试成功后写入 `test_summary.csv`、`test_summary.json`。已有 TEST 目录会被拒绝覆盖，避免无意中反复优化 test。
 
@@ -146,3 +146,7 @@ cat out/CORA_ENSEMBLE_REPRO_20261113/TEST/test_summary.csv
 ```
 
 六个真实 NPZ 路径必须从服务器实际文件得到；上述 `/absolute/path/to` 是占位符，不可直接运行。需要重新捕获时，使用服务器上已经验证能正确安装完整 D4+C6+RR5 运行时的原脚本；此仓库目前没有这些捕获脚本，不能假装仅凭这套 CPU 融合代码就能完成 LLM 推理。
+
+## 2026-11-13 修复：RR5 Test NPZ 无 fused 字段
+
+已收到服务器实测：RR1/RR5 的 `layer_logits_test.npz` 均为 `yes_logits` `(4,7331)`，RR5 没有 `fused_logits`。`cora_ensemble_repro_improve.py` 已更新：缺失 fused 时从 RR5 checkpoint 自动重建；默认 `--rr5-user-offset 0`，禁止通过 Test AUC 优选 offset。没有 valid 三成员或 C/G3 logits 时仍不能合法运行完整选权与三模型 Test，必须先确认/捕获。见服务器对应分支最新提交。
