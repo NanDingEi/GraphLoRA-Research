@@ -168,8 +168,13 @@ def load_member(path, name, explicit_score_key=None):
                 score = z32
         elif name == "B":
             if fused is None:
-                raise ValueError("B requires saved RR5 fused logits (NOT plain z32)")
-            score = fused
+                if z31 is None or z32 is None:
+                    raise ValueError("B requires saved RR5 fused logits OR L31/L32 for checkpoint reconstruction")
+                # Unfused placeholder is NEVER used for ensemble metrics:
+                # select()/test() must run the checkpoint audit first.
+                score = z32.copy()
+            else:
+                score = fused
         elif name == "C":
             if z31 is None or z32 is None:
                 if explicit_score_key is None or fused is None:
@@ -242,47 +247,69 @@ def _get_checkpoint_state(path):
     return state, obj.get("epoch", None)
 
 
-def audit_rr5_gate(member, checkpoint, tolerance=0.005):
-    """Independently rebuild B using RR5's OWN trained MF table and gate."""
+def audit_rr5_gate(member, checkpoint, tolerance=0.005, user_offset=0):
+    """Independently reconstruct B from RR5's trained MF table and gate.
+
+    If the NPZ has fused_logits: compare to saved fused scores, and infer an
+    embedding offset ONLY by unlabeled reconstruction error.
+    If fused_logits are absent: use the explicitly specified offset (default 0);
+    never optimize the offset against VALID/TEST labels or reference AUC.
+    """
     import torch
     import torch.nn.functional as F
     if member.name != "B" or member.z31 is None or member.z32 is None:
-        raise ValueError("RR5 audit needs B, z31/z32, and saved fused scores")
+        raise ValueError("RR5 requires B and L31/L32 layer logits")
     state, epoch = _get_checkpoint_state(checkpoint)
     suffixes = ["0.weight", "0.bias", "1.weight", "1.bias", "3.weight", "3.bias"]
     gate = {}
     for suffix in suffixes:
-        matches = [(k, v) for k, v in state.items() if k.endswith("cora_residual_fusion.user_gate." + suffix)]
+        matches = [(k, v) for k, v in state.items()
+                   if k.endswith("cora_residual_fusion.user_gate." + suffix)]
         if len(matches) != 1:
             raise RuntimeError(f"RR5 gate tensor {suffix}: expected one, got {[x[0] for x in matches]}")
         gate[suffix] = matches[0][1].float().cpu()
-    candidates = [(k,v) for k,v in state.items() if k.endswith("rec_encoder.user_embedding.weight")]
+    candidates = [(k,v) for k,v in state.items()
+                  if k.endswith("rec_encoder.user_embedding.weight")]
     if len(candidates) != 1:
         raise RuntimeError(f"Expected one RR5 MF user table; got {[k for k,_ in candidates]}")
     table = candidates[0][1].float().cpu()
+    if not np.isfinite(member.z31).all() or not np.isfinite(member.z32).all():
+        raise ValueError("Nonfinite RR5 layer logits")
+    offsets = (0, -1, 1) if member.has_fused else (int(user_offset),)
     reconstructions = []
-    u = member.users
-    for offset in (0, -1, 1):
-        ids = u + offset
+    for offset in offsets:
+        ids = member.users + offset
         if int(ids.min()) < 0 or int(ids.max()) >= table.shape[0]:
             continue
         with torch.no_grad():
-            x = F.normalize(table[torch.from_numpy(ids).long()], p=2, dim=1, eps=1e-8)
+            x = F.normalize(table[torch.from_numpy(ids).long()],p=2,dim=1,eps=1e-8)
             x = F.layer_norm(x, (x.shape[1],), gate["0.weight"], gate["0.bias"], eps=1e-5)
             x = F.gelu(F.linear(x, gate["1.weight"], gate["1.bias"]))
-            strength = torch.sigmoid(F.linear(x, gate["3.weight"], gate["3.bias"]))[:, 0].numpy()
+            strength = torch.sigmoid(F.linear(x, gate["3.weight"], gate["3.bias"]))[:,0].numpy()
         fused = member.z32 + strength * (member.z31-member.z32)
-        maxerr = float(np.max(np.abs(fused-member.score)))
-        reconstruction_auc = auc(member.labels, fused)
-        reconstructions.append((maxerr, offset, reconstruction_auc))
+        if not np.isfinite(fused).all():
+            raise ValueError("Nonfinite reconstructed RR5 fused scores")
+        err = float(np.max(np.abs(fused-member.score))) if member.has_fused else 0.0
+        reconstructions.append((err, offset, fused))
     if not reconstructions:
-        raise RuntimeError("RR5 raw UserID does not index its MF table with offsets 0/-1/+1")
-    besterr, offset, ra = min(reconstructions)
-    if besterr > tolerance:
-        raise RuntimeError(f"RR5 checkpoint gate/MF reconstruction fails: best max error={besterr:.6g}, tolerance={tolerance}, offsets={reconstructions}")
-    print(f"[RR5 GATE AUDIT PASS] epoch={epoch} user_offset={offset} max_abs_error={besterr:.8g} reconstructed_auc={ra:.9f}",flush=True)
-    return {"checkpoint":str(checkpoint),"checkpoint_epoch":epoch,"user_offset":offset,"max_abs_error":besterr,"reconstructed_auc":ra}
-
+        raise RuntimeError(f"RR5 raw UserID indexing failed for offsets={offsets}, MF rows={table.shape[0]}")
+    besterr, offset, fused = min(reconstructions, key=lambda x:x[0])
+    if member.has_fused and besterr > tolerance:
+        raise RuntimeError(f"RR5 saved fused mismatch: best error={besterr:.6g}, tolerance={tolerance}")
+    source = "checkpoint_reconstructed" if not member.has_fused else "saved_fused_verified"
+    if not member.has_fused:
+        member.score = fused
+        member.has_fused = True
+        print(f"[RR5 REBUILD] NPZ had no fused_logits; using user_offset={offset}; "
+              "offset not selected from labels; B logits reconstructed from checkpoint",flush=True)
+    ra = auc(member.labels, fused)
+    report = {"checkpoint":str(checkpoint),"checkpoint_epoch":epoch,
+              "user_offset":offset,"max_abs_error":besterr if source=="saved_fused_verified" else None,
+              "reconstructed_auc":ra,"score_source":source}
+    print(f"[RR5 GATE AUDIT PASS] epoch={epoch} user_offset={offset} "
+          f"max_abs_error={report['max_abs_error']} reconstructed_auc={ra:.9f} "
+          f"source={source}",flush=True)
+    return report
 
 def base_ab(S, w):
     return w * S["A"] + (1.0 - w) * S["B"]
@@ -320,12 +347,15 @@ def select(args):
     members, digest = load_triplet(args,"valid")
     y,u = members["A"].labels, members["A"].users
     evaluator=ValidMetricEvaluator(y,u)
-    S, means = normalize_members(members,"test_first128")
     audit = None
     if not args.skip_rr5_audit:
         if not args.rr5_checkpoint:
             raise RuntimeError("VALID selection requires --rr5-checkpoint for RR5 gate audit")
-        audit = audit_rr5_gate(members["B"], args.rr5_checkpoint)
+        audit = audit_rr5_gate(members["B"], args.rr5_checkpoint,
+                              user_offset=args.rr5_user_offset)
+    elif not members["B"].has_fused:
+        raise RuntimeError("Missing RR5 fused logits: cannot skip checkpoint reconstruction")
+    S, means = normalize_members(members,"test_first128")
     reference = {m: evaluator.metrics(members[m].score) for m in "ABC"}
     print("[VALID MEMBERS]",json.dumps(reference),flush=True)
     fixed = {}
@@ -445,18 +475,21 @@ def test(args):
         raise RuntimeError("VALID and TEST sample identity digests are identical; abort")
     a=members["A"]
     tests={"A":0.739652,"B":0.739113,"C":0.7369}
+    audit=None
+    if not args.skip_rr5_audit:
+        if not args.rr5_checkpoint:
+            raise RuntimeError("Set --rr5-checkpoint to audit gate/MF table")
+        audit=audit_rr5_gate(members["B"],args.rr5_checkpoint,
+                             user_offset=args.rr5_user_offset)
+        if abs(audit["reconstructed_auc"]-tests["B"])>0.0001:
+            raise RuntimeError(f"RR5 reconstructed AUC does not match 0.739113 within 1e-4: {audit['reconstructed_auc']}")
+    elif not members["B"].has_fused:
+        raise RuntimeError("Missing RR5 fused logits: cannot skip checkpoint reconstruction")
     member_metrics={k:metrics(a.labels,a.users,m.score) for k,m in members.items()}
     for k,ref in tests.items():
         delta=abs(member_metrics[k]["auc"]-ref)
         if delta>args.reference_tol:
             raise RuntimeError(f"Member {k} checkpoint/split mismatch: AUC={member_metrics[k]['auc']:.8f}, expected={ref}, delta={delta:.8g}>tol={args.reference_tol}")
-    audit=None
-    if not args.skip_rr5_audit:
-        if not args.rr5_checkpoint:
-            raise RuntimeError("Set --rr5-checkpoint to audit gate/MF table, or explicitly --skip-rr5-audit (diagnostic only)")
-        audit=audit_rr5_gate(members["B"],args.rr5_checkpoint)
-        if abs(audit["reconstructed_auc"]-tests["B"])>0.0001:
-            raise RuntimeError(f"RR5 reconstructed AUC does not match 0.739113 within 1e-4: {audit['reconstructed_auc']}")
     if spec["norm_mode"]=="valid_stats_128":
         S,used=normalize_members(members,"valid_stats_128",spec["valid_first128_stats"])
     else:
@@ -501,6 +534,8 @@ def parse():
     p.add_argument("--norm",choices=["test_first128","valid_stats_128"],default="test_first128",
                    help="test_first128 reproduces historical transductive protocol; valid_stats_128 is stricter inductive normalization")
     p.add_argument("--rr5-checkpoint",default=None)
+    p.add_argument("--rr5-user-offset",type=int,choices=[-1,0,1],default=0,
+                   help="RR5 MF embedding index = raw UserID + this offset. If fused scores are missing, default is 0; NEVER infer offset by selecting TEST AUC.")
     p.add_argument("--expected-historical-w",type=float,default=0.40,
                    help="Historical AB AUC validation optimum; enforce exact match by default")
     p.add_argument("--allow-different-valid-weight",action="store_true",
