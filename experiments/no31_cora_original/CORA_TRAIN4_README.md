@@ -56,7 +56,7 @@ python -u experiments/no31_cora_original/cora_train4_20261113.py \
   --run --only T0_CONTINUE,T1_USER_RANK
 ```
 
-运行输出中须确认 `[WARM START]` RR1 checkpoint 加载；`[TRAIN4 PAIR LOADER]` 有同用户配对采样；`[TRAIN4 VALID]` 每轮输出 AUC+UAUC；日志 `experiments/no31_cora_original/logs/CORA_TRAIN4_RR1_WARMSTART_20261113/<trial>.log`，结果目录 `experiments/no31_cora_original/output/CORA_TRAIN4_RR1_WARMSTART_20261113/<trial>/<job_id>/`。
+运行输出中须确认 `[WARM START]` RR1 checkpoint 加载；`[TRAIN4 PAIR LOADER]` 有同用户配对采样；`[TRAIN4 VALID]` 每轮输出 AUC+UAUC；日志 `experiments/no31_cora_original/log/CORA_TRAIN4_RR1_WARMSTART_20261113/<trial>.log`，结果目录 `experiments/no31_cora_original/out/CORA_TRAIN4_RR1_WARMSTART_20261113/<trial>/<job_id>/`。
 
 ### 第二步：串行捕获 RR1/RR5 Train 教师（只训练集、纯推理）
 
