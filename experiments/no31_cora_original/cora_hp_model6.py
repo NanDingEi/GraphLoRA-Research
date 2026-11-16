@@ -5,19 +5,18 @@ Ports the HCP idea (3 hierarchical group experts + 1 raw-personal expert)
 onto the proven D4_TOPK_RES025 + C6_KD_BOTH + rank16-generator runtime that
 produced the historical bests (E2_USER_L10 valid 0.7316 / RR1 test 0.7397).
 
-Heterogeneous router (user-only, same output contract as user_soft4):
-    coarse centers c1_g (K1=3, spherical kmeans on INITIAL pretrained MF
-    user table, frozen buffers) and fine centers c2 per group (K2=8):
-        logits = [cos(u, c1_g)/T for g=0..2, personal_logit]
-        probs  = softmax(logits)                      # [B, 4]
-        masks  = 1 + lambda*(4*probs - 1)             # shared across layer groups
-        rank_masks = repeat_interleave(probs, 4)      # [B, 16] per group
-    personal_logit init log(2) -> p_personal ~ 0.40 (G1_CLUSTER_K32 lesson:
-    pure cluster routing collapsed UAUC; the personal expert keeps a share).
-    balance = 1e-3 * sum((mean probs - 0.25)^2).
+Six architecture variants share one pretrained 7B base and one fresh
+rank16 CoRA model per trial:
+    M1: user-conditioned mixture of T=0.25 and T=0.50 routing distributions.
+    M2: user-conditioned temperature in [0.25, 0.50].
+    M3: user-conditioned coarse/fine blend beta in [0.50, 0.90].
+    M4: candidate-aware personal-expert logit from [user, item, user*item].
+    M5: one personal-expert logit per 8-layer group.
+    M6: expert-specific affine adapters on the four Rank4 slices.
 
-Everything else (D4 grouped inputs, C6 losses, Joint8 LR split, compact
-atomic checkpoints, seed42, GPU0 serial, VALID only) is inherited unchanged.
+The shared routing output remains four expert probabilities per sample and
+four layer groups. D4 grouped inputs, C6 losses, Joint8 LR split, seed42,
+GPU0 serial execution, and VALID-only model selection are inherited.
 
 Run from the CoRA_official root:
   python experiments/no31_cora_original/cora_hp_model6.py --cpu-test
@@ -147,7 +146,7 @@ def hierarchical_centers(user_table, uid_lo=1):
 
 
 class HierPersonalMoE(moe.CollaborativeMoE):
-    """3 hierarchical group experts + 1 raw-personal expert (routing only).
+    """Hierarchical cluster/personal routing with optional learned model variants.
 
     Non-hier modes delegate to the original CollaborativeMoE unchanged, so
     every historical trial remains reproducible inside this worker.
@@ -584,8 +583,7 @@ def cpu_test():
             beta=0.70, route_variant=route_variant, model_variant=variant)
         masks, aux, stats, probs = model(rec, user_ids, item_ids, {})
         assert len(masks) == 4 and tuple(masks[0].shape) == (batch, RANK)
-        expected_shape = (batch, 4, 4) if route_variant == "group_personal" else (batch, 4, 4)
-        assert tuple(probs.shape) == expected_shape, (name, tuple(probs.shape))
+        assert tuple(probs.shape) == (batch, 4, 4), (name, tuple(probs.shape))
         torch.testing.assert_close(probs.sum(dim=-1), torch.ones(batch, 4),
                                    atol=1e-5, rtol=1e-5)
         signal = torch.randn(batch, RANK)
