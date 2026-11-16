@@ -553,7 +553,7 @@ def plan(protocol):
     }
     (root / "hp_model6_manifest.json").write_text(
         json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8")
-    print(f"[HP MODEL6 PLAN PASS] manifest={root / 'hier_fullstack_manifest.json'}",
+    print(f"[HP MODEL6 PLAN PASS] manifest={root / 'hp_model6_manifest.json'}",
           flush=True)
 
 
@@ -680,7 +680,7 @@ def main():
             plan(args.protocol)
         moe.base.run_selected(chosen, args.protocol, args.patience,
                               args.screen_epochs)
-        print("[HIER COMPLETE] selected trials finished. Valid only.", flush=True)
+        print("[HP MODEL6 COMPLETE] selected trials finished. Valid only.", flush=True)
         return
     parser.error("Specify --cpu-test, --plan, --run or --summary")
 
