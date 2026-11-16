@@ -1,0 +1,328 @@
+#!/usr/bin/env python3
+"""Read-only TEST evaluation of historical highest-Valid-UAUC RR1_L32_BASE.
+
+The exact user-provided checkpoint is:
+  CORA_RESIDUAL_ROUTING6_20261103/RR1_L32_BASE/20261103092/checkpoint_best.pth
+Historical VALID: AUC ~0.732387, UAUC at best-AUC ~0.701999.
+
+RR1 is the *baseline* of cora_residual_routing6.py: original L32 Yes
+prediction, D4_TOPK_RES025, C6_KD_BOTH, trainable MF, no residual
+router, and NO rank4-expert router. Do not use the E2/S4/MoE model constructor.
+
+Checkpoint is trainable-parameters-only; first construct the pretrained
+Vicuna/CoRA + MF model exactly as during RR1 training, then strictly audit
+the keys and load the trainable state, then evaluate test_ood2.pkl ONCE.
+This script never trains or reloads the checkpoint through optimizer state.
+
+From CoRA_official root:
+ python experiments/no31_cora_original/cora_rr1_best_test.py --check
+ CUDA_VISIBLE_DEVICES=0 python -u experiments/no31_cora_original/cora_rr1_best_test.py --run
+"""
+import argparse
+import csv
+import hashlib
+import json
+import os
+import re
+import runpy
+import sys
+from pathlib import Path
+
+import torch
+import yaml
+
+HERE = Path(__file__).resolve().parent
+import cora_residual_routing6 as residual
+
+ROOT = residual.PROJECT_ROOT
+TRAIN_PROTOCOL = "CORA_RESIDUAL_ROUTING6_20261103"
+TEST_PROTOCOL = "CORA_RR1_BEST_TEST_20261110"
+NAME = "RR1_L32_BASE"
+RELATIVE_CHECKPOINT = (
+    "output/CORA_RESIDUAL_ROUTING6_20261103/"
+    "RR1_L32_BASE/20261103092/checkpoint_best.pth"
+)
+VALID_AUC_REFERENCE = 0.732387
+VALID_UAUC_REFERENCE = 0.701999
+
+
+def _protocol(value):
+    if not re.fullmatch(r"[A-Za-z0-9_-]+", value):
+        raise ValueError(f"Unsafe output protocol: {value!r}")
+    return value
+
+
+def _sha256(path):
+    dig = hashlib.sha256()
+    with path.open("rb") as reader:
+        for chunk in iter(lambda: reader.read(8 * 1024 * 1024), b""):
+            dig.update(chunk)
+    return dig.hexdigest()
+
+
+def _source():
+    source_yaml = HERE / "local_configs" / TRAIN_PROTOCOL / (NAME + ".yaml")
+    if not source_yaml.is_file():
+        raise FileNotFoundError(
+            f"RR1 original training YAML not found: {source_yaml}. "
+            "Do not recreate it using another trial's config."
+        )
+    config = yaml.safe_load(source_yaml.read_text(encoding="utf-8"))
+    run = config["run"]
+    if (
+        int(run["seed"]) != 42
+        or run.get("valid_splits") != ["valid"]
+        or bool(run.get("test_splits"))
+        or bool(run.get("evaluate"))
+        or run.get("mode") != "v2"
+        or config["model"].get("freeze_rec") is not False
+        or config["model"].get("ckpt")
+        or run.get("resume_ckpt_path")
+    ):
+        raise RuntimeError(
+            "RR1 source configuration mismatched. Need the original seed42, "
+            "v2, trainable-MF, Valid-only YAML; no training allowed."
+        )
+    return source_yaml, config
+
+
+def _checkpoint(explicit):
+    path = Path(explicit).expanduser() if explicit else (HERE / RELATIVE_CHECKPOINT)
+    path = path.resolve()
+    if not path.is_file() or path.name != "checkpoint_best.pth":
+        raise FileNotFoundError(f"Historical RR1 checkpoint not found: {path}")
+    if path.stat().st_size == 0:
+        raise RuntimeError(f"Empty checkpoint: {path}")
+    return path
+
+
+def _last_best_epoch():
+    original_log = HERE / "logs" / TRAIN_PROTOCOL / (NAME + ".log")
+    if not original_log.exists():
+        print("[RR1 TEST CHECK] Original training stdout unavailable; "
+              "checkpoint epoch will be recorded, but cannot be cross-checked.")
+        return None
+    matches = re.findall(
+        r"\[JOINT8 BEST\]\s*epoch=(\d+)\s+valid_auc=([-+\d.eE]+)",
+        original_log.read_text(encoding="utf-8", errors="replace"),
+    )
+    if not matches:
+        print("[RR1 TEST CHECK] No [JOINT8 BEST] marker in training log; "
+              "checkpoint epoch cannot be cross-checked.")
+        return None
+    epoch, auc = max(((int(x), float(y)) for x, y in matches),
+                     key=lambda item: item[1])
+    print(f"[RR1 TEST VALID] historical_best_epoch={epoch} "
+          f"historical_best_auc={auc:.9f}")
+    if abs(auc - VALID_AUC_REFERENCE) > 0.002:
+        raise RuntimeError(
+            f"Historical RR1 Valid AUC {auc:.9f} does not match "
+            f"reference ~{VALID_AUC_REFERENCE}. Wrong training log?"
+        )
+    return epoch
+
+
+def _test_config(source, target_protocol):
+    run = source["run"]
+    test_cfg = json.loads(json.dumps(source))
+    # Use evaluate=False so OOD2 builders do not try to load their optional
+    # test_warm/test_cold files. We REPLACE RunnerBase.train() with an entirely
+    # test-only method; evaluating cannot fall back to training.
+    test_cfg["run"]["evaluate"] = False
+    test_cfg["run"]["rr1_test_only"] = True
+    test_cfg["run"]["valid_splits"] = []
+    test_cfg["run"]["test_splits"] = ["test"]
+    test_cfg["run"]["resume_ckpt_path"] = None
+    test_cfg["run"]["output_dir"] = str(HERE / "output" / target_protocol / NAME)
+    path = HERE / "local_configs" / target_protocol / (NAME + "_TEST.yaml")
+    path.parent.mkdir(parents=True, exist_ok=True)
+    rendered = yaml.safe_dump(test_cfg, sort_keys=False, allow_unicode=True)
+    if path.exists():
+        if path.read_text(encoding="utf-8") != rendered:
+            raise FileExistsError(f"Different config exists at {path}; "
+                                  "use another --output-protocol")
+    else:
+        path.write_text(rendered, encoding="utf-8")
+    return path
+
+
+def _install_rr1():
+    trial = residual.TRIAL_BY_NAME[NAME]
+    if trial["kind"] != "baseline":
+        raise RuntimeError("RR1 must be a baseline; no R31 residual module")
+    residual.configure()
+    # Same patch sequence as the RR1 training worker.
+    core = residual.late.base.core
+    core.patch_runner(
+        screen_epochs=0, mf_lr_ratio=residual.MF_LR_RATIO,
+        patience=residual.PATIENCE,
+    )
+    residual.late.base.combo.install_combo_model(
+        residual.late.base.combo.NAMES["C6_KD_BOTH"]
+    )
+    residual.late.base._patch_runtime_classes(trial)
+    residual.install_trial_module(trial)
+    residual.install_optimizer_audit(trial)
+    residual.install_trial_forward(trial)
+    print("[RR1 TEST MODEL] RR1 baseline L32, D4_TOPK_RES025, "
+          "C6_KD_BOTH, trainable MF, no R31 fusion; no training")
+
+
+def _install_eval_runner(checkpoint, original_yaml, report_json, report_csv, valid_epoch):
+    from minigpt4.runners.runner_base import RunnerBase
+
+    def test_only(self):
+        if self.config.run_cfg.get("rr1_test_only") is not True:
+            raise RuntimeError("RR1 Test-only sentinel missing: refusing to train")
+        if self.config.run_cfg.get("evaluate") is not False:
+            raise RuntimeError("Wrong dataset-building mode; refusing to continue")
+        if list(self.test_splits) != ["test"] or list(self.valid_splits):
+            raise RuntimeError("RR1 requires test-only evaluation, no Valid selection")
+        if report_json.exists() or report_csv.exists():
+            raise FileExistsError("Test result already exists, refusing to overwrite.")
+        self.set_model_mode(self.config.run_cfg.mode)
+        if "test" not in self.dataloaders:
+            raise RuntimeError(f"No test split, present splits={list(self.dataloaders)}")
+        model = self.unwrap_dist_model(self.model)
+        try:
+            payload = torch.load(checkpoint, map_location="cpu", weights_only=True)
+        except TypeError:
+            # Older torch versions may not support weights_only; checkpoint
+            # must be a trusted file saved by this project's own training job.
+            payload = torch.load(checkpoint, map_location="cpu")
+        if not isinstance(payload, dict) or not isinstance(payload.get("model"), dict):
+            raise RuntimeError("Expected RR1 compact model checkpoint dictionary")
+        if payload.get("next8_checkpoint_format") != "trainable_model_only_v1":
+            raise RuntimeError(
+                f"Wrong checkpoint format: {payload.get('next8_checkpoint_format')!r}"
+            )
+        if payload.get("optimizer_included") is not False:
+            raise RuntimeError("Expected model-only best checkpoint, not optimizer resume")
+        epoch = int(payload.get("epoch", -1))
+        if epoch < 0:
+            raise RuntimeError("Checkpoint lacks a valid epoch")
+        if valid_epoch is not None and epoch != valid_epoch:
+            raise RuntimeError(
+                f"Checkpoint epoch {epoch} differs from original Best Valid "
+                f"epoch {valid_epoch}; wrong checkpoint"
+            )
+        saved_run = payload.get("config", {}).get("run", {})
+        if int(saved_run.get("seed", -1)) != 42:
+            raise RuntimeError("Checkpoint seed is not 42")
+        trained = payload["model"]
+        current = model.state_dict()
+        expected = {name for name, param in model.named_parameters()
+                    if param.requires_grad}
+        missing_trainable = sorted(expected - set(trained))
+        extra = sorted(set(trained) - set(current))
+        shape_error = sorted(name for name, val in trained.items()
+                             if name in current
+                             and tuple(val.shape) != tuple(current[name].shape))
+        if missing_trainable or extra or shape_error:
+            raise RuntimeError(
+                f"RR1 checkpoint incompatible: missing trainable="
+                f"{missing_trainable[:15]}; extra={extra[:15]}; "
+                f"shape mismatch={shape_error[:15]}"
+            )
+        incompatibility = model.load_state_dict(trained, strict=False)
+        if incompatibility.unexpected_keys:
+            raise RuntimeError(
+                f"Unexpected checkpoint state keys: {incompatibility.unexpected_keys}"
+            )
+        print(
+            f"[RR1 TEST CKPT PASS] epoch={epoch}, model_tensors={len(trained)}, "
+            f"trainable_tensors={len(expected)}, frozen_keys_restored_from_base="
+            f"{len(incompatibility.missing_keys)}", flush=True
+        )
+        model.eval()
+        with torch.no_grad():
+            result = self.eval_epoch(
+                split_name="test", cur_epoch=epoch, skip_reload=True,
+            )
+        if not isinstance(result, dict) or "agg_metrics" not in result or "uauc" not in result:
+            raise RuntimeError(
+                f"RR1 unexpected Test output: {str(result)[:300]}"
+            )
+        auc = float(result["agg_metrics"])
+        uauc_val = result["uauc"]
+        if isinstance(uauc_val, (tuple, list)):
+            uauc_val = uauc_val[0]
+        uauc = float(uauc_val)
+        if not (0.0 <= auc <= 1.0 and 0.0 <= uauc <= 1.0):
+            raise RuntimeError(f"Invalid Test results: auc={auc} uauc={uauc}")
+        report = {
+            "trial": NAME, "split": "test", "test_auc": auc, "test_uauc": uauc,
+            "source_protocol": TRAIN_PROTOCOL,
+            "source_valid_auc_reference": VALID_AUC_REFERENCE,
+            "source_valid_uauc_reference": VALID_UAUC_REFERENCE,
+            "checkpoint_best_epoch": epoch,
+            "checkpoint_path": str(checkpoint),
+            "checkpoint_sha256": _sha256(checkpoint),
+            "source_train_yaml": str(original_yaml),
+            "seed": 42,
+            "test_only": True,
+            "route": "RR1 baseline, no residual route",
+            "task_result": result,
+        }
+        report_json.parent.mkdir(parents=True, exist_ok=True)
+        with report_json.open("x", encoding="utf-8") as fh:
+            json.dump(report, fh, ensure_ascii=False, indent=2)
+        with report_csv.open("x", newline="", encoding="utf-8-sig") as fh:
+            writer = csv.DictWriter(fh, fieldnames=[
+                "trial", "test_auc", "test_uauc", "checkpoint_best_epoch",
+                "checkpoint_path", "source_protocol", "seed",
+            ], extrasaction="ignore")
+            writer.writeheader()
+            writer.writerow(report)
+        print(f"[RR1 TEST RESULT] AUC={auc:.9f} UAUC={uauc:.9f} "
+              f"checkpoint_epoch={epoch}", flush=True)
+        print(f"[RR1 TEST SAVED] json={report_json} csv={report_csv}", flush=True)
+        return report
+
+    RunnerBase.train = test_only
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    mode = parser.add_mutually_exclusive_group(required=True)
+    mode.add_argument("--check", action="store_true",
+                      help="No GPU or weight loading; check paths/protocols")
+    mode.add_argument("--run", action="store_true",
+                      help="Evaluate historical RR1 on Test with GPU0, no training")
+    parser.add_argument("--checkpoint", default="",
+                        help="Override exact RR1 checkpoint_best.pth path")
+    parser.add_argument("--output-protocol", default=TEST_PROTOCOL)
+    args = parser.parse_args()
+    os.chdir(ROOT)
+    output_protocol = _protocol(args.output_protocol)
+    orig_yaml, source = _source()
+    checkpoint = _checkpoint(args.checkpoint)
+    best_epoch = _last_best_epoch()
+    reports = HERE / "out" / output_protocol
+    report_json = reports / (NAME + "_test_metrics.json")
+    report_csv = reports / (NAME + "_test_metrics.csv")
+    print(f"[RR1 TEST PLAN] checkpoint={checkpoint}")
+    print(f"[RR1 TEST PLAN] source_yaml={orig_yaml}")
+    print(f"[RR1 TEST PLAN] dataset=test_ood2.pkl; selected on Valid AUC; "
+          f"report={report_csv}; no training, no overwrite")
+    if args.check:
+        print("[RR1 TEST CHECK PASS] sources found; will load/check weights at --run")
+        return
+    if os.environ.get("CUDA_VISIBLE_DEVICES") != "0":
+        raise RuntimeError("Set CUDA_VISIBLE_DEVICES=0; only physical GPU0 allowed")
+    if report_json.exists() or report_csv.exists():
+        raise FileExistsError(
+            "Existing RR1 Test result detected; use --output-protocol with "
+            "a unique name rather than overwriting."
+        )
+    residual.gpu0_preflight("RR1-test-before-model")
+    test_yaml = _test_config(source, output_protocol)
+    _install_rr1()
+    _install_eval_runner(checkpoint, orig_yaml, report_json, report_csv, best_epoch)
+    sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(test_yaml)]
+    print(f"[RR1 TEST BEGIN] config={test_yaml}")
+    runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
+
+
+if __name__ == "__main__":
+    main()

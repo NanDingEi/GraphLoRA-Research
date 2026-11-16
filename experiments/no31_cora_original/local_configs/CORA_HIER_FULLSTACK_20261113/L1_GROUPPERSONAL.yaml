@@ -1,0 +1,69 @@
+model:
+  arch: mini_gpt4rec_vx
+  model_type: pretrain_vicuna
+  freeze_rec: false
+  freeze_proj: true
+  freeze_lora: false
+  freeze_bias: true
+  max_txt_len: 1024
+  proj_token_num: 1
+  proj_drop: 0
+  proj_mid_times: 10
+  end_sym: '###'
+  prompt_path: prompts/tallrec_movie.txt
+  prompt_template: '{}'
+  llama_model: /home/bbx/user_lx/models/vicuna-7b-v0
+  user_num: -100
+  item_num: -100
+  ans_type: v2
+  lora_config:
+    use_lora: true
+    r: 16
+    alpha: 32
+    target_modules:
+    - q_proj
+    - v_proj
+    - o_proj
+    - k_proj
+    dropout: 0.05
+  rec_config:
+    user_num: -100
+    item_num: -100
+    embedding_size: 256
+    pretrained_path: /home/bbx/user_lx/GraphLoRA/checkpoints/0912_ml1m_oodv2_best_model_d256lr-0.001wd0.0001.pth
+  ckpt: null
+datasets:
+  movie_ood:
+    path: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+    data_type: default
+    build_info:
+      storage: /home/bbx/user_lx/GraphLoRA/dataset/ml-1m/
+run:
+  task: rec_pretrain
+  lr_sched: linear_warmup_cosine_lr
+  init_lr: 0.0003
+  min_lr: 8e-5
+  warmup_lr: 1e-5
+  mode: v2
+  weight_decay: 1e-3
+  max_epoch: 1000
+  iters_per_epoch: 400
+  batch_size_train: 2
+  batch_size_eval: 2
+  num_workers: 4
+  warmup_steps: 800
+  seed: 42
+  output_dir: /home/bbx/user_lx/CoRA_official/experiments/no31_cora_original/output/CORA_HIER_FULLSTACK_20261113/L1_GROUPPERSONAL
+  amp: true
+  resume_ckpt_path: null
+  evaluate: false
+  train_splits:
+  - train
+  valid_splits:
+  - valid
+  test_splits: []
+  device: cuda
+  world_size: 1
+  dist_url: env://
+  distributed: false
+  accum_grad_iters: 4
