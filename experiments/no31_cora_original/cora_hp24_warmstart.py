@@ -647,6 +647,10 @@ def _validate_trial_config(path, protocol):
         "batch2": int(run["batch_size_train"]) == BATCH_SIZE,
         "accum4": int(run["accum_grad_iters"]) == ACCUMULATION,
         "steps400": int(run["iters_per_epoch"]) == STEPS_PER_EPOCH,
+        "lr_1e4": abs(float(run["init_lr"]) - CORA_LR) < 1e-12,
+        "min_lr_2e5": abs(float(run["min_lr"]) - MIN_LR) < 1e-12,
+        "warmup_lr_5e6": abs(float(run["warmup_lr"]) - WARMUP_LR) < 1e-12,
+        "warmup_steps_800": int(run["warmup_steps"]) == WARMUP_STEPS,
         "valid_only": run.get("valid_splits") == ["valid"] and not run.get("test_splits"),
         "no_generic_resume": not run.get("resume_ckpt_path"),
         "no_model_ckpt": not cfg["model"].get("ckpt"),
@@ -880,7 +884,10 @@ def run_selected(names, protocol, checkpoint, patience, screen_epochs,
                  warmup_epochs):
     configure(protocol)
     checkpoint, _ = find_hp24_checkpoint(checkpoint)
-    if not CORE.CONFIG_DIR.is_dir():
+    if (
+        not CORE.CONFIG_DIR.is_dir()
+        or any(not (CORE.CONFIG_DIR / (name + ".yaml")).is_file() for name in names)
+    ):
         plan(protocol, checkpoint)
     CORE.LOG_DIR.mkdir(parents=True, exist_ok=True)
     CORE.OUT_DIR.mkdir(parents=True, exist_ok=True)
