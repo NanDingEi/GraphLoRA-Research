@@ -248,7 +248,7 @@ class WarmStartHierPersonalMoE(hp.HierPersonalMoE):
             self.group_personal_delta = nn.Parameter(torch.zeros(4))
         for local_name in self.warm_parameter_local_names():
             parameter = dict(self.named_parameters())[local_name]
-            parameter.register_hook(self._grad_hook("warm." + local_name))
+            parameter.register_hook(self._grad_hook(local_name))
 
     def warm_parameter_local_names(self):
         if self.warm_variant == "pair":
@@ -432,21 +432,44 @@ def _install_router_warmup(warmup_epochs):
 
     def staged_train_epoch(self, epoch):
         model = self.unwrap_dist_model(self.model)
+        old_names = list(getattr(model, "_hp24_warmstart_old_names", ()))
+        if not old_names:
+            raise RuntimeError("Missing HP24 source parameter manifest on model")
+        named = dict(model.named_parameters())
+        missing = [name for name in old_names if name not in named]
+        if missing:
+            raise RuntimeError(f"HP24 source parameters disappeared: {missing[:10]}")
+
+        # Materialize the optimizer while MF still requires gradients. The
+        # inherited Joint8 optimizer splits MF into a joint8_mf group; the
+        # legacy optimizer audit explicitly requires that group to exist.
+        optimizer = self.optimizer
+        mf_groups = [group for group in optimizer.param_groups
+                     if group.get("joint8_mf")]
+        if not mf_groups:
+            raise RuntimeError(
+                "Joint8 MF optimizer group missing before router-only warmup"
+            )
+
+        if not getattr(self, "_hp24_warmstart_router_only_started", False):
+            for name in old_names:
+                if name.startswith("rec_encoder."):
+                    named[name].requires_grad_(False)
+            self._hp24_warmstart_router_only_started = True
+            print(
+                f"[HP24 WARMSTART STAGE1] epoch={epoch} "
+                f"new_router_only=True frozen_source_tensors="
+                f"{sum(not named[n].requires_grad for n in old_names)} "
+                "MF optimizer group retained but MF parameters frozen",
+                flush=True,
+            )
+
         if (
             epoch >= warmup_epochs
             and not getattr(self, "_hp24_warmstart_joint_enabled", False)
         ):
-            optimizer = self.optimizer
-            old_names = list(getattr(model, "_hp24_warmstart_old_names", ()))
-            if not old_names:
-                raise RuntimeError("Missing HP24 source parameter manifest on model")
-            named = dict(model.named_parameters())
-            missing = [name for name in old_names if name not in named]
-            if missing:
-                raise RuntimeError(f"HP24 source parameters disappeared: {missing[:10]}")
-            groups = {}
+            weight_decay = float(self.config.run_cfg.weight_decay)
             run_cfg = self.config.run_cfg
-            weight_decay = float(run_cfg.weight_decay)
             scales = {
                 "rec": float(run_cfg.get("lr_scale_rec", 1.0)),
                 "proj": float(run_cfg.get("lr_scale_proj", 1.0)),
@@ -456,9 +479,19 @@ def _install_router_warmup(warmup_epochs):
                 "cora": float(run_cfg.get("lr_scale_cora", 0.25)),
                 "cora_p": float(run_cfg.get("lr_scale_cora_p", 1.0)),
             }
+            for group in mf_groups:
+                group["lr_scale"] = 1.0
+            found_ids = {
+                id(parameter)
+                for group in optimizer.param_groups
+                for parameter in group["params"]
+            }
+            groups = {}
             for name in old_names:
                 parameter = named[name]
                 parameter.requires_grad_(True)
+                if id(parameter) in found_ids:
+                    continue
                 part = _parameter_part(name)
                 no_decay = (
                     parameter.ndim < 2 or "bias" in name
@@ -466,30 +499,27 @@ def _install_router_warmup(warmup_epochs):
                 )
                 key = (part, no_decay)
                 if key not in groups:
-                    group = {
+                    groups[key] = {
                         "params": [],
                         "weight_decay": 0.0 if no_decay else weight_decay,
                         "lr_scale": scales.get(part, 1.0),
                         "group_name": "warmstart_" + part
                                       + ("_no_wd" if no_decay else "_wd"),
                     }
-                    if part == "rec":
-                        group["joint8_mf"] = True
-                    groups[key] = group
                 groups[key]["params"].append(parameter)
 
             for group in groups.values():
                 group["lr"] = float(optimizer.defaults.get("lr", CORA_LR))
                 optimizer.add_param_group(group)
 
-            found = {
+            found_ids = {
                 id(parameter)
                 for group in optimizer.param_groups
                 for parameter in group["params"]
             }
             absent = [
                 name for name in old_names
-                if id(named[name]) not in found
+                if id(named[name]) not in found_ids
             ]
             if absent:
                 raise RuntimeError(
@@ -574,7 +604,10 @@ def install_model(trial, hp24_checkpoint, warmup_epochs=ROUTER_WARMUP_EPOCHS,
 
         if training:
             for name, parameter in self.named_parameters():
-                if name in expected_source:
+                # Keep MF requires_grad=True until RunnerBase.optimizer is
+                # materialized so Joint8 creates its required joint8_mf group.
+                # The stage hook freezes MF immediately after optimizer audit.
+                if name in expected_source and not name.startswith("rec_encoder."):
                     parameter.requires_grad_(False)
             if warmup_epochs < 1:
                 raise ValueError("Router-only warmup must be at least one epoch")
