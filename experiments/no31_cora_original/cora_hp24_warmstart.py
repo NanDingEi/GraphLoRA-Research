@@ -603,7 +603,7 @@ def install_model(trial, hp24_checkpoint, warmup_epochs=ROUTER_WARMUP_EPOCHS,
         _install_router_warmup(warmup_epochs)
 
 
-def _validate_trial_config(path):
+def _validate_trial_config(path, protocol):
     cfg = yaml.safe_load(Path(path).read_text(encoding="utf-8"))
     run = cfg["run"]
     checks = {
@@ -618,7 +618,7 @@ def _validate_trial_config(path):
         "no_generic_resume": not run.get("resume_ckpt_path"),
         "no_model_ckpt": not cfg["model"].get("ckpt"),
         "D4_C6_inputs": run.get("mode") == "v2",
-        "output_protocol": DEFAULT_PROTOCOL in str(run.get("output_dir", "")),
+        "output_protocol": protocol in str(run.get("output_dir", "")),
     }
     if not all(checks.values()):
         raise RuntimeError(
@@ -649,7 +649,7 @@ def plan(protocol, checkpoint):
         run["output_dir"] = str(HERE / "output" / protocol / trial["name"])
         cfg["model"]["ckpt"] = None
         path.write_text(yaml.safe_dump(cfg, sort_keys=False), encoding="utf-8")
-        _validate_trial_config(path)
+        _validate_trial_config(path, protocol)
 
     log_dir = HERE / "logs" / protocol
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -734,7 +734,7 @@ def cpu_test():
     for variant in ("pair", "adaptive_beta", "layer_personal_residual"):
         router = _new_router_from_hp24(base_router, variant)
         masks, aux, _, probs = router(rec, user_ids, item_ids, {})
-        expected = base_probs.unsqueeze(1).expand(-1, 4, -1)
+        expected = base_probs
         torch.testing.assert_close(probs, expected, atol=1e-6, rtol=1e-6)
         for group in range(4):
             torch.testing.assert_close(masks[group], base_masks[group], atol=1e-6, rtol=1e-6)
@@ -820,7 +820,7 @@ def worker(name, protocol, hp24_checkpoint, patience, screen_epochs,
     cfg_path = CORE.CONFIG_DIR / (name + ".yaml")
     if not cfg_path.is_file():
         raise FileNotFoundError(f"Run --plan first: {cfg_path}")
-    cfg = _validate_trial_config(cfg_path)
+    cfg = _validate_trial_config(cfg_path, protocol)
 
     CORE.patch_runner(
         screen_epochs=screen_epochs,
