@@ -910,6 +910,7 @@ def run_selected(names, protocol, checkpoint, patience, screen_epochs,
         logfile = CORE.LOG_DIR / (name + ".log")
         command = [
             sys.executable, "-u", str(SCRIPT),
+            "--run",
             "--_worker", name,
             "--protocol", protocol,
             "--checkpoint", str(checkpoint),
@@ -1119,6 +1120,7 @@ def test_selected(names, protocol, hp24_checkpoint, output_protocol,
             raise RuntimeError(f"Refusing to overwrite test log: {log}")
         command = [
             sys.executable, "-u", str(SCRIPT),
+            "--test",
             "--_test-worker", name,
             "--protocol", protocol,
             "--checkpoint", str(hp24_checkpoint),
