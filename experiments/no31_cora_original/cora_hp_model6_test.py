@@ -61,6 +61,14 @@ def _valid_row(trial_name):
             (trial_name, row.get("status")))
     if not row.get("valid_auc") or not row.get("valid_uauc"):
         raise RuntimeError("%s has no complete VALID AUC/UAUC" % trial_name)
+    log_path = HERE / "logs" / PROTOCOL / (trial_name + ".log")
+    if not log_path.is_file():
+        raise FileNotFoundError("Missing training log: %s" % log_path)
+    log_text = log_path.read_text(encoding="utf-8", errors="replace")
+    if "[JOINT8 EARLY STOP]" not in log_text and "Training time" not in log_text:
+        raise RuntimeError(
+            "%s training completion is not confirmed (no EARLY STOP/Training time marker); "
+            "inspect %s before TEST" % (trial_name, log_path))
     return {
         "valid_auc": float(row["valid_auc"]),
         "valid_uauc": float(row["valid_uauc"]),
