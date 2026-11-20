@@ -500,8 +500,17 @@ def _install_router_warmup(warmup_epochs):
                 "cora": float(run_cfg.get("lr_scale_cora", 0.25)),
                 "cora_p": float(run_cfg.get("lr_scale_cora_p", 1.0)),
             }
+            # Discard Adam moments accumulated while MF LR was zero. The
+            # joint fine-tuning phase therefore starts MF from a clean optimizer
+            # state, just like the newly added HP24 source parameter groups.
+            mf_state_reset = 0
             for group in mf_groups:
                 group["lr_scale"] = 1.0
+                for parameter in group["params"]:
+                    parameter.grad = None
+                    if parameter in optimizer.state:
+                        optimizer.state.pop(parameter, None)
+                        mf_state_reset += 1
             found_ids = {
                 id(parameter)
                 for group in optimizer.param_groups
@@ -552,7 +561,8 @@ def _install_router_warmup(warmup_epochs):
                 f"[HP24 WARMSTART STAGE2] epoch={epoch} "
                 f"unfrozen_source_tensors={len(old_names)} "
                 f"new_optimizer_groups={len(groups)} "
-                f"MF_lr_ratio={MF_LR_RATIO}; joint fine-tuning enabled",
+                f"MF_state_reset={mf_state_reset} MF_lr_ratio={MF_LR_RATIO}; "
+                "joint fine-tuning enabled",
                 flush=True,
             )
         return original_train_epoch(self, epoch)
