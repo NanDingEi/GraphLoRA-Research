@@ -452,15 +452,36 @@ def _install_router_warmup(warmup_epochs):
             )
 
         if not getattr(self, "_hp24_warmstart_router_only_started", False):
-            for name in old_names:
-                if name.startswith("rec_encoder."):
-                    named[name].requires_grad_(False)
+            # COMBO8 explicitly requires trainable MF parameters. Keep MF
+            # requires_grad=True so its forward/backward contract is intact,
+            # but set its dedicated Joint8 optimizer group LR scale to zero.
+            # AdamW with lr=0 performs neither parameter updates nor decay.
+            mf_parameters = list(model.rec_encoder.parameters())
+            if not mf_parameters or any(not parameter.requires_grad
+                                        for parameter in mf_parameters):
+                raise RuntimeError(
+                    "HP24 warm-start requires every MF parameter to remain trainable"
+                )
+            mf_ids = {id(parameter) for parameter in mf_parameters}
+            optimizer_mf_ids = {
+                id(parameter)
+                for group in mf_groups
+                for parameter in group["params"]
+            }
+            missing_mf = mf_ids - optimizer_mf_ids
+            if missing_mf:
+                raise RuntimeError(
+                    f"Joint8 MF optimizer is missing {len(missing_mf)} MF parameters"
+                )
+            for group in mf_groups:
+                group["lr_scale"] = 0.0
             self._hp24_warmstart_router_only_started = True
             print(
                 f"[HP24 WARMSTART STAGE1] epoch={epoch} "
                 f"new_router_only=True frozen_source_tensors="
                 f"{sum(not named[n].requires_grad for n in old_names)} "
-                "MF optimizer group retained but MF parameters frozen",
+                f"MF_requires_grad=True MF_lr_scale=0.0 "
+                f"MF_optimizer_tensors={len(optimizer_mf_ids)}",
                 flush=True,
             )
 
