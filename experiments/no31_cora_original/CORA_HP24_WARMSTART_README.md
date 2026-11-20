@@ -27,8 +27,8 @@ All trials keep rank 16 (four Rank4 slices), K1=3, K2=8, route temperature 0.50,
 
 1. Build the exact HP24 runtime and load the HP24 trainable checkpoint.
 2. Add only the selected zero-initialized routing module.
-3. Train the new router for two epochs while the original HP24 parameters remain frozen. The MF optimizer group is materialized first to satisfy the inherited Joint8 optimizer audit; MF parameters are frozen during this phase.
-4. At epoch 2, unfreeze the original HP24 trainable parameters and add them to the optimizer. Continue joint fine-tuning with a fresh optimizer state.
+3. Train the new router for two epochs while the original HP24 parameters remain frozen. MF is the exception required by COMBO8: all MF parameters keep `requires_grad=True`, remain in the dedicated Joint8 optimizer group, and use `lr_scale=0.0`. This preserves the MF forward/backward contract while preventing AdamW parameter updates and weight decay during warmup.
+4. At epoch 2, restore the MF group's `lr_scale=1.0` (the inherited Joint8 scheduler applies the 0.1 MF LR multiplier), unfreeze the remaining original HP24 trainable parameters, and add them to the optimizer. Continue joint fine-tuning with a fresh optimizer state for the newly added groups.
 5. Best checkpoints always save the complete source HP24 trainable state plus the new routing parameters, including during router-only warmup.
 
 ## Fixed controls
@@ -36,7 +36,7 @@ All trials keep rank 16 (four Rank4 slices), K1=3, K2=8, route temperature 0.50,
 - Seed 42; physical GPU0 only; serial trials
 - CoRA LR 1e-4; MF LR 1e-5 (0.1x)
 - Batch size 2; accumulation 4; 400 iterations/epoch
-- Router-only warmup: 2 epochs / 800 steps
+- Router-only warmup: 2 epochs / 800 steps; MF remains trainable but has zero effective LR
 - Min LR 2e-5; warmup LR 5e-6
 - Patience 10; Valid-only checkpoint selection
 - Test split disabled during training
