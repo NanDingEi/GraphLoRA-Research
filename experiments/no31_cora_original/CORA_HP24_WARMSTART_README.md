@@ -46,8 +46,8 @@ All trials keep rank 16 (four Rank4 slices), K1=3, K2=8, route temperature 0.50,
 Run in the existing `minigpt4` environment from the CoRA repository root:
 
 ```bash
-python experiments/no31_cora_original/cora_hp24_warmstart.py --check
 python -m py_compile experiments/no31_cora_original/cora_hp24_warmstart.py
+python experiments/no31_cora_original/cora_hp24_warmstart.py --check
 python experiments/no31_cora_original/cora_hp24_warmstart.py --cpu-test
 python experiments/no31_cora_original/cora_hp24_warmstart.py --plan
 ```
