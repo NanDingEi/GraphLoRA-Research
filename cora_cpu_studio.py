@@ -255,11 +255,18 @@ def main():
         tp = EXP / "out" / "CORA_HP_TEST_LOGITS_20261115" / \
             f"{cand}_test" / "layer_logits_test.npz"
         if vp.is_file() and tp.is_file():
-            yv4, uv4, cv4 = _load(vp)
-            yt4, ut4, ct4 = _load(tp)
-            if (np.array_equal(yv, yv4) and np.array_equal(uv, uv4)
-                    and np.array_equal(yt, yt4) and np.array_equal(ut, ut4)):
-                extra_pool[cand] = (_z(cv4[3]), _z(ct4[3]))
+            with np.load(vp, allow_pickle=False) as d1:
+                cv4 = (d1["fused_scores"].astype(np.float64)
+                       if "fused_scores" in d1.files else d1["yes_logits"][3])
+                good_v = (np.array_equal(d1["labels"], yv)
+                          and np.array_equal(d1["users"], uv))
+            with np.load(tp, allow_pickle=False) as d2:
+                ct4 = (d2["fused_scores"].astype(np.float64)
+                       if "fused_scores" in d2.files else d2["yes_logits"][3])
+                good_t = (np.array_equal(d2["labels"], yt)
+                          and np.array_equal(d2["users"], ut))
+            if good_v and good_t:
+                extra_pool[cand] = (_z(cv4), _z(ct4))
     score_v = dict(V)
     score_t = dict(T)
     for cand, (cv, ct) in extra_pool.items():

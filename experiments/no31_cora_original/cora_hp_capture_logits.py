@@ -92,7 +92,7 @@ def _install_capture():
 
 
 def _install_eval_runner(checkpoint, trial_name, capture, out_dir, valid_epoch,
-                         capture_split="test"):
+                         capture_split="test", trial=None):
     from minigpt4.runners.runner_base import RunnerBase
     from minigpt4.runners.runner_base_rec import RecRunnerBase
 
@@ -134,16 +134,45 @@ def _install_eval_runner(checkpoint, trial_name, capture, out_dir, valid_epoch,
             raise RuntimeError(f"L32 reconstruction mismatch: {max_pair_error}")
         yes = layer_pair[:, :, 0].astype(np.float64)
         official_auc = float(result["agg_metrics"])
-        yes32_auc = diag._auc(labels, yes[3])
-        if abs(yes32_auc - official_auc) > 0.005:
-            raise RuntimeError(
-                f"L32 AUC {yes32_auc:.9f} != official {official_auc:.9f}")
+        fused_scores = None
+        if trial.get("logit_gate"):
+            # Dual-gate models score with the FUSED logit; rebuild it from
+            # the checkpoint's fusion parameters (RR5-style reconstruction).
+            state = payload["model"]
+            gk = {k: v for k, v in state.items()
+                  if k.startswith("cora_residual_fusion.user_gate.")}
+            table = state["rec_encoder.user_embedding.weight"].float()
+            user_t = torch.nn.functional.normalize(
+                table[torch.as_tensor(users, dtype=torch.long)], dim=-1)
+            h = torch.nn.functional.layer_norm(
+                user_t, (user_t.shape[1],),
+                gk["cora_residual_fusion.user_gate.0.weight"].float(),
+                gk["cora_residual_fusion.user_gate.0.bias"].float(), 1e-5)
+            h = torch.nn.functional.gelu(torch.nn.functional.linear(
+                h, gk["cora_residual_fusion.user_gate.1.weight"].float(),
+                gk["cora_residual_fusion.user_gate.1.bias"].float()))
+            gate = torch.sigmoid(torch.nn.functional.linear(
+                h, gk["cora_residual_fusion.user_gate.3.weight"].float(),
+                gk["cora_residual_fusion.user_gate.3.bias"].float())
+                .reshape(-1)).numpy()
+            fused_scores = yes[3] + gate * (yes[2] - yes[3])
+            fused_auc = diag._auc(labels, fused_scores)
+            if abs(fused_auc - official_auc) > 0.005:
+                raise RuntimeError(
+                    f"Fused AUC {fused_auc:.9f} != official {official_auc:.9f}")
+        else:
+            yes32_auc = diag._auc(labels, yes[3])
+            if abs(yes32_auc - official_auc) > 0.005:
+                raise RuntimeError(
+                    f"L32 AUC {yes32_auc:.9f} != official {official_auc:.9f}")
         out_dir.mkdir(parents=True, exist_ok=True)
-        np.savez_compressed(
-            out_dir / f"layer_logits_{capture_split}.npz",
-            labels=labels, users=users, items=items,
-            yes_logits=yes,
-            no_logits=layer_pair[:, :, 1].astype(np.float64))
+        save_kw = dict(labels=labels, users=users, items=items,
+                       yes_logits=yes,
+                       no_logits=layer_pair[:, :, 1].astype(np.float64))
+        if fused_scores is not None:
+            save_kw["fused_scores"] = fused_scores
+        np.savez_compressed(out_dir / f"layer_logits_{capture_split}.npz",
+                            **save_kw)
         report = {"trial": trial_name, "split": capture_split,
                   "official_test_auc": official_auc,
                   "official_test_uauc": float(result["uauc"][0]
@@ -228,7 +257,7 @@ def main():
     test_yaml_path.write_text(rendered)
     capture = _install_capture()
     _install_eval_runner(checkpoint, args.trial, capture, out_dir, valid_epoch,
-                         capture_split=args.split)
+                         capture_split=args.split, trial=trial)
     sys.argv = ["train_collm_mf_din.py", "--cfg-path", str(test_yaml_path)]
     runpy.run_path(str(ROOT / "train_collm_mf_din.py"), run_name="__main__")
 
