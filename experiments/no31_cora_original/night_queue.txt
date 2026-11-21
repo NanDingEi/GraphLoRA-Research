@@ -1,0 +1,83 @@
+# Night experiment queue — TAG|command lines, consumed serially forever.
+# Append new lines any time; the driver picks them up within ~3 minutes.
+HP3|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP3_T05_L10 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP4|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP4_P55_L10 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP5|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP5_VROUTE_L10 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP6|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+G6|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_gate_tune6.py --run --only G6_UGATE_M15 --patience 15
+G7|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_gate_tune6.py --run --only G7_UGATE_KD20 --patience 10
+G8|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_gate_tune6.py --summary
+HP7|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP7_HYBRID_L02 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP8|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+HP11|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP11_FINE_B03 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP12|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP12_FINE_B07 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP13|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP13_FINE_HYBRID --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP14|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+HP12TEST|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u /home/bbx/user_lx/CoRA_official/experiments/no31_cora_original/cora_hp_best_test.py --run --trial HP12_FINE_B07
+HP5TEST|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u /home/bbx/user_lx/CoRA_official/experiments/no31_cora_original/cora_hp_best_test.py --run --trial HP5_VROUTE_L10
+HP15|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP15_FINE_T05 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP16|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+G9|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_gate_tune6.py --run --only G9_UGATE_KD05 --patience 10
+G10|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_gate_tune6.py --summary
+HP17|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP17_FINE_B08 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP18|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP18_FINE_B06 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP19|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+HP20TEST|bash /home/bbx/user_lx/CoRA_official/experiments/no31_cora_original/run_beta_winner_test.sh
+G11|/home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+G12|df -h / && du -sh experiments/no31_cora_original/output/
+HP21|bash experiments/no31_cora_original/test_top2.sh
+HP22|bash experiments/no31_cora_original/test_top2.sh
+HP23|bash experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+G13|cat experiments/no31_cora_original/out/CORA_HP_BEST_TEST_20261114/*_test_metrics.csv
+HP24|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP24_B07_T05 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP25|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP25_B03_T05 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP26|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+HP27|bash experiments/no31_cora_original/test_top2.sh
+HP28|bash experiments/no31_cora_original/test_top2.sh
+G14|/home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+T1|bash experiments/no31_cora_original/test_top2.sh
+HP30|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP26_B07_P30 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP31|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP27_B07_P50 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP32|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only HP28_B07_L035 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+HP33|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+T2|bash experiments/no31_cora_original/test_top2.sh
+T3|bash experiments/no31_cora_original/test_top2.sh
+G15|/home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+C1|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP24_B07_T05 --split test
+C2|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP24_B07_T05 --split valid
+C3|/home/bbx/anaconda3/envs/minigpt4/bin/python cora_ensemble_four_family.py
+G16|cat experiments/no31_cora_original/out/CORA_ENSEMBLE_FOUR_FAMILY_20261115/ensemble_four_family.csv
+L1|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only L1_GROUPPERSONAL --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+L2|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only L2_DUALGATE --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+L3|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113
+L4|bash experiments/no31_cora_original/test_top2.sh
+L5|bash experiments/no31_cora_original/test_top2.sh
+L6|/home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+L1B|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only L1B_GROUPPERSONAL_V2 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+G17|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113 && bash experiments/no31_cora_original/test_top2.sh && /home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+MA|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only MA_RANK8 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+MC|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only MC_ITEMROUTE --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+G18|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113 && bash experiments/no31_cora_original/test_top2.sh && /home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+MA2|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only MA_RANK8 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+MC2|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only MC_ITEMROUTE --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+G19|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113 && bash experiments/no31_cora_original/test_top2.sh && /home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+MC3|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only MC_ITEMROUTE --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+G20|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113 && bash experiments/no31_cora_original/test_top2.sh && /home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+P1|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP11_FINE_B03 --split valid
+P2|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP15_FINE_T05 --split valid
+P3|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP27_B07_P50 --split valid
+P4|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial MC_ITEMROUTE --split valid
+P5|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP11_FINE_B03 --split test
+P6|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP15_FINE_T05 --split test
+P7|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP27_B07_P50 --split test
+P8|/home/bbx/anaconda3/envs/minigpt4/bin/python cora_ensemble_pool.py
+P1b|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP11_FINE_B03 --split valid
+P2b|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP15_FINE_T05 --split valid
+P3b|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial HP27_B07_P50 --split valid
+L2C1|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial L2_DUALGATE --split test
+L2C2|CUDA_VISIBLE_DEVICES=0 /home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hp_capture_logits.py --run --trial L2_DUALGATE --split valid
+P8b|/home/bbx/anaconda3/envs/minigpt4/bin/python cora_ensemble_pool.py
+G21|df -h / && /home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run
+L7|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only L3_USERBETA --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+L8|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --run --only L5_DUALGATE_T05 --protocol CORA_HIER_FULLSTACK_20261113 --patience 10
+G22|/home/bbx/anaconda3/envs/minigpt4/bin/python -u experiments/no31_cora_original/cora_hier_fullstack.py --summary --protocol CORA_HIER_FULLSTACK_20261113 && bash experiments/no31_cora_original/test_top2.sh && /home/bbx/anaconda3/envs/minigpt4/bin/python experiments/no31_cora_original/clean_ckpts_by_metric.py --run

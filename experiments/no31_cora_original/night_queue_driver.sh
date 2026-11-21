@@ -45,6 +45,25 @@ while true; do
   if [ -z "$next" ]; then sleep 180; continue; fi
   tag="${next%%|*}"
   cmd="${next#*|}"
+  # GPU-heavy entries wait for an idle GPU (trainings race if two run).
+  case "$cmd" in
+    *"--run "*)
+      for i in $(seq 1 720); do
+        used=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
+        if [ "$used" -lt 2000 ]; then
+          # Sustained check: the other user's job oscillates GPU memory;
+          # require two idle readings 30s apart before committing.
+          sleep 30
+          used2=$(nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits | head -1)
+          if [ "$used2" -lt 2000 ]; then break; fi
+        fi
+        if [ "$i" = 1 ]; then
+          echo "[$(date +%F_%T)] WAIT $tag: GPU busy (${used}MiB); polling" >> "$STATUS"
+        fi
+        sleep 60
+      done
+      ;;
+  esac
   echo "[$(date +%F_%T)] START $tag :: $cmd" >> "$STATUS"
   if bash -c "$cmd" >> "$DRIVER_LOG" 2>&1; then
     echo "[$(date +%F_%T)] DONE $tag" >> "$STATUS"

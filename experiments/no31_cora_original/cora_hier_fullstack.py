@@ -47,6 +47,7 @@ if str(HERE) not in sys.path:
 
 import cora_collab_moe6 as moe
 import cora_route_factorial6 as fac
+import cora_residual_routing6 as r6mod
 
 DEFAULT_PROTOCOL = "CORA_HIER_FULLSTACK_20261113"
 SEED = 42
@@ -112,6 +113,61 @@ TRIALS = [
          route="hier_personal", route_lambda=0.2,
          route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.6,
          mode="neighbor_mix", personal_share=0.25),
+    dict(name="HP24_B07_T05", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.5, personal_target=0.40, route_fine=True, beta=0.7,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="HP25_B03_T05", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.5, personal_target=0.40, route_fine=True, beta=0.3,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="HP26_B07_P30", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.30, route_fine=True, beta=0.7,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="HP27_B07_P50", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.50, route_fine=True, beta=0.7,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="HP28_B07_L035", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.35,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="L1_GROUPPERSONAL", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         route_variant="group_personal",
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="L2_DUALGATE", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         logit_gate=True,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="L1B_GROUPPERSONAL_V2", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         route_variant="group_personal",
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="MA_RANK8", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         k1=2, rank_alloc=[8, 4, 4],
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="MC_ITEMROUTE", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         item_route=True,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="L3_USERBETA", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.25, personal_target=0.40, route_fine=True, beta=0.7,
+         user_beta=True,
+         mode="neighbor_mix", personal_share=0.25),
+    dict(name="L5_DUALGATE_T05", expert_mode="hier_personal",
+         route="hier_personal", route_lambda=0.2,
+         route_temp=0.5, personal_target=0.40, route_fine=True, beta=0.7,
+         logit_gate=True,
+         mode="neighbor_mix", personal_share=0.25),
 ]
 ORDER = [t["name"] for t in TRIALS]
 TRIAL_BY_NAME = {t["name"]: t for t in TRIALS}
@@ -146,14 +202,14 @@ def _spherical_kmeans(x, k, seed, iterations=15):
     return centers, labels
 
 
-def hierarchical_centers(user_table, uid_lo=1):
+def hierarchical_centers(user_table, uid_lo=1, k1=K1):
     rows = user_table[uid_lo:].detach().float()
     if rows.shape[0] < 256:
         raise RuntimeError("Too few user rows for hierarchical clustering")
     x = F.normalize(rows, p=2, dim=-1, eps=1e-8)
-    coarse, coarse_labels = _spherical_kmeans(x, K1, SEED + 501)
+    coarse, coarse_labels = _spherical_kmeans(x, k1, SEED + 501)
     fine_list, parents = [], []
-    for g in range(K1):
+    for g in range(k1):
         members = x[coarse_labels == g]
         if int(members.shape[0]) < K2_PER_GROUP:
             fine = members.clone()
@@ -165,7 +221,7 @@ def hierarchical_centers(user_table, uid_lo=1):
         parents.append(torch.full((int(fine.shape[0]),), g, dtype=torch.long))
     fine = torch.cat(fine_list, dim=0)
     parent = torch.cat(parents, dim=0)
-    if bool((torch.bincount(parent, minlength=K1) == 0).any()):
+    if bool((torch.bincount(parent, minlength=k1) == 0).any()):
         raise RuntimeError("Empty coarse group")
     return coarse, fine, parent
 
@@ -181,7 +237,10 @@ class HierPersonalMoE(moe.CollaborativeMoE):
                  coarse=None, fine=None, parent=None,
                  personal_logit_init=PERSONAL_INIT_LOGIT,
                  route_temp=None, route_fine=False, beta=COARSE_BETA,
-                 hybrid_residual=False):
+                 hybrid_residual=False, route_variant="shared",
+                 rank_alloc=None, item_route=False, user_beta=False):
+        self._trial_user_beta = bool(user_beta)
+        trial_flag_user_beta = bool(user_beta)
         if mode != "hier_personal":
             super().__init__(mode, dim, labels=labels, centers=centers)
             return
@@ -195,14 +254,59 @@ class HierPersonalMoE(moe.CollaborativeMoE):
         self._grad_nonfinite = set()
         if coarse is None or fine is None or parent is None:
             raise RuntimeError("hier_personal requires precomputed centers")
-        if int(coarse.shape[0]) != K1 or int(fine.shape[0]) != K1 * K2_PER_GROUP:
+        self.k1 = int(coarse.shape[0])
+        if rank_alloc is None:
+            if self.k1 + 1 == 4:
+                self.rank_alloc = [4, 4, 4, 4]
+            else:
+                raise RuntimeError(
+                    "rank_alloc required when k1+1 != 4 "
+                    f"(got k1={self.k1})")
+        else:
+            self.rank_alloc = list(rank_alloc)
+        if sum(self.rank_alloc) != RANK or len(self.rank_alloc) != self.k1 + 1:
+            raise RuntimeError(
+                f"rank_alloc {self.rank_alloc} must sum to {RANK} with "
+                f"k1+1={self.k1 + 1} entries (last entry = personal expert)")
+        self.item_route = bool(item_route)
+        if int(fine.shape[0]) != self.k1 * K2_PER_GROUP:
             raise RuntimeError("Cluster geometry mismatch")
         self.register_buffer("coarse_centers", coarse.detach().clone().float())
         self.register_buffer("fine_centers", fine.detach().clone().float())
         self.register_buffer("fine_parent", parent.detach().clone())
         # Adaptive init: match typical coarse-cosine logit scale so the
         # personal expert starts at ~40% share instead of being swamped.
-        self.personal_logit = nn.Parameter(torch.tensor(float(personal_logit_init)))
+        self.route_variant = str(route_variant)
+        if self.route_variant not in ("shared", "group_personal"):
+            raise ValueError(f"Unknown route_variant: {self.route_variant}")
+        # Adaptive init: match typical coarse-cosine logit scale so the
+        # personal expert starts at ~40% share instead of being swamped.
+        if self.route_variant == "group_personal":
+            # One personal logit per LAYER GROUP (4): late groups may lean
+            # personal harder than early ones (L30/L31 evidence).
+            self.personal_logit = nn.Parameter(
+                torch.full((4,), float(personal_logit_init)))
+        else:
+            self.personal_logit = nn.Parameter(torch.tensor(float(personal_logit_init)))
+        self.user_beta_head = None
+        if trial_flag_user_beta:
+            # Per-user coarse/fine mixing: beta(u) = sigmoid(b0 + w.u) with
+            # zero-init w -> every user starts exactly at the fixed beta.
+            self.user_beta_head = nn.Linear(self.dim, 1)
+            nn.init.zeros_(self.user_beta_head.weight)
+            with torch.no_grad():
+                self.user_beta_head.bias.fill_(
+                    math.log(self.beta / (1.0 - self.beta)))
+        self.item_route_head = None
+        if self.item_route:
+            self.item_route_head = nn.Linear(3 * self.dim, 1)
+            nn.init.zeros_(self.item_route_head.weight)
+            with torch.no_grad():
+                self.item_route_head.bias.fill_(float(personal_logit_init))
+            # item_route_head replaces the static personal_logit in the
+            # forward; freezing it keeps the router-gradient audit honest
+            # (only parameters that actually receive gradients train).
+            self.personal_logit.requires_grad_(False)
         self.hybrid_residual = bool(hybrid_residual)
         if self.hybrid_residual:
             # Zero-init learnable residual on top of the cluster-cosine
@@ -227,34 +331,90 @@ class HierPersonalMoE(moe.CollaborativeMoE):
         batch = user.shape[0]
         if self.route_fine:
             cos2 = user @ self.fine_centers.T
+            if self.user_beta_head is not None:
+                beta_u = torch.sigmoid(self.user_beta_head(user))  # [B,1]
+            else:
+                beta_u = None
             vecs = []
             for g in range(int(self.coarse_centers.shape[0])):
                 member = (self.fine_parent == g).float()
                 s2 = F.softmax(cos2 / FINE_TEMP + (member - 1.0) * 1e4, dim=-1)
                 v_fine = s2 @ self.fine_centers
-                v_g = self.beta * self.coarse_centers[g].unsqueeze(0) + \
-                    (1.0 - self.beta) * v_fine
+                b_g = self.beta if beta_u is None else beta_u
+                v_g = b_g * self.coarse_centers[g].unsqueeze(0) + \
+                    (1.0 - b_g) * v_fine
                 vecs.append(F.normalize(v_g, p=2, dim=-1, eps=1e-8))
             V = torch.stack(vecs, dim=1)
             cos1 = (user.unsqueeze(1) * V).sum(dim=-1)
         else:
             cos1 = user @ self.coarse_centers.T
-        logits = torch.cat((cos1 / self.route_temp,
-                            self.personal_logit.expand(batch, 1)), dim=-1)
-        if self.hybrid_residual:
-            logits = logits + self.route_residual(user)
-        probs = torch.softmax(logits.float(), dim=-1)
-        if tuple(probs.shape) != (batch, EXPERTS):
-            raise RuntimeError("Router must produce [B,4] probabilities")
-        probs4 = probs.unsqueeze(1).expand(-1, 4, -1)
-        masks = 1.0 + moe.RESIDUAL_LAMBDA * (EXPERTS * probs4 - 1.0)
+        item = None
+        if self.item_route:
+            item_table = rec.item_embedding.weight
+            iids_f = item_ids.long().to(item_table.device).reshape(-1)
+            if bool((iids_f < 0).any()) or                     bool((iids_f >= item_table.shape[0]).any()):
+                raise RuntimeError("Item ID outside MF embedding table")
+            i_n = F.normalize(item_table.index_select(0, iids_f).detach().float(),
+                              p=2, dim=-1, eps=1e-8)
+            item = i_n
+        if self.route_variant == "group_personal":
+            pl = self.personal_logit.unsqueeze(0).expand(batch, -1)  # [B,4]
+            group_logits = torch.cat(
+                ((cos1 / self.route_temp).unsqueeze(-1)
+                 if cos1.dim() == 3 else
+                 torch.stack([cos1 / self.route_temp] * 4, dim=1),
+                 pl.unsqueeze(-1)), dim=-1)                      # [B,4,4]
+            if self.hybrid_residual:
+                group_logits = group_logits + self.route_residual(user)
+            probs = torch.softmax(group_logits.float(), dim=-1)  # [B,4,4]
+        else:
+            if self.item_route:
+                u_raw = user  # normalized user [B, D]
+                feat = torch.cat((u_raw, item, u_raw * item), dim=-1)
+                pl = self.item_route_head(feat)                    # [B,1]
+            else:
+                pl = self.personal_logit.expand(batch, 1)
+            logits = torch.cat((cos1 / self.route_temp, pl), dim=-1)
+            if self.hybrid_residual:
+                logits = logits + self.route_residual(user)
+            probs = torch.softmax(logits.float(), dim=-1)
+        n_exp = self.k1 + 1
+        if self.route_variant == "group_personal":
+            if tuple(probs.shape) != (batch, 4, n_exp):
+                raise RuntimeError("group_personal router must produce [B,4,4]")
+            probs4 = probs
+        else:
+            if tuple(probs.shape) != (batch, n_exp):
+                raise RuntimeError("Router must produce [B,n_exp] probabilities")
+            probs4 = probs.unsqueeze(1).expand(-1, 4, -1)
+        masks = 1.0 + moe.RESIDUAL_LAMBDA * (n_exp * probs4 - 1.0)
         if not bool(torch.isfinite(masks).all()):
             raise FloatingPointError("Nonfinite soft expert masks")
-        route_average = probs.mean(dim=0)
-        balance = moe.BALANCE_WEIGHT * (route_average - 1.0 / EXPERTS).square().sum()
-        rank_masks = [
-            masks[:, idx, :].repeat_interleave(RANK_PER, dim=-1) for idx in range(4)
-        ]
+        route_average = (probs4.mean(dim=0) if self.route_variant == "group_personal"
+                         else probs.mean(dim=0))
+        balance = moe.BALANCE_WEIGHT * (route_average - 1.0 / n_exp).square().sum()
+        if len(self.rank_alloc) == 4 and all(a == 4 for a in self.rank_alloc):
+            rank_masks = [
+                masks[:, idx, :].repeat_interleave(RANK_PER, dim=-1)
+                for idx in range(4)
+            ]
+        else:
+            # Unequal rank allocation, e.g. [8,4,4]: personal expert (last
+            # router column, order[k1]) owns the FIRST alloc[0] channels,
+            # then group experts in order.
+            order = [self.k1] + list(range(self.k1))
+
+            def channel_masks_for(pp):
+                cp = torch.cat(
+                    [pp[:, order[e]].unsqueeze(1).expand(-1, a)
+                     for e, a in enumerate(self.rank_alloc)], dim=-1)
+                return 1.0 + moe.RESIDUAL_LAMBDA * (n_exp * cp - 1.0)
+
+            if self.route_variant == "group_personal":
+                rank_masks = [channel_masks_for(probs4[:, g, :]) for g in range(4)]
+            else:
+                cm = channel_masks_for(probs)
+                rank_masks = [cm for _ in range(4)]
         stats = {"expert_counts": [[batch] * EXPERTS for _ in range(4)],
                  "cold_users_in_batch": 0, "empty_histories": 0}
         return rank_masks, balance, stats, probs4.detach()
@@ -294,8 +454,10 @@ def install_hier_model(trial):
         beta = float(trial.get("beta", COARSE_BETA))
         with torch.random.fork_rng(devices=[]):
             torch.manual_seed(SEED + 104)
+            k1 = int(trial.get("k1", K1))
+            rank_alloc = trial.get("rank_alloc")
             table_cpu = rec.user_embedding.weight.detach().cpu()
-            coarse, fine, parent = hierarchical_centers(table_cpu)
+            coarse, fine, parent = hierarchical_centers(table_cpu, k1=k1)
             user_n = F.normalize(table_cpu[1:], p=2, dim=-1, eps=1e-8)
             if route_fine:
                 # z over blended per-group vectors (approximate scale check)
@@ -311,10 +473,17 @@ def install_hier_model(trial):
                 "hier_personal", user_dim, coarse=coarse, fine=fine,
                 parent=parent, personal_logit_init=pl_init,
                 route_temp=route_temp, route_fine=route_fine, beta=beta,
-                hybrid_residual=bool(trial.get("hybrid_residual", False)))
+                hybrid_residual=bool(trial.get("hybrid_residual", False)),
+                route_variant=str(trial.get("route_variant", "shared")),
+                rank_alloc=rank_alloc,
+                item_route=bool(trial.get("item_route", False)),
+                user_beta=bool(trial.get("user_beta", False)))
         n = sum(p.numel() for p in gen.rank4_experts.parameters() if p.requires_grad)
         print(f"[HIER INIT] {trial['name']} mode={mode} lambda={moe.RESIDUAL_LAMBDA} "
-              f"K1={K1} K2={K2_PER_GROUP} T={route_temp} "
+              f"K1={k1} K2={K2_PER_GROUP} T={route_temp} "
+              f"alloc={trial.get('rank_alloc')} "
+              f"item_route={trial.get('item_route', False)} "
+              f"variant={trial.get('route_variant', 'shared')} "
               f"ps={personal_target} fine={route_fine} beta={beta} "
               f"pl_init={pl_init:.3f} router_trainable={n}",
               flush=True)
@@ -341,10 +510,11 @@ def install_hier_model(trial):
             # inherited loss audit requires it at step 1/100.
             p = probs.detach().float().cpu()
             n = int(p.shape[0])
+            n_exp_stats = int(p.shape[-1])
             if not hasattr(self, "_moe_stats_window"):
                 self._moe_stats_window = {
-                    "sum": torch.zeros(4, EXPERTS),
-                    "sumsq": torch.zeros(4, EXPERTS),
+                    "sum": torch.zeros(4, n_exp_stats),
+                    "sumsq": torch.zeros(4, n_exp_stats),
                     "entropy": 0.0,
                     "batch_samples": 0,
                     "empty_hist": 0,
@@ -400,13 +570,29 @@ def install_hier_model(trial):
 
 def install_model(trial):
     lam = float(trial["route_lambda"])
-    if lam not in (0.2, 1.0):
+    if lam not in (0.2, 0.35, 1.0):
         raise RuntimeError(f"Unapproved lambda: {lam}")
     moe.RESIDUAL_LAMBDA = lam
     fac._install_grad_norm_hooks()
     install_hier_model(trial)
-    print(f"[HIER MODEL] {trial['name']} lambda={lam} rank=16=4x4 "
-          "D4/C6 unchanged", flush=True)
+    if trial.get("logit_gate"):
+        # L2_DUALGATE: stack the proven RR5 logit-space user gate
+        # (s = z32 + sigmoid(g(u))*(z31-z32)) on top of the expert-mask
+        # routing. The fusion module is created at model init (inside this
+        # call chain) so its parameters exist before optimizer construction.
+        from minigpt4.models.minigpt4rec_vx import MiniGPT4Rec_vx
+        if getattr(MiniGPT4Rec_vx, "_r6_init_patched", False) or \
+                getattr(MiniGPT4Rec_vx, "_r6_forward_patched", False):
+            raise RuntimeError("R6 fusion already installed in this worker")
+        r6_trial = dict(name=trial["name"], kind="user_gate")
+        r6mod.install_trial_module(r6_trial)
+        r6mod.install_optimizer_audit(r6_trial)
+        r6mod.install_trial_forward(r6_trial)
+        print(f"[HIER MODEL] {trial['name']} lambda={lam} rank=16=4x4 + "
+              "LOGIT user_gate (dual-gate); D4/C6 unchanged", flush=True)
+    else:
+        print(f"[HIER MODEL] {trial['name']} lambda={lam} rank=16=4x4 "
+              "D4/C6 unchanged", flush=True)
 
 
 def configure(protocol):
